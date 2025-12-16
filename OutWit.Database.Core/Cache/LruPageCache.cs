@@ -6,7 +6,11 @@ namespace OutWit.Database.Core.Cache;
 /// LRU (Least Recently Used) page cache for buffering frequently accessed pages.
 /// Reduces disk I/O by keeping hot pages in memory.
 /// </summary>
-public sealed class PageCache : IDisposable
+/// <remarks>
+/// Simple LRU implementation - good for general workloads with low concurrency.
+/// For high-concurrency scenarios, consider using <see cref="ShardedClockCache"/>.
+/// </remarks>
+public sealed class LruPageCache : IPageCache
 {
     #region Fields
 
@@ -27,11 +31,11 @@ public sealed class PageCache : IDisposable
     #region Constructors
 
     /// <summary>
-    /// Creates a new page cache with the specified maximum size.
+    /// Creates a new LRU page cache with the specified maximum size.
     /// </summary>
     /// <param name="storage">Underlying storage</param>
     /// <param name="maxPages">Maximum number of pages to cache</param>
-    public PageCache(IStorage storage, int maxPages = DatabaseConstants.DEFAULT_CACHE_SIZE)
+    public LruPageCache(IStorage storage, int maxPages = DatabaseConstants.DEFAULT_CACHE_SIZE)
     {
         ArgumentNullException.ThrowIfNull(storage);
 
@@ -48,12 +52,7 @@ public sealed class PageCache : IDisposable
 
     #region Functions
 
-    /// <summary>
-    /// Gets a page from the cache, loading from storage if necessary.
-    /// The page is moved to the front of the LRU list.
-    /// </summary>
-    /// <param name="pageNumber">Page number to retrieve</param>
-    /// <returns>The cached page</returns>
+    /// <inheritdoc/>
     public CachedPage GetPage(long pageNumber)
     {
         lock (m_lock)
@@ -74,11 +73,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Creates a new page in the cache (for newly allocated pages).
-    /// </summary>
-    /// <param name="pageNumber">Page number for the new page</param>
-    /// <returns>The new cached page</returns>
+    /// <inheritdoc/>
     public CachedPage CreatePage(long pageNumber)
     {
         lock (m_lock)
@@ -91,9 +86,9 @@ public sealed class PageCache : IDisposable
             EnsureCapacity();
 
             var page = new CachedPage(pageNumber, m_storage.PageSize);
-            page.Data.Clear(); // Initialize to zeros
-            page.MarkDirty(); // New pages are dirty
-            page.ReferenceCount = 1; // Caller holds a reference
+            page.Data.Clear();
+            page.MarkDirty();
+            page.ReferenceCount = 1;
 
             var node = m_lruList.AddFirst(page);
             m_cache[pageNumber] = node;
@@ -102,9 +97,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Marks a page as dirty (modified).
-    /// </summary>
+    /// <inheritdoc/>
     public void MarkDirty(long pageNumber)
     {
         lock (m_lock)
@@ -118,10 +111,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Releases a reference to a page. When reference count reaches zero,
-    /// the page becomes eligible for eviction.
-    /// </summary>
+    /// <inheritdoc/>
     public void ReleasePage(long pageNumber)
     {
         lock (m_lock)
@@ -133,9 +123,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Flushes all dirty pages to storage.
-    /// </summary>
+    /// <inheritdoc/>
     public void FlushAll()
     {
         lock (m_lock)
@@ -145,12 +133,9 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Flushes all dirty pages to storage asynchronously.
-    /// </summary>
+    /// <inheritdoc/>
     public async ValueTask FlushAllAsync(CancellationToken cancellationToken = default)
     {
-        // Collect pages to flush while holding lock, increment reference to prevent eviction
         List<CachedPage> dirtyPages;
         
         lock (m_lock)
@@ -158,7 +143,6 @@ public sealed class PageCache : IDisposable
             ThrowIfDisposed();
             dirtyPages = m_lruList.Where(p => p.IsDirty).ToList();
             
-            // Pin all dirty pages to prevent eviction during async operation
             foreach (var page in dirtyPages)
             {
                 page.ReferenceCount++;
@@ -171,7 +155,6 @@ public sealed class PageCache : IDisposable
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 
-                // Check if page is still valid (not disposed)
                 if (!page.IsDisposed)
                 {
                     await m_storage.WritePageAsync(page.PageNumber, page.Memory, cancellationToken).ConfigureAwait(false);
@@ -183,7 +166,6 @@ public sealed class PageCache : IDisposable
         }
         finally
         {
-            // Release the references we acquired
             lock (m_lock)
             {
                 foreach (var page in dirtyPages)
@@ -197,69 +179,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Flushes a specific dirty page to storage.
-    /// </summary>
-    public void FlushPage(long pageNumber)
-    {
-        lock (m_lock)
-        {
-            ThrowIfDisposed();
-
-            if (m_cache.TryGetValue(pageNumber, out var node) && node.Value.IsDirty)
-            {
-                m_storage.WritePage(node.Value.PageNumber, node.Value.ReadOnlyData);
-                node.Value.ClearDirty();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Flushes a specific dirty page to storage asynchronously.
-    /// </summary>
-    public async ValueTask FlushPageAsync(long pageNumber, CancellationToken cancellationToken = default)
-    {
-        CachedPage? pageToFlush = null;
-        
-        lock (m_lock)
-        {
-            ThrowIfDisposed();
-
-            if (m_cache.TryGetValue(pageNumber, out var node) && node.Value.IsDirty)
-            {
-                pageToFlush = node.Value;
-                // Pin the page to prevent eviction during async operation
-                pageToFlush.ReferenceCount++;
-            }
-        }
-
-        if (pageToFlush == null)
-            return;
-
-        try
-        {
-            if (!pageToFlush.IsDisposed)
-            {
-                await m_storage.WritePageAsync(pageToFlush.PageNumber, pageToFlush.Memory, cancellationToken).ConfigureAwait(false);
-                pageToFlush.ClearDirty();
-            }
-        }
-        finally
-        {
-            // Release the reference we acquired
-            lock (m_lock)
-            {
-                if (m_cache.ContainsKey(pageNumber))
-                {
-                    pageToFlush.ReferenceCount = Math.Max(0, pageToFlush.ReferenceCount - 1);
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Evicts a specific page from the cache (flushing if dirty).
-    /// </summary>
+    /// <inheritdoc/>
     public void Evict(long pageNumber)
     {
         lock (m_lock)
@@ -276,9 +196,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Clears all pages from the cache, flushing dirty pages first.
-    /// </summary>
+    /// <inheritdoc/>
     public void Clear()
     {
         lock (m_lock)
@@ -313,7 +231,7 @@ public sealed class PageCache : IDisposable
 
         var page = new CachedPage(pageNumber, m_storage.PageSize);
         m_storage.ReadPage(pageNumber, page.Data);
-        page.ReferenceCount = 1; // Caller holds a reference
+        page.ReferenceCount = 1;
 
         var node = m_lruList.AddFirst(page);
         m_cache[pageNumber] = node;
@@ -325,7 +243,6 @@ public sealed class PageCache : IDisposable
     {
         while (m_cache.Count >= m_maxPages)
         {
-            // Find LRU page that is not pinned (reference count = 0)
             var nodeToEvict = m_lruList.Last;
 
             while (nodeToEvict != null && nodeToEvict.Value.ReferenceCount > 0)
@@ -383,9 +300,7 @@ public sealed class PageCache : IDisposable
 
     #region Properties
 
-    /// <summary>
-    /// Gets the current number of cached pages.
-    /// </summary>
+    /// <inheritdoc/>
     public int Count
     {
         get
@@ -397,9 +312,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    /// <summary>
-    /// Gets the number of dirty pages in the cache.
-    /// </summary>
+    /// <inheritdoc/>
     public int DirtyCount
     {
         get
@@ -412,4 +325,62 @@ public sealed class PageCache : IDisposable
     }
 
     #endregion
+
+    /// <summary>
+    /// Flushes a specific dirty page to storage.
+    /// </summary>
+    public void FlushPage(long pageNumber)
+    {
+        lock (m_lock)
+        {
+            ThrowIfDisposed();
+
+            if (m_cache.TryGetValue(pageNumber, out var node) && node.Value.IsDirty)
+            {
+                m_storage.WritePage(node.Value.PageNumber, node.Value.ReadOnlyData);
+                node.Value.ClearDirty();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flushes a specific dirty page to storage asynchronously.
+    /// </summary>
+    public async ValueTask FlushPageAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        CachedPage? pageToFlush = null;
+        
+        lock (m_lock)
+        {
+            ThrowIfDisposed();
+
+            if (m_cache.TryGetValue(pageNumber, out var node) && node.Value.IsDirty)
+            {
+                pageToFlush = node.Value;
+                pageToFlush.ReferenceCount++;
+            }
+        }
+
+        if (pageToFlush == null)
+            return;
+
+        try
+        {
+            if (!pageToFlush.IsDisposed)
+            {
+                await m_storage.WritePageAsync(pageToFlush.PageNumber, pageToFlush.Memory, cancellationToken).ConfigureAwait(false);
+                pageToFlush.ClearDirty();
+            }
+        }
+        finally
+        {
+            lock (m_lock)
+            {
+                if (m_cache.ContainsKey(pageNumber))
+                {
+                    pageToFlush.ReferenceCount = Math.Max(0, pageToFlush.ReferenceCount - 1);
+                }
+            }
+        }
+    }
 }

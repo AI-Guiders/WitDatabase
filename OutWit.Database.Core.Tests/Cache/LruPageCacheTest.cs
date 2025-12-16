@@ -4,28 +4,28 @@ using OutWit.Database.Core.Storage;
 namespace OutWit.Database.Core.Tests.Cache;
 
 [TestFixture]
-public class PageCacheTest
+public class LruPageCacheTest
 {
     #region Constructor Tests
 
     [Test]
     public void ConstructorNullStorageThrowsTest()
     {
-        Assert.Throws<ArgumentNullException>(() => new PageCache(null!));
+        Assert.Throws<ArgumentNullException>(() => new LruPageCache(null!));
     }
 
     [Test]
     public void ConstructorZeroMaxPagesThrowsTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new PageCache(storage, maxPages: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new LruPageCache(storage, maxPages: 0));
     }
 
     [Test]
     public void ConstructorNegativeMaxPagesThrowsTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new PageCache(storage, maxPages: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new LruPageCache(storage, maxPages: -1));
     }
 
     #endregion
@@ -42,7 +42,7 @@ public class PageCacheTest
         Array.Fill(data, (byte)0x42);
         storage.WritePage(2, data);
         
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(2);
         
@@ -54,7 +54,7 @@ public class PageCacheTest
     public void GetPageReturnsCachedPageTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page1 = cache.GetPage(0);
         page1.Data[0] = 0xAB;
@@ -71,7 +71,7 @@ public class PageCacheTest
     public void GetPageIncrementsReferenceCountTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page1 = cache.GetPage(0);
         cache.ReleasePage(0);
@@ -92,7 +92,7 @@ public class PageCacheTest
     public void CreatePageNewPageTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         storage.SetSize(10);
         var page = cache.CreatePage(7);
@@ -106,7 +106,7 @@ public class PageCacheTest
     public void CreatePageDuplicateThrowsTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         _ = cache.GetPage(0);
         
@@ -117,7 +117,7 @@ public class PageCacheTest
     public void CreatePageInitializesToZerosTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         storage.SetSize(10);
         var page = cache.CreatePage(7);
@@ -137,7 +137,7 @@ public class PageCacheTest
     public void MarkDirtyTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         Assert.That(page.IsDirty, Is.False);
@@ -151,7 +151,7 @@ public class PageCacheTest
     public void MarkDirtyNonExistentPageDoesNothingTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         // Should not throw
         cache.MarkDirty(999);
@@ -167,7 +167,7 @@ public class PageCacheTest
     public void ReleasePageDecrementsReferenceCountTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         _ = cache.GetPage(0);
         cache.ReleasePage(0);
@@ -182,7 +182,7 @@ public class PageCacheTest
     public void ReleasePageNonExistentPageDoesNothingTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         // Should not throw
         cache.ReleasePage(999);
@@ -192,7 +192,7 @@ public class PageCacheTest
     public void ReleasePageMultipleTimesDoesNotGoNegativeTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         _ = cache.GetPage(0);
         
@@ -214,7 +214,7 @@ public class PageCacheTest
     public void FlushAllWritesDirtyPagesTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.Data[0] = 0xCD;
@@ -234,7 +234,7 @@ public class PageCacheTest
     public void FlushAllEmptyCacheDoesNotThrowTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         cache.FlushAll();
         
@@ -245,7 +245,7 @@ public class PageCacheTest
     public async Task FlushAllAsyncWritesDirtyPagesTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.Data[0] = 0xEE;
@@ -264,7 +264,7 @@ public class PageCacheTest
     public async Task FlushAllAsyncMultipleDirtyPagesTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page0 = cache.GetPage(0);
         page0.Data[0] = 0x11;
@@ -289,7 +289,7 @@ public class PageCacheTest
     public void FlushAllAsyncCancellationTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.MarkDirty();
@@ -309,7 +309,7 @@ public class PageCacheTest
     public void FlushPageWritesSinglePageTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page0 = cache.GetPage(0);
         page0.Data[0] = 0xAA;
@@ -331,7 +331,7 @@ public class PageCacheTest
     public void FlushPageNonExistentPageDoesNothingTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         // Should not throw
         cache.FlushPage(999);
@@ -341,7 +341,7 @@ public class PageCacheTest
     public void FlushPageCleanPageDoesNothingTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         _ = cache.GetPage(0);
         
@@ -353,7 +353,7 @@ public class PageCacheTest
     public async Task FlushPageAsyncWritesSinglePageTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.Data[0] = 0xCC;
@@ -372,7 +372,7 @@ public class PageCacheTest
     public async Task FlushPageAsyncNonExistentPageDoesNothingTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         // Should not throw
         await cache.FlushPageAsync(999);
@@ -386,7 +386,7 @@ public class PageCacheTest
     public void EvictFlushesAndRemovesTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.Data[0] = 0xEF;
@@ -409,7 +409,7 @@ public class PageCacheTest
     public void EvictPinnedPageThrowsTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         _ = cache.GetPage(0); // Page is pinned (ReferenceCount = 1)
         
@@ -420,7 +420,7 @@ public class PageCacheTest
     public void EvictNonExistentPageDoesNothingTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         // Should not throw
         cache.Evict(999);
@@ -434,7 +434,7 @@ public class PageCacheTest
     public void LruEvictionTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new PageCache(storage, maxPages: 3);
+        using var cache = new LruPageCache(storage, maxPages: 3);
         
         // Load 3 pages
         cache.GetPage(0);
@@ -463,7 +463,7 @@ public class PageCacheTest
     public void PinnedPageNotEvictedTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new PageCache(storage, maxPages: 2);
+        using var cache = new LruPageCache(storage, maxPages: 2);
         
         // Get two pages and keep both pinned (don't release)
         _ = cache.GetPage(0);
@@ -477,7 +477,7 @@ public class PageCacheTest
     public void LruEvictsOldestUnpinnedPageTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new PageCache(storage, maxPages: 3);
+        using var cache = new LruPageCache(storage, maxPages: 3);
         
         // Load pages 0, 1, 2
         _ = cache.GetPage(0); // Keep pinned
@@ -508,7 +508,7 @@ public class PageCacheTest
     public void ClearFlushesAndDisposesTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.Data[0] = 0x11;
@@ -530,7 +530,7 @@ public class PageCacheTest
     public void ClearEmptyCacheDoesNotThrowTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         cache.Clear();
         
@@ -548,7 +548,7 @@ public class PageCacheTest
         
         // Scope the cache
         {
-            using var cache = new PageCache(storage, maxPages: 10);
+            using var cache = new LruPageCache(storage, maxPages: 10);
             var page = cache.GetPage(0);
             page.Data[0] = 0x22;
             page.MarkDirty();
@@ -564,7 +564,7 @@ public class PageCacheTest
     public void DisposeMultipleTimesDoesNotThrowTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        var cache = new PageCache(storage, maxPages: 10);
+        var cache = new LruPageCache(storage, maxPages: 10);
         
         cache.Dispose();
         cache.Dispose(); // Should not throw
@@ -574,7 +574,7 @@ public class PageCacheTest
     public void OperationsAfterDisposeThrowTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        var cache = new PageCache(storage, maxPages: 10);
+        var cache = new LruPageCache(storage, maxPages: 10);
         cache.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => cache.GetPage(0));
@@ -594,7 +594,7 @@ public class PageCacheTest
     public void DirtyCountReflectsStateTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 5);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         Assert.That(cache.DirtyCount, Is.EqualTo(0));
         
@@ -623,7 +623,7 @@ public class PageCacheTest
     public void ConcurrentGetPageTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 100);
-        using var cache = new PageCache(storage, maxPages: 50);
+        using var cache = new LruPageCache(storage, maxPages: 50);
         
         const int threadCount = 10;
         const int operationsPerThread = 100;
@@ -666,7 +666,7 @@ public class PageCacheTest
     public void ConcurrentReadWriteTest()
     {
         using var storage = new MemoryStorage(initialPageCount: 20);
-        using var cache = new PageCache(storage, maxPages: 10);
+        using var cache = new LruPageCache(storage, maxPages: 10);
         
         const int threadCount = 5;
         const int operationsPerThread = 50;

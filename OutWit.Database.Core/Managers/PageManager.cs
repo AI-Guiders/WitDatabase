@@ -2,7 +2,6 @@ using System.Buffers;
 using OutWit.Database.Core.Cache;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.Pages;
-using OutWit.Database.Core.Storage;
 
 namespace OutWit.Database.Core.Managers;
 
@@ -16,7 +15,7 @@ public sealed class PageManager : IDisposable
 
     private readonly IStorage m_storage;
 
-    private readonly PageCache m_cache;
+    private readonly IPageCache m_cache;
 
     private readonly Lock m_lock = new();
 
@@ -33,19 +32,19 @@ public sealed class PageManager : IDisposable
     #region Constructors
 
     /// <summary>
-    /// Creates a new PageManager for an existing or new database.
+    /// Creates a new PageManager with a custom page cache implementation.
     /// </summary>
     /// <param name="storage">Underlying storage</param>
-    /// <param name="cacheSize">Number of pages to cache</param>
-    public PageManager(IStorage storage, int cacheSize = DatabaseConstants.DEFAULT_CACHE_SIZE)
+    /// <param name="cache">Page cache implementation</param>
+    public PageManager(IStorage storage, IPageCache cache)
     {
         ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(cache);
 
         m_storage = storage;
-        m_cache = new PageCache(storage, cacheSize);
+        m_cache = cache;
         m_headerBuffer = new byte[storage.PageSize];
 
-        // Read or initialize the database header
         if (m_storage.PageCount == 0 || IsNewDatabase())
         {
             InitializeNewDatabase();
@@ -54,6 +53,16 @@ public sealed class PageManager : IDisposable
         {
             LoadHeader();
         }
+    }
+
+    /// <summary>
+    /// Creates a new PageManager with the default ShardedClockCache.
+    /// </summary>
+    /// <param name="storage">Underlying storage</param>
+    /// <param name="cacheSize">Number of pages to cache</param>
+    public PageManager(IStorage storage, int cacheSize = DatabaseConstants.DEFAULT_CACHE_SIZE)
+        : this(storage, new ShardedClockCache(storage, cacheSize))
+    {
     }
 
     #endregion

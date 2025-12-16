@@ -31,6 +31,7 @@ public sealed class CachedPage : IDisposable
         m_rentedBuffer = ArrayPool<byte>.Shared.Rent(pageSize);
         IsDirty = false;
         ReferenceCount = 0; // Caller should increment when using
+        Referenced = false;
     }
 
     #endregion
@@ -75,7 +76,7 @@ public sealed class CachedPage : IDisposable
 
     #endregion
 
-    #region Propeties
+    #region Properties
 
     /// <summary>
     /// Page number in the database file
@@ -132,6 +133,11 @@ public sealed class CachedPage : IDisposable
     /// Reference count for tracking active users
     /// </summary>
     internal int ReferenceCount { get; set; }
+
+    /// <summary>
+    /// Referenced bit for Clock algorithm (second chance)
+    /// </summary>
+    internal bool Referenced { get; set; }
 
     #endregion
 }
