@@ -29,6 +29,7 @@ namespace OutWit.Database.Core.Encoding
         /// Encodes a signed 64-bit integer to the buffer.
         /// Returns the number of bytes written.
         /// </summary>
+        /// <exception cref="ArgumentException">Thrown if buffer is too small.</exception>
         public static int Encode(Span<byte> buffer, long value)
         {
             return EncodeUnsigned(buffer, ZigZagEncode(value));
@@ -38,8 +39,13 @@ namespace OutWit.Database.Core.Encoding
         /// Encodes an unsigned 64-bit integer to the buffer.
         /// Returns the number of bytes written.
         /// </summary>
+        /// <exception cref="ArgumentException">Thrown if buffer is too small.</exception>
         public static int EncodeUnsigned(Span<byte> buffer, ulong value)
         {
+            int requiredLength = GetEncodedLengthUnsigned(value);
+            if (buffer.Length < requiredLength)
+                throw new ArgumentException($"Buffer must be at least {requiredLength} bytes for value {value}", nameof(buffer));
+            
             int i = 0;
         
             while (value >= 0x80)
@@ -52,6 +58,32 @@ namespace OutWit.Database.Core.Encoding
             return i;
         }
 
+        /// <summary>
+        /// Tries to encode an unsigned 64-bit integer to the buffer.
+        /// Returns true if successful, false if buffer is too small.
+        /// </summary>
+        public static bool TryEncodeUnsigned(Span<byte> buffer, ulong value, out int bytesWritten)
+        {
+            int requiredLength = GetEncodedLengthUnsigned(value);
+            if (buffer.Length < requiredLength)
+            {
+                bytesWritten = 0;
+                return false;
+            }
+            
+            bytesWritten = EncodeUnsigned(buffer, value);
+            return true;
+        }
+
+        /// <summary>
+        /// Tries to encode a signed 64-bit integer to the buffer.
+        /// Returns true if successful, false if buffer is too small.
+        /// </summary>
+        public static bool TryEncode(Span<byte> buffer, long value, out int bytesWritten)
+        {
+            return TryEncodeUnsigned(buffer, ZigZagEncode(value), out bytesWritten);
+        }
+
         #endregion
 
         #region Decode
@@ -60,6 +92,7 @@ namespace OutWit.Database.Core.Encoding
         /// Decodes a signed 64-bit integer from the buffer.
         /// Returns the value and the number of bytes read.
         /// </summary>
+        /// <exception cref="InvalidDataException">Thrown if buffer contains invalid varint data.</exception>
         public static (long Value, int BytesRead) Decode(ReadOnlySpan<byte> buffer)
         {
             var (unsignedValue, bytesRead) = DecodeUnsigned(buffer);
@@ -70,8 +103,12 @@ namespace OutWit.Database.Core.Encoding
         /// Decodes an unsigned 64-bit integer from the buffer.
         /// Returns the value and the number of bytes read.
         /// </summary>
+        /// <exception cref="InvalidDataException">Thrown if buffer contains invalid varint data.</exception>
         public static (ulong Value, int BytesRead) DecodeUnsigned(ReadOnlySpan<byte> buffer)
         {
+            if (buffer.IsEmpty)
+                throw new InvalidDataException("Cannot decode varint from empty buffer");
+            
             ulong result = 0;
             int shift = 0;
             int i = 0;
@@ -89,7 +126,57 @@ namespace OutWit.Database.Core.Encoding
                 shift += 7;
             }
 
-            throw new InvalidDataException("Invalid varint: buffer ended before varint was complete");
+            throw new InvalidDataException("Invalid varint: buffer ended before varint was complete or varint is too long");
+        }
+
+        /// <summary>
+        /// Tries to decode an unsigned 64-bit integer from the buffer.
+        /// Returns true if successful, false if buffer contains invalid data.
+        /// </summary>
+        public static bool TryDecodeUnsigned(ReadOnlySpan<byte> buffer, out ulong value, out int bytesRead)
+        {
+            value = 0;
+            bytesRead = 0;
+            
+            if (buffer.IsEmpty)
+                return false;
+            
+            ulong result = 0;
+            int shift = 0;
+            int i = 0;
+
+            while (i < buffer.Length && i < MAX_LENGTH)
+            {
+                byte b = buffer[i++];
+                result |= (ulong)(b & 0x7F) << shift;
+            
+                if ((b & 0x80) == 0)
+                {
+                    value = result;
+                    bytesRead = i;
+                    return true;
+                }
+            
+                shift += 7;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Tries to decode a signed 64-bit integer from the buffer.
+        /// Returns true if successful, false if buffer contains invalid data.
+        /// </summary>
+        public static bool TryDecode(ReadOnlySpan<byte> buffer, out long value, out int bytesRead)
+        {
+            if (TryDecodeUnsigned(buffer, out ulong unsigned, out bytesRead))
+            {
+                value = ZigZagDecode(unsigned);
+                return true;
+            }
+            
+            value = 0;
+            return false;
         }
 
         #endregion

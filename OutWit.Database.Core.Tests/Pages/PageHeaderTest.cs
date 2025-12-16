@@ -32,7 +32,7 @@ namespace OutWit.Database.Core.Tests.Pages
                 Reserved = 0
             };
 
-            byte[] buffer = new byte[PageHeader.PAGE_HEDER_SIZE];
+            byte[] buffer = new byte[PageHeader.PAGE_HEADER_SIZE];
             original.WriteTo(buffer);
         
             var restored = PageHeader.ReadFrom(buffer);
@@ -48,7 +48,7 @@ namespace OutWit.Database.Core.Tests.Pages
         [Test]
         public void AllPageTypesRoundtripTest()
         {
-            byte[] buffer = new byte[PageHeader.PAGE_HEDER_SIZE];
+            byte[] buffer = new byte[PageHeader.PAGE_HEADER_SIZE];
         
             foreach (PageType pageType in Enum.GetValues<PageType>())
             {
@@ -80,7 +80,7 @@ namespace OutWit.Database.Core.Tests.Pages
         [Test]
         public void HeaderSizeIsCorrectTest()
         {
-            Assert.That(PageHeader.PAGE_HEDER_SIZE, Is.EqualTo(16));
+            Assert.That(PageHeader.PAGE_HEADER_SIZE, Is.EqualTo(16));
         }
     }
 }

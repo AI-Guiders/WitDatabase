@@ -5,6 +5,7 @@ namespace OutWit.Database.Core.Storage
     /// <summary>
     /// File system storage implementation using FileStream.
     /// Provides durable storage with support for file locking.
+    /// Thread-safe for concurrent access.
     /// </summary>
     public sealed class FileStorage : IStorage
     {
@@ -15,6 +16,8 @@ namespace OutWit.Database.Core.Storage
         private readonly int m_pageSize;
 
         private readonly bool m_isReadOnly;
+
+        private readonly Lock m_lock = new();
 
         private bool m_disposed;
 
@@ -99,13 +102,17 @@ namespace OutWit.Database.Core.Storage
             ValidateBuffer(buffer);
 
             var offset = pageNumber * m_pageSize;
-            m_stream.Seek(offset, SeekOrigin.Begin);
-
-            var bytesRead = m_stream.Read(buffer[..m_pageSize]);
-            if (bytesRead < m_pageSize)
+            
+            lock (m_lock)
             {
-                // Fill remaining with zeros if file is shorter
-                buffer[bytesRead..m_pageSize].Clear();
+                m_stream.Seek(offset, SeekOrigin.Begin);
+
+                var bytesRead = m_stream.Read(buffer[..m_pageSize]);
+                if (bytesRead < m_pageSize)
+                {
+                    // Fill remaining with zeros if file is shorter
+                    buffer[bytesRead..m_pageSize].Clear();
+                }
             }
         }
 
@@ -117,9 +124,9 @@ namespace OutWit.Database.Core.Storage
             ValidateBuffer(buffer.Span);
 
             var offset = pageNumber * m_pageSize;
-            m_stream.Seek(offset, SeekOrigin.Begin);
-
-            var bytesRead = await m_stream.ReadAsync(buffer[..m_pageSize], cancellationToken);
+            
+            // Use RandomAccess for thread-safe async I/O
+            var bytesRead = await RandomAccess.ReadAsync(m_stream.SafeFileHandle, buffer[..m_pageSize], offset, cancellationToken);
             if (bytesRead < m_pageSize)
             {
                 buffer.Span[bytesRead..m_pageSize].Clear();
@@ -139,8 +146,12 @@ namespace OutWit.Database.Core.Storage
             ValidateBuffer(buffer);
 
             var offset = pageNumber * m_pageSize;
-            m_stream.Seek(offset, SeekOrigin.Begin);
-            m_stream.Write(buffer[..m_pageSize]);
+            
+            lock (m_lock)
+            {
+                m_stream.Seek(offset, SeekOrigin.Begin);
+                m_stream.Write(buffer[..m_pageSize]);
+            }
         }
 
         /// <inheritdoc/>
@@ -152,8 +163,9 @@ namespace OutWit.Database.Core.Storage
             ValidateBuffer(buffer.Span);
 
             var offset = pageNumber * m_pageSize;
-            m_stream.Seek(offset, SeekOrigin.Begin);
-            await m_stream.WriteAsync(buffer[..m_pageSize], cancellationToken);
+            
+            // Use RandomAccess for thread-safe async I/O
+            await RandomAccess.WriteAsync(m_stream.SafeFileHandle, buffer[..m_pageSize], offset, cancellationToken);
         }
 
         #endregion
@@ -164,14 +176,27 @@ namespace OutWit.Database.Core.Storage
         public void Flush()
         {
             ThrowIfDisposed();
-            m_stream.Flush(flushToDisk: true);
+            
+            lock (m_lock)
+            {
+                m_stream.Flush(flushToDisk: true);
+            }
         }
 
         /// <inheritdoc/>
         public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
+            
+            // FlushAsync doesn't have flushToDisk parameter, so we need to use sync flush
+            // wrapped in Task.Run for true async behavior, or just call sync version
             await m_stream.FlushAsync(cancellationToken);
+            
+            // Force flush to disk - this is sync but necessary for durability
+            lock (m_lock)
+            {
+                m_stream.Flush(flushToDisk: true);
+            }
         }
 
         #endregion
@@ -225,9 +250,13 @@ namespace OutWit.Database.Core.Storage
 
             if (pageCount < 0)
                 throw new ArgumentOutOfRangeException(nameof(pageCount));
-
+            
             var newSize = pageCount * m_pageSize;
-            m_stream.SetLength(newSize);
+            
+            lock (m_lock)
+            {
+                m_stream.SetLength(newSize);
+            }
         }
 
         #endregion
@@ -239,8 +268,14 @@ namespace OutWit.Database.Core.Storage
         {
             if (!m_disposed)
             {
-                m_stream.Dispose();
-                m_disposed = true;
+                lock (m_lock)
+                {
+                    if (!m_disposed)
+                    {
+                        m_stream.Dispose();
+                        m_disposed = true;
+                    }
+                }
             }
         }
 
@@ -252,7 +287,16 @@ namespace OutWit.Database.Core.Storage
         public int PageSize => m_pageSize;
 
         /// <inheritdoc/>
-        public long PageCount => m_stream.Length / m_pageSize;
+        public long PageCount
+        {
+            get
+            {
+                lock (m_lock)
+                {
+                    return m_stream.Length / m_pageSize;
+                }
+            }
+        }
 
         /// <inheritdoc/>
         public bool IsReadOnly => m_isReadOnly;

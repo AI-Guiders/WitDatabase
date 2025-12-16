@@ -22,7 +22,7 @@ namespace OutWit.Database.Core.Pages
         /// <summary>
         /// Size of the serialized header in bytes
         /// </summary>
-        public const int PAGE_HEDER_SIZE = 16;
+        public const int PAGE_HEADER_SIZE = 16;
 
         #endregion
 
@@ -72,8 +72,8 @@ namespace OutWit.Database.Core.Pages
         /// </summary>
         public readonly void WriteTo(Span<byte> buffer)
         {
-            if (buffer.Length < PAGE_HEDER_SIZE)
-                throw new ArgumentException($"Buffer must be at least {PAGE_HEDER_SIZE} bytes", nameof(buffer));
+            if (buffer.Length < PAGE_HEADER_SIZE)
+                throw new ArgumentException($"Buffer must be at least {PAGE_HEADER_SIZE} bytes", nameof(buffer));
 
             buffer[0] = (byte)PageType;
             buffer[1] = Flags;
@@ -89,8 +89,8 @@ namespace OutWit.Database.Core.Pages
         /// </summary>
         public static PageHeader ReadFrom(ReadOnlySpan<byte> buffer)
         {
-            if (buffer.Length < PAGE_HEDER_SIZE)
-                throw new ArgumentException($"Buffer must be at least {PAGE_HEDER_SIZE} bytes", nameof(buffer));
+            if (buffer.Length < PAGE_HEADER_SIZE)
+                throw new ArgumentException($"Buffer must be at least {PAGE_HEADER_SIZE} bytes", nameof(buffer));
 
             return new PageHeader
             {

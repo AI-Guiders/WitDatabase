@@ -277,7 +277,6 @@ public ref struct Page
 
     #endregion
 
-
     #region Properties
 
     /// <summary>
@@ -297,12 +296,12 @@ public ref struct Page
     /// <summary>
     /// Gets the usable space in the page (excluding header).
     /// </summary>
-    public readonly int UsableSpace => m_pageSize - PageHeader.PAGE_HEDER_SIZE;
+    public readonly int UsableSpace => m_pageSize - PageHeader.PAGE_HEADER_SIZE;
 
     /// <summary>
     /// Gets the offset where cell pointers start (after header).
     /// </summary>
-    public readonly int CellPointerStart => PageHeader.PAGE_HEDER_SIZE;
+    public readonly int CellPointerStart => PageHeader.PAGE_HEADER_SIZE;
 
     /// <summary>
     /// Gets the size of cell pointer array in bytes.

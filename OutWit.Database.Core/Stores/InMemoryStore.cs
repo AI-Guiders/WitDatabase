@@ -15,7 +15,7 @@ namespace OutWit.Database.Core.Stores
 
         private readonly SortedDictionary<byte[], byte[]> m_data;
 
-        private readonly ReaderWriterLockSlim m_lock = new();
+        private readonly Lock m_lock = new();
 
         private bool m_disposed;
 
@@ -41,14 +41,9 @@ namespace OutWit.Database.Core.Stores
             ThrowIfDisposed();
             var keyArray = key.ToArray();
 
-            m_lock.EnterReadLock();
-            try
+            lock (m_lock)
             {
                 return m_data.GetValueOrDefault(keyArray);
-            }
-            finally
-            {
-                m_lock.ExitReadLock();
             }
         }
 
@@ -70,14 +65,9 @@ namespace OutWit.Database.Core.Stores
             var keyArray = key.ToArray();
             var valueArray = value.ToArray();
 
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
                 m_data[keyArray] = valueArray;
-            }
-            finally
-            {
-                m_lock.ExitWriteLock();
             }
         }
 
@@ -99,14 +89,9 @@ namespace OutWit.Database.Core.Stores
             ThrowIfDisposed();
             var keyArray = key.ToArray();
 
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
                 return m_data.Remove(keyArray);
-            }
-            finally
-            {
-                m_lock.ExitWriteLock();
             }
         }
 
@@ -126,8 +111,7 @@ namespace OutWit.Database.Core.Stores
         {
             ThrowIfDisposed();
 
-            m_lock.EnterReadLock();
-            try
+            lock (m_lock)
             {
                 var results = new List<(byte[] Key, byte[] Value)>();
                 var comparer = ByteArrayComparer.Default;
@@ -143,10 +127,6 @@ namespace OutWit.Database.Core.Stores
                 }
 
                 return results;
-            }
-            finally
-            {
-                m_lock.ExitReadLock();
             }
         }
 
@@ -200,17 +180,31 @@ namespace OutWit.Database.Core.Stores
             if (m_disposed) 
                 return;
 
-            m_disposed = true;
-
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
+                if (m_disposed)
+                    return;
+                    
+                m_disposed = true;
                 m_data.Clear();
             }
-            finally
+        }
+
+        #endregion
+
+        #region Properties
+
+        /// <summary>
+        /// Gets the number of key-value pairs in the store.
+        /// </summary>
+        public int Count
+        {
+            get
             {
-                m_lock.ExitWriteLock();
-                m_lock.Dispose();
+                lock (m_lock)
+                {
+                    return m_data.Count;
+                }
             }
         }
 

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using OutWit.Database.Core.Interfaces;
 
@@ -8,6 +9,15 @@ namespace OutWit.Database.Core.Storage
     /// </summary>
     public sealed class EncryptedStorage : IStorage
     {
+        #region Constants
+
+        /// <summary>
+        /// Maximum page size for stack allocation. Larger sizes use heap allocation.
+        /// </summary>
+        private const int MAX_STACK_ALLOC_SIZE = 8192;
+
+        #endregion
+
         #region Fields
 
         private readonly IStorage m_innerStorage;
@@ -46,29 +56,38 @@ namespace OutWit.Database.Core.Storage
         {
             ThrowIfDisposed();
         
-            // Read encrypted page from storage
-            Span<byte> encrypted = stackalloc byte[m_innerStorage.PageSize];
-            m_innerStorage.ReadPage(pageNumber, encrypted);
-        
-            // Check if page is uninitialized (all zeros) - return zeros
-            bool isUninitialized = true;
-            for (int i = 0; i < encrypted.Length && isUninitialized; i++)
+            int innerPageSize = m_innerStorage.PageSize;
+            byte[]? rentedBuffer = null;
+            
+            try
             {
-                if (encrypted[i] != 0) isUninitialized = false;
+                Span<byte> encrypted = innerPageSize <= MAX_STACK_ALLOC_SIZE
+                    ? stackalloc byte[innerPageSize]
+                    : (rentedBuffer = ArrayPool<byte>.Shared.Rent(innerPageSize)).AsSpan(0, innerPageSize);
+                
+                m_innerStorage.ReadPage(pageNumber, encrypted);
+        
+                // Check if page is uninitialized (all zeros) - return zeros
+                if (IsAllZeros(encrypted))
+                {
+                    buffer[..PageSize].Clear();
+                    return;
+                }
+        
+                // Decrypt
+                int decryptedLen = m_encryptor.Decrypt(encrypted, pageNumber, buffer);
+                if (decryptedLen < 0)
+                {
+                    throw new CryptographicException(
+                        $"Failed to decrypt page {pageNumber} - authentication failed");
+                }
             }
-        
-            if (isUninitialized)
+            finally
             {
-                buffer[..PageSize].Clear();
-                return;
-            }
-        
-            // Decrypt
-            int decryptedLen = m_encryptor.Decrypt(encrypted, pageNumber, buffer);
-            if (decryptedLen < 0)
-            {
-                throw new CryptographicException(
-                    $"Failed to decrypt page {pageNumber} - authentication failed");
+                if (rentedBuffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(rentedBuffer, clearArray: true);
+                }
             }
         }
 
@@ -77,27 +96,30 @@ namespace OutWit.Database.Core.Storage
         {
             ThrowIfDisposed();
         
-            byte[] encrypted = new byte[m_innerStorage.PageSize];
-            await m_innerStorage.ReadPageAsync(pageNumber, encrypted, cancellationToken);
-        
-            // Check if page is uninitialized (all zeros) - return zeros
-            bool isUninitialized = true;
-            for (int i = 0; i < encrypted.Length && isUninitialized; i++)
+            int innerPageSize = m_innerStorage.PageSize;
+            byte[] encrypted = ArrayPool<byte>.Shared.Rent(innerPageSize);
+            
+            try
             {
-                if (encrypted[i] != 0) isUninitialized = false;
+                await m_innerStorage.ReadPageAsync(pageNumber, encrypted.AsMemory(0, innerPageSize), cancellationToken);
+        
+                // Check if page is uninitialized (all zeros) - return zeros
+                if (IsAllZeros(encrypted.AsSpan(0, innerPageSize)))
+                {
+                    buffer.Span[..PageSize].Clear();
+                    return;
+                }
+        
+                int decryptedLen = m_encryptor.Decrypt(encrypted.AsSpan(0, innerPageSize), pageNumber, buffer.Span);
+                if (decryptedLen < 0)
+                {
+                    throw new CryptographicException(
+                        $"Failed to decrypt page {pageNumber} - authentication failed");
+                }
             }
-        
-            if (isUninitialized)
+            finally
             {
-                buffer.Span[..PageSize].Clear();
-                return;
-            }
-        
-            int decryptedLen = m_encryptor.Decrypt(encrypted, pageNumber, buffer.Span);
-            if (decryptedLen < 0)
-            {
-                throw new CryptographicException(
-                    $"Failed to decrypt page {pageNumber} - authentication failed");
+                ArrayPool<byte>.Shared.Return(encrypted, clearArray: true);
             }
         }
 
@@ -110,12 +132,25 @@ namespace OutWit.Database.Core.Storage
         {
             ThrowIfDisposed();
         
-            // Encrypt
-            Span<byte> encrypted = stackalloc byte[m_innerStorage.PageSize];
-            m_encryptor.Encrypt(buffer, pageNumber, encrypted);
-        
-            // Write encrypted page
-            m_innerStorage.WritePage(pageNumber, encrypted);
+            int innerPageSize = m_innerStorage.PageSize;
+            byte[]? rentedBuffer = null;
+            
+            try
+            {
+                Span<byte> encrypted = innerPageSize <= MAX_STACK_ALLOC_SIZE
+                    ? stackalloc byte[innerPageSize]
+                    : (rentedBuffer = ArrayPool<byte>.Shared.Rent(innerPageSize)).AsSpan(0, innerPageSize);
+                
+                m_encryptor.Encrypt(buffer, pageNumber, encrypted);
+                m_innerStorage.WritePage(pageNumber, encrypted);
+            }
+            finally
+            {
+                if (rentedBuffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(rentedBuffer, clearArray: true);
+                }
+            }
         }
 
         /// <inheritdoc/>
@@ -123,10 +158,18 @@ namespace OutWit.Database.Core.Storage
         {
             ThrowIfDisposed();
         
-            byte[] encrypted = new byte[m_innerStorage.PageSize];
-            m_encryptor.Encrypt(buffer.Span, pageNumber, encrypted);
-        
-            await m_innerStorage.WritePageAsync(pageNumber, encrypted, cancellationToken);
+            int innerPageSize = m_innerStorage.PageSize;
+            byte[] encrypted = ArrayPool<byte>.Shared.Rent(innerPageSize);
+            
+            try
+            {
+                m_encryptor.Encrypt(buffer.Span, pageNumber, encrypted.AsSpan(0, innerPageSize));
+                await m_innerStorage.WritePageAsync(pageNumber, encrypted.AsMemory(0, innerPageSize), cancellationToken);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(encrypted, clearArray: true);
+            }
         }
 
         #endregion
@@ -165,6 +208,15 @@ namespace OutWit.Database.Core.Storage
         private void ThrowIfDisposed()
         {
             ObjectDisposedException.ThrowIf(m_disposed, this);
+        }
+
+        private static bool IsAllZeros(ReadOnlySpan<byte> data)
+        {
+            foreach (byte b in data)
+            {
+                if (b != 0) return false;
+            }
+            return true;
         }
 
         #endregion

@@ -72,7 +72,7 @@ public class PageTest
         page.Initialize(PageType.Leaf);
 
         // Data after header should be cleared
-        Assert.That(buffer[PageHeader.PAGE_HEDER_SIZE], Is.EqualTo(0));
+        Assert.That(buffer[PageHeader.PAGE_HEADER_SIZE], Is.EqualTo(0));
         Assert.That(buffer[PAGE_SIZE - 1], Is.EqualTo(0));
     }
 
@@ -624,7 +624,7 @@ public class PageTest
         var page = new Page(buffer);
         page.Initialize(PageType.Leaf);
 
-        Assert.That(page.UsableSpace, Is.EqualTo(PAGE_SIZE - PageHeader.PAGE_HEDER_SIZE));
+        Assert.That(page.UsableSpace, Is.EqualTo(PAGE_SIZE - PageHeader.PAGE_HEADER_SIZE));
     }
 
     [Test]
@@ -634,7 +634,7 @@ public class PageTest
         var page = new Page(buffer);
         page.Initialize(PageType.Leaf);
 
-        Assert.That(page.CellPointerStart, Is.EqualTo(PageHeader.PAGE_HEDER_SIZE));
+        Assert.That(page.CellPointerStart, Is.EqualTo(PageHeader.PAGE_HEADER_SIZE));
     }
 
     [Test]
@@ -669,7 +669,7 @@ public class PageTest
         var page = new Page(buffer);
         page.Initialize(PageType.Leaf);
 
-        int expectedFreeSpace = PAGE_SIZE - PageHeader.PAGE_HEDER_SIZE;
+        int expectedFreeSpace = PAGE_SIZE - PageHeader.PAGE_HEADER_SIZE;
         Assert.That(page.FreeSpace, Is.EqualTo(expectedFreeSpace));
     }
 
