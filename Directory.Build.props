@@ -1,0 +1,55 @@
+<Project>
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' AND '$(IsPackable)' != 'false'">
+
+	<PackageId>$(MSBuildProjectName)</PackageId>
+	<Product>OutWit.Database</Product>
+  
+	<LangVersion>latest</LangVersion>
+	<SignAssembly>False</SignAssembly>
+  
+    <Authors>Dmitry Ratner</Authors>
+	<Company>OutWit</Company>	
+	<Copyright>Copyright © $([System.DateTime]::UtcNow.Year) Dmitry Ratner</Copyright>
+	
+	<PublishRepositoryUrl>true</PublishRepositoryUrl>
+	<IncludeSymbols>true</IncludeSymbols>
+	<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+	<PackageProjectUrl>https://github.com/dmitrat/WitDatabase/</PackageProjectUrl>
+
+	<GeneratePackageOnBuild Condition=" '$(Configuration)' == 'Release' ">true</GeneratePackageOnBuild>
+
+	<!--<PackageIcon>OutWit-logo.png</PackageIcon>-->
+	<!--<PackageLicenseFile>LICENSE</PackageLicenseFile>-->
+	<!--<PackageReadmeFile>README.md</PackageReadmeFile>-->
+	<AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
+	<AppendRuntimeIdentifierToOutputPath>true</AppendRuntimeIdentifierToOutputPath>
+
+	<PackagesDropDir>$(SolutionDir)@NuGet\</PackagesDropDir>
+
+  </PropertyGroup>
+
+	<!--<ItemGroup Condition="'$(IsTestProject)' != 'true'">
+		<None Include="LICENSE" Pack="true" PackagePath="\" />
+		<None Include="OutWit-logo.png" Pack="true" PackagePath="\" />
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>-->
+
+	<!--<ItemGroup Condition="'$(IsTestProject)' != 'true'">
+		<NuGetFiles Include="$(TargetDir)*$(TargetName)*.nupkg" />
+		<NuGetFiles Include="$(TargetDir)*$(TargetName)*.snupkg" />
+	</ItemGroup>-->
+  
+  	<ItemGroup>
+	  <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+	    <PrivateAssets>all</PrivateAssets>
+	    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+	</ItemGroup>
+
+	<!--<Target Name="PostBuild" AfterTargets="Pack" Condition="'$(Configuration)' == 'Release' AND '$(IsTestProject)' != 'true'">
+		<Copy SourceFiles="@(NuGetFiles)" DestinationFolder="$(SolutionDir)@NuGet\" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
+	</Target>-->
+	
+</Project>

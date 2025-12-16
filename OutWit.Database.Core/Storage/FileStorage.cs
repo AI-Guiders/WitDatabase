@@ -1,0 +1,262 @@
+using OutWit.Database.Core.Interfaces;
+
+namespace OutWit.Database.Core.Storage
+{
+    /// <summary>
+    /// File system storage implementation using FileStream.
+    /// Provides durable storage with support for file locking.
+    /// </summary>
+    public sealed class FileStorage : IStorage
+    {
+        #region Fields
+
+        private readonly FileStream m_stream;
+
+        private readonly int m_pageSize;
+
+        private readonly bool m_isReadOnly;
+
+        private bool m_disposed;
+
+        #endregion
+
+        #region Constructors
+
+        /// <summary>
+        /// Opens an existing database file or creates a new one.
+        /// </summary>
+        /// <param name="path">Path to the database file</param>
+        /// <param name="pageSize">Page size (only used when creating new file)</param>
+        /// <param name="readOnly">Whether to open in read-only mode</param>
+        public FileStorage(string path, int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE, bool readOnly = false)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+            if (pageSize < DatabaseConstants.MIN_PAGE_SIZE || pageSize > DatabaseConstants.MAX_PAGE_SIZE)
+                throw new ArgumentOutOfRangeException(nameof(pageSize));
+
+            m_pageSize = pageSize;
+            m_isReadOnly = readOnly;
+
+            var fileMode = readOnly ? FileMode.Open : FileMode.OpenOrCreate;
+            var fileAccess = readOnly ? FileAccess.Read : FileAccess.ReadWrite;
+            var fileShare = readOnly ? FileShare.Read : FileShare.None;
+
+            m_stream = new FileStream(
+                path,
+                fileMode,
+                fileAccess,
+                fileShare,
+                bufferSize: pageSize,
+                FileOptions.RandomAccess);
+
+            // If new file, ensure it has at least one page
+            if (m_stream.Length == 0 && !readOnly)
+            {
+                SetSize(1);
+            }
+        }
+
+        #endregion
+
+        #region Create
+
+        /// <summary>
+        /// Creates a new database file. Throws if file already exists.
+        /// </summary>
+        public static FileStorage Create(string path, int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE)
+        {
+            if (File.Exists(path))
+                throw new IOException($"File already exists: {path}");
+        
+            return new FileStorage(path, pageSize, readOnly: false);
+        }
+
+        #endregion
+
+        #region Open
+
+        /// <summary>
+        /// Opens an existing database file.
+        /// </summary>
+        public static FileStorage Open(string path, bool readOnly = false)
+        {
+            if (!File.Exists(path))
+                throw new FileNotFoundException("Database file not found", path);
+
+            return new FileStorage(path, readOnly: readOnly);
+        }
+
+        #endregion
+
+        #region Read
+
+        /// <inheritdoc/>
+        public void ReadPage(long pageNumber, Span<byte> buffer)
+        {
+            ThrowIfDisposed();
+            ValidatePageNumberForRead(pageNumber);
+            ValidateBuffer(buffer);
+
+            var offset = pageNumber * m_pageSize;
+            m_stream.Seek(offset, SeekOrigin.Begin);
+
+            var bytesRead = m_stream.Read(buffer[..m_pageSize]);
+            if (bytesRead < m_pageSize)
+            {
+                // Fill remaining with zeros if file is shorter
+                buffer[bytesRead..m_pageSize].Clear();
+            }
+        }
+
+        /// <inheritdoc/>
+        public async ValueTask ReadPageAsync(long pageNumber, Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            ValidatePageNumberForRead(pageNumber);
+            ValidateBuffer(buffer.Span);
+
+            var offset = pageNumber * m_pageSize;
+            m_stream.Seek(offset, SeekOrigin.Begin);
+
+            var bytesRead = await m_stream.ReadAsync(buffer[..m_pageSize], cancellationToken);
+            if (bytesRead < m_pageSize)
+            {
+                buffer.Span[bytesRead..m_pageSize].Clear();
+            }
+        }
+
+        #endregion
+
+        #region Write
+
+        /// <inheritdoc/>
+        public void WritePage(long pageNumber, ReadOnlySpan<byte> buffer)
+        {
+            ThrowIfDisposed();
+            ThrowIfReadOnly();
+            ValidatePageNumberForWrite(pageNumber);
+            ValidateBuffer(buffer);
+
+            var offset = pageNumber * m_pageSize;
+            m_stream.Seek(offset, SeekOrigin.Begin);
+            m_stream.Write(buffer[..m_pageSize]);
+        }
+
+        /// <inheritdoc/>
+        public async ValueTask WritePageAsync(long pageNumber, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            ThrowIfReadOnly();
+            ValidatePageNumberForWrite(pageNumber);
+            ValidateBuffer(buffer.Span);
+
+            var offset = pageNumber * m_pageSize;
+            m_stream.Seek(offset, SeekOrigin.Begin);
+            await m_stream.WriteAsync(buffer[..m_pageSize], cancellationToken);
+        }
+
+        #endregion
+
+        #region Flush
+
+        /// <inheritdoc/>
+        public void Flush()
+        {
+            ThrowIfDisposed();
+            m_stream.Flush(flushToDisk: true);
+        }
+
+        /// <inheritdoc/>
+        public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            await m_stream.FlushAsync(cancellationToken);
+        }
+
+        #endregion
+
+        #region Tools
+
+        private void ThrowIfDisposed()
+        {
+            ObjectDisposedException.ThrowIf(m_disposed, this);
+        }
+
+        private void ThrowIfReadOnly()
+        {
+            if (m_isReadOnly)
+                throw new InvalidOperationException("Storage is read-only");
+        }
+
+        private void ValidatePageNumberForRead(long pageNumber)
+        {
+            if (pageNumber < 0)
+                throw new ArgumentOutOfRangeException(nameof(pageNumber), "Page number cannot be negative");
+
+            if (pageNumber >= PageCount)
+                throw new ArgumentOutOfRangeException(nameof(pageNumber),
+                    $"Page number must be less than {PageCount}");
+        }
+
+        private void ValidatePageNumberForWrite(long pageNumber)
+        {
+            if (pageNumber < 0)
+                throw new ArgumentOutOfRangeException(nameof(pageNumber), "Page number cannot be negative");
+
+            // Allow writing to pages beyond current size (file will be extended)
+        }
+
+        private void ValidateBuffer(ReadOnlySpan<byte> buffer)
+        {
+            if (buffer.Length < m_pageSize)
+                throw new ArgumentException($"Buffer must be at least {m_pageSize} bytes", nameof(buffer));
+        }
+
+        #endregion
+
+        #region SetSize
+
+        /// <inheritdoc/>
+        public void SetSize(long pageCount)
+        {
+            ThrowIfDisposed();
+            ThrowIfReadOnly();
+
+            if (pageCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(pageCount));
+
+            var newSize = pageCount * m_pageSize;
+            m_stream.SetLength(newSize);
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            if (!m_disposed)
+            {
+                m_stream.Dispose();
+                m_disposed = true;
+            }
+        }
+
+        #endregion
+
+        #region Properties
+
+        /// <inheritdoc/>
+        public int PageSize => m_pageSize;
+
+        /// <inheritdoc/>
+        public long PageCount => m_stream.Length / m_pageSize;
+
+        /// <inheritdoc/>
+        public bool IsReadOnly => m_isReadOnly;
+
+        #endregion
+    }
+}
