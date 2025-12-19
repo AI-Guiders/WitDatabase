@@ -18,15 +18,17 @@ public sealed partial class BTree
             return false;
         
         var page = m_pageManager.GetPage(leafPage);
-        var node = new BTreeNode(page.Data, PageSize, leafPage);
-        
         try
         {
+            var node = new BTreeNode(page.Data, PageSize, leafPage);
+            
             // Free overflow if exists
             if (node.IsOverflowValue(index))
             {
                 uint overflowPage = node.GetOverflowPage(index);
                 m_pageManager.ReleasePage(leafPage);
+                page = null!; // Mark as released
+                
                 m_overflowManager.FreeOverflow(overflowPage);
                 
                 page = m_pageManager.GetPage(leafPage);
@@ -43,7 +45,10 @@ public sealed partial class BTree
         }
         finally
         {
-            m_pageManager.ReleasePage(leafPage);
+            if (page != null!)
+            {
+                m_pageManager.ReleasePage(leafPage);
+            }
         }
     }
 

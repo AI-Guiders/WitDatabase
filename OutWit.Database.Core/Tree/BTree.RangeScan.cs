@@ -97,46 +97,59 @@ public sealed partial class BTree
     {
         var results = new List<(byte[] Key, byte[] Value)>();
         reachedEnd = false;
+        nextLeaf = 0;
         
         var page = m_pageManager.GetPage(pageNumber);
-        var node = new BTreeNode(page.Data, PageSize, pageNumber);
-        nextLeaf = node.NextLeaf;
-        int keyCount = node.KeyCount;
-        
-        for (int i = startIndex; i < keyCount; i++)
+        try
         {
-            var keyBytes = node.GetKey(i).ToArray();
+            var node = new BTreeNode(page.Data, PageSize, pageNumber);
+            nextLeaf = node.NextLeaf;
+            int keyCount = node.KeyCount;
             
-            // Check end boundary
-            if (maxKey != null)
+            for (int i = startIndex; i < keyCount; i++)
             {
-                int cmp = keyBytes.AsSpan().SequenceCompareTo(maxKey);
-                if (exclusive ? cmp >= 0 : cmp > 0)
+                var keyBytes = node.GetKey(i).ToArray();
+                
+                // Check end boundary
+                if (maxKey != null)
                 {
-                    reachedEnd = true;
-                    break;
+                    int cmp = keyBytes.AsSpan().SequenceCompareTo(maxKey);
+                    if (exclusive ? cmp >= 0 : cmp > 0)
+                    {
+                        reachedEnd = true;
+                        break;
+                    }
                 }
+                
+                byte[] valueBytes;
+                if (node.IsOverflowValue(i))
+                {
+                    uint overflowPage = node.GetOverflowPage(i);
+                    m_pageManager.ReleasePage(pageNumber);
+                    page = null!; // Mark as released
+                    
+                    valueBytes = m_overflowManager.ReadOverflow(overflowPage);
+                    
+                    page = m_pageManager.GetPage(pageNumber);
+                    node = new BTreeNode(page.Data, PageSize, pageNumber);
+                }
+                else
+                {
+                    valueBytes = node.GetValue(i).ToArray();
+                }
+                
+                results.Add((keyBytes, valueBytes));
             }
             
-            byte[] valueBytes;
-            if (node.IsOverflowValue(i))
-            {
-                uint overflowPage = node.GetOverflowPage(i);
-                m_pageManager.ReleasePage(pageNumber);
-                valueBytes = m_overflowManager.ReadOverflow(overflowPage);
-                page = m_pageManager.GetPage(pageNumber);
-                node = new BTreeNode(page.Data, PageSize, pageNumber);
-            }
-            else
-            {
-                valueBytes = node.GetValue(i).ToArray();
-            }
-            
-            results.Add((keyBytes, valueBytes));
+            return results;
         }
-        
-        m_pageManager.ReleasePage(pageNumber);
-        return results;
+        finally
+        {
+            if (page != null!)
+            {
+                m_pageManager.ReleasePage(pageNumber);
+            }
+        }
     }
 
     #endregion

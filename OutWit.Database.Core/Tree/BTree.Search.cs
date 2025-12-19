@@ -26,17 +26,18 @@ public sealed partial class BTree
             {
                 uint overflowPage = node.GetOverflowPage(index);
                 m_pageManager.ReleasePage(leafPage);
+                page = null!; // Mark as released to avoid double-release in finally
                 return m_overflowManager.ReadOverflow(overflowPage);
             }
             
-            var result = node.GetValue(index).ToArray();
-            m_pageManager.ReleasePage(leafPage);
-            return result;
+            return node.GetValue(index).ToArray();
         }
-        catch
+        finally
         {
-            m_pageManager.ReleasePage(leafPage);
-            throw;
+            if (page != null!)
+            {
+                m_pageManager.ReleasePage(leafPage);
+            }
         }
     }
 
