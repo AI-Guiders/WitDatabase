@@ -11,6 +11,11 @@ namespace OutWit.Database.Core.Transactions;
 /// Supports optional encryption via IBlockEncryptor.
 /// Supports auto-checkpoint when size exceeds threshold.
 /// </summary>
+/// <remarks>
+/// This class is deprecated. Use <see cref="OutWit.Database.Core.Wal.WalTransactionJournal"/> instead,
+/// which provides better CRC32 integrity checking and uses the unified WAL infrastructure.
+/// </remarks>
+[Obsolete("Use OutWit.Database.Core.Wal.WalTransactionJournal instead. This class will be removed in a future version.")]
 public sealed class WalJournal : ITransactionJournal
 {
     #region Constants

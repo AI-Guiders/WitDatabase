@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using OutWit.Database.Core.Interfaces;
+using OutWit.Database.Core.Utils;
 
 namespace OutWit.Database.Core.LSM
 {
@@ -11,8 +12,11 @@ namespace OutWit.Database.Core.LSM
     /// Provides crash recovery by replaying the log on startup.
     /// Supports optional encryption via IBlockEncryptor.
     /// Uses ArrayPool to reduce allocations.
+    /// 
+    /// This is a specialized WAL for LSM that doesn't need transaction support.
+    /// For transactional WAL, use OutWit.Database.Core.Wal.WriteAheadLog.
     /// </summary>
-    public sealed class WriteAheadLog : IDisposable
+    public sealed class WriteAheadLog : IWriteAheadLog
     {
         #region Constants
 
@@ -66,29 +70,54 @@ namespace OutWit.Database.Core.LSM
 
         #endregion
 
-        #region Functions
+        #region IWriteAheadLog Implementation
 
-        /// <summary>
-        /// Appends a Put operation to the log.
-        /// </summary>
-        public void AppendPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+        /// <inheritdoc/>
+        public string FilePath { get; }
+
+        /// <inheritdoc/>
+        public long Size => m_stream.Length;
+
+        /// <inheritdoc/>
+        public bool IsEncrypted => m_isEncrypted;
+
+        /// <inheritdoc/>
+        public long EntryCount => Volatile.Read(ref m_entryCounter);
+
+        /// <inheritdoc/>
+        public void AppendPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value, long transactionId = 0)
         {
             ThrowIfDisposed();
             AppendEntry(WalEntryType.Put, key, value);
         }
 
-        /// <summary>
-        /// Appends a Delete operation to the log.
-        /// </summary>
-        public void AppendDelete(ReadOnlySpan<byte> key)
+        /// <inheritdoc/>
+        public void AppendDelete(ReadOnlySpan<byte> key, long transactionId = 0)
         {
             ThrowIfDisposed();
             AppendEntry(WalEntryType.Delete, key, ReadOnlySpan<byte>.Empty);
         }
 
-        /// <summary>
-        /// Ensures all pending writes are flushed to disk.
-        /// </summary>
+        /// <inheritdoc/>
+        public void AppendBeginTransaction(long transactionId)
+        {
+            // LSM WAL doesn't support transactions - no-op
+        }
+
+        /// <inheritdoc/>
+        public void AppendCommitTransaction(long transactionId)
+        {
+            // LSM WAL doesn't support transactions - just sync
+            Sync();
+        }
+
+        /// <inheritdoc/>
+        public void AppendRollbackTransaction(long transactionId)
+        {
+            // LSM WAL doesn't support transactions - no-op
+        }
+
+        /// <inheritdoc/>
         public void Sync()
         {
             ThrowIfDisposed();
@@ -100,15 +129,25 @@ namespace OutWit.Database.Core.LSM
             }
         }
 
-        /// <summary>
-        /// Replays all entries in the log.
-        /// </summary>
-        /// <param name="onPut">Called for each Put entry.</param>
-        /// <param name="onDelete">Called for each Delete entry.</param>
-        /// <returns>Number of entries replayed.</returns>
-        public int Replay(Action<byte[], byte[]> onPut, Action<byte[]> onDelete)
+        /// <inheritdoc/>
+        public void Truncate()
         {
             ThrowIfDisposed();
+
+            lock (m_writeLock)
+            {
+                m_stream.SetLength(0);
+                m_stream.Position = 0;
+                m_entryCounter = 0;
+                WriteHeader();
+            }
+        }
+
+        /// <inheritdoc/>
+        public int Replay(IWalReplayVisitor visitor)
+        {
+            ThrowIfDisposed();
+            ArgumentNullException.ThrowIfNull(visitor);
 
             lock (m_writeLock)
             {
@@ -122,26 +161,26 @@ namespace OutWit.Database.Core.LSM
                     try
                     {
                         var entry = ReadEntry(reader, entryId++);
-                        if (entry == null) break; // Corrupted or incomplete entry
+                        if (entry == null) break;
 
                         switch (entry.Value.Type)
                         {
-                            case WalEntryType.Put:
-                                onPut(entry.Value.Key, entry.Value.Value!);
+                            case LsmWalEntryType.Put:
+                                visitor.OnPut(0, entry.Value.Key, entry.Value.Value!);
                                 break;
-                            case WalEntryType.Delete:
-                                onDelete(entry.Value.Key);
+                            case LsmWalEntryType.Delete:
+                                visitor.OnDelete(0, entry.Value.Key);
                                 break;
                         }
                         count++;
                     }
                     catch (EndOfStreamException)
                     {
-                        break; // Incomplete write, stop here
+                        break;
                     }
                     catch (CryptographicException)
                     {
-                        break; // Encryption error - stop
+                        break;
                     }
                 }
 
@@ -149,21 +188,24 @@ namespace OutWit.Database.Core.LSM
             }
         }
 
-        /// <summary>
-        /// Truncates the WAL (after successful flush to SSTable).
-        /// </summary>
-        public void Truncate()
-        {
-            ThrowIfDisposed();
+        #endregion
 
-            lock (m_writeLock)
-            {
-                m_stream.SetLength(0);
-                m_stream.Position = 0;
-                m_entryCounter = 0;
-                WriteHeader();
-            }
+        #region Legacy Methods (for backward compatibility)
+
+        /// <summary>
+        /// Replays all entries in the log using callbacks.
+        /// </summary>
+        /// <param name="onPut">Called for each Put entry.</param>
+        /// <param name="onDelete">Called for each Delete entry.</param>
+        /// <returns>Number of entries replayed.</returns>
+        public int Replay(Action<byte[], byte[]> onPut, Action<byte[]> onDelete)
+        {
+            return Replay(new SimpleWalReplayVisitor(onPut, onDelete));
         }
+
+        #endregion
+
+        #region Private Methods
 
         private void WriteHeader()
         {
@@ -183,13 +225,6 @@ namespace OutWit.Database.Core.LSM
 
         private void AppendEntry(WalEntryType type, ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
         {
-            // Entry format (unencrypted):
-            // [CRC32: 4 bytes] [Type: 1 byte] [KeyLen: 4 bytes] [Key: N bytes] [ValueLen: 4 bytes] [Value: M bytes]
-            // 
-            // Entry format (encrypted):
-            // [EncryptedLen: 4 bytes] [EncryptedData: variable]
-            // Where EncryptedData = Encrypt([CRC32][Type][KeyLen][Key][ValueLen][Value])
-
             lock (m_writeLock)
             {
                 m_stream.Position = m_stream.Length;
@@ -198,7 +233,6 @@ namespace OutWit.Database.Core.LSM
                 var entryDataLength = 1 + 4 + key.Length + 4 + value.Length;
                 var dataWithCrcLength = 4 + entryDataLength;
                 
-                // Use ArrayPool for larger buffers
                 var rentedBuffer = ArrayPool<byte>.Shared.Rent(dataWithCrcLength);
                 try
                 {
@@ -210,21 +244,19 @@ namespace OutWit.Database.Core.LSM
                     value.CopyTo(span.Slice(9 + key.Length));
 
                     // Calculate CRC32 for entry data
-                    var crc = CalculateCrc32(span);
+                    var crc = Crc32.Calculate(span);
                     BinaryPrimitives.WriteUInt32LittleEndian(rentedBuffer.AsSpan(0, 4), crc);
 
                     var dataWithCrc = rentedBuffer.AsSpan(0, dataWithCrcLength);
 
                     if (m_isEncrypted)
                     {
-                        // Encrypt the entry
                         var encrypted = m_encryptor!.Encrypt(dataWithCrc.ToArray(), m_entryCounter);
                         m_writer.Write(encrypted.Length);
                         m_writer.Write(encrypted);
                     }
                     else
                     {
-                        // Write unencrypted
                         m_stream.Write(dataWithCrc);
                     }
                 }
@@ -238,23 +270,21 @@ namespace OutWit.Database.Core.LSM
             }
         }
 
-        private (WalEntryType Type, byte[] Key, byte[]? Value)? ReadEntry(BinaryReader reader, long entryId)
+        private (LsmWalEntryType Type, byte[] Key, byte[]? Value)? ReadEntry(BinaryReader reader, long entryId)
         {
             byte[] dataWithCrc;
 
             if (m_isEncrypted)
             {
-                // Read encrypted entry
                 var encLen = reader.ReadInt32();
-                if (encLen < 0 || encLen > 100 * 1024 * 1024) return null; // Sanity check
+                if (encLen < 0 || encLen > 100 * 1024 * 1024) return null;
                 
-                // Use ArrayPool for reading encrypted data
                 var rentedBuffer = ArrayPool<byte>.Shared.Rent(encLen);
                 try
                 {
                     m_stream.ReadExactly(rentedBuffer.AsSpan(0, encLen));
                     var decrypted = m_encryptor!.Decrypt(rentedBuffer.AsSpan(0, encLen).ToArray(), entryId);
-                    if (decrypted == null) return null; // Decryption failed
+                    if (decrypted == null) return null;
                     dataWithCrc = decrypted;
                 }
                 finally
@@ -264,23 +294,18 @@ namespace OutWit.Database.Core.LSM
             }
             else
             {
-                // Read CRC + entry
                 var expectedCrc = reader.ReadUInt32();
-            
-                // Read type
-                var type = (WalEntryType)reader.ReadByte();
+                var type = (LsmWalEntryType)reader.ReadByte();
 
-                // Read key
                 var keyLen = reader.ReadInt32();
                 if (keyLen < 0 || keyLen > 1024 * 1024) return null;
                 var key = reader.ReadBytes(keyLen);
 
-                // Read value
                 var valueLen = reader.ReadInt32();
                 if (valueLen < 0 || valueLen > 100 * 1024 * 1024) return null;
                 var value = valueLen > 0 ? reader.ReadBytes(valueLen) : null;
 
-                // Verify CRC using pooled buffer
+                // Verify CRC
                 var entryDataLength = 1 + 4 + keyLen + 4 + valueLen;
                 var rentedBuffer = ArrayPool<byte>.Shared.Rent(entryDataLength);
                 try
@@ -292,8 +317,7 @@ namespace OutWit.Database.Core.LSM
                     BinaryPrimitives.WriteInt32LittleEndian(span.Slice(5 + keyLen), valueLen);
                     if (value != null) value.CopyTo(span.Slice(9 + keyLen));
 
-                    var actualCrc = CalculateCrc32(span);
-                    if (actualCrc != expectedCrc) return null;
+                    if (!Crc32.Verify(span, expectedCrc)) return null;
                 }
                 finally
                 {
@@ -309,12 +333,9 @@ namespace OutWit.Database.Core.LSM
             var storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcSpan);
             var entrySpan = crcSpan.Slice(4);
 
-            // Verify CRC
-            var computedCrc = CalculateCrc32(entrySpan);
-            if (computedCrc != storedCrc) return null;
+            if (!Crc32.Verify(entrySpan, storedCrc)) return null;
 
-            // Parse entry
-            var entryType = (WalEntryType)entrySpan[0];
+            var entryType = (LsmWalEntryType)entrySpan[0];
             var kLen = BinaryPrimitives.ReadInt32LittleEndian(entrySpan.Slice(1));
             if (kLen < 0 || kLen > entrySpan.Length - 9) return null;
             var k = entrySpan.Slice(5, kLen).ToArray();
@@ -334,9 +355,7 @@ namespace OutWit.Database.Core.LSM
             m_stream.ReadExactly(header);
 
             var magic = BinaryPrimitives.ReadUInt32LittleEndian(header);
-            var expectedMagic = m_isEncrypted ? MAGIC_ENCRYPTED : MAGIC;
         
-            // Allow reading both encrypted and unencrypted if no encryptor provided
             if (magic != MAGIC && magic != MAGIC_ENCRYPTED)
                 throw new InvalidDataException($"Invalid WAL magic number: got 0x{magic:X8}");
         
@@ -349,30 +368,9 @@ namespace OutWit.Database.Core.LSM
             m_entryCounter = BinaryPrimitives.ReadInt64LittleEndian(header.Slice(4));
         }
 
-        #endregion
-
-        #region Tools
-
-        private static uint CalculateCrc32(ReadOnlySpan<byte> data)
-        {
-            // Simple CRC32 implementation (polynomial 0xEDB88320)
-            uint crc = 0xFFFFFFFF;
-            foreach (var b in data)
-            {
-                crc ^= b;
-                for (int i = 0; i < 8; i++)
-                {
-                    crc = (crc >> 1) ^ (0xEDB88320 & (~(crc & 1) + 1));
-                }
-            }
-            return ~crc;
-        }
-
-
         private void ThrowIfDisposed()
         {
-            if (m_disposed)
-                throw new ObjectDisposedException(nameof(WriteAheadLog));
+            ObjectDisposedException.ThrowIf(m_disposed, this);
         }
 
         #endregion
@@ -393,25 +391,14 @@ namespace OutWit.Database.Core.LSM
         }
 
         #endregion
+    }
 
-
-        #region Properties
-
-        /// <summary>
-        /// Gets the file path of this WAL.
-        /// </summary>
-        public string FilePath { get; }
-
-        /// <summary>
-        /// Gets the current size of the WAL file in bytes.
-        /// </summary>
-        public long Size => m_stream.Length;
-
-        /// <summary>
-        /// Gets whether this WAL is encrypted.
-        /// </summary>
-        public bool IsEncrypted => m_isEncrypted;
-
-        #endregion
+    /// <summary>
+    /// LSM WAL entry types (internal, different from transaction WAL).
+    /// </summary>
+    internal enum LsmWalEntryType : byte
+    {
+        Put = 1,
+        Delete = 2
     }
 }

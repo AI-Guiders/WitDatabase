@@ -1,6 +1,6 @@
 # Database Core Roadmap
 
-## ??????? ??????: Phase 1 ???????? ?
+## ??????? ??????: Phase 2 ???????? ?
 
 ---
 
@@ -24,30 +24,34 @@
 
 ---
 
-## Phase 2: WAL Unification
+## Phase 2: WAL Unification ?
 
-### 2.1 Add missing features to WalJournal
+### 2.1 Shared Infrastructure
 
-- [ ] **Add CRC32 validation in `WalJournal`**
-  - LSM WAL ????? CRC32, Transaction WAL - ???
-  - ???????? ????????? ??????????? ???????
-  - ????: `OutWit.Database.Core/Transactions/WalJournal.cs`
+- [x] **Extract common CRC32 calculation to shared utility**
+  - ?????? `OutWit.Database.Core/Utils/Crc32.cs`
+  - ???????????? ? LSM WAL ? ????? ??????????????? WAL
 
-- [ ] **Add ArrayPool in `WalJournal`**
-  - LSM WAL ?????????? ArrayPool ??? ???????? ?????????
-  - ????????? ??????? ? Transaction WAL
-  - ????: `OutWit.Database.Core/Transactions/WalJournal.cs`
+- [x] **Create unified IWriteAheadLog interface**
+  - ?????? `OutWit.Database.Core/Interfaces/IWriteAheadLog.cs`
+  - ???????? `IWalReplayVisitor`, `SimpleWalReplayVisitor`, `TransactionalWalReplayVisitor`
 
-### 2.2 Create shared infrastructure (Future)
+- [x] **Create unified WriteAheadLog implementation**
+  - ?????? `OutWit.Database.Core/Wal/WriteAheadLog.cs`
+  - ???????????? ??????????, CRC32, ??????????, ArrayPool
 
-- [ ] **Extract common CRC32 calculation to shared utility**
-  - ??????? `OutWit.Database.Core/Utils/Crc32.cs`
-  - ???????????? ? LSM WAL ? Transaction WAL
+- [x] **Create WalTransactionJournal adapter**
+  - ?????? `OutWit.Database.Core/Wal/WalTransactionJournal.cs`
+  - ??????? IWriteAheadLog ? ITransactionJournal
 
-- [ ] **Consider BaseWalWriter base class** (Optional)
-  - ????? ??? ??? write/read entry
-  - Encryption handling
-  - ????? ???? ?????????, ??????? ????? ??????????
+- [x] **Update LSM WAL to implement IWriteAheadLog**
+  - ???????? `OutWit.Database.Core/LSM/WriteAheadLog.cs`
+  - ?????????? ????? Crc32
+  - ????????? IWriteAheadLog ??? ?????????????
+
+- [x] **Deprecate old WalJournal** 
+  - `OutWit.Database.Core/Transactions/WalJournal.cs` ??????? ??? `[Obsolete]`
+  - ????????????? ???????????? `WalTransactionJournal`
 
 ---
 
@@ -83,52 +87,13 @@
 ### 3.2 Transaction Tests
 
 - [ ] **Create `TransactionalStoreTests.cs`**
-  ```
-  - CommitPersistsChangesTest
-  - RollbackDiscardsChangesTest
-  - AutoRollbackOnDisposeTest
-  - ConcurrentTransactionsBlockedTest
-  - NonTransactionalWriteAutoCommitsTest
-  - CheckpointTruncatesJournalTest
-  ```
-
 - [ ] **Create `TransactionTests.cs`**
-  ```
-  - GetReturnsUncommittedChangesTest
-  - PutBuffersUntilCommitTest
-  - DeleteTracksOldValueTest
-  - MultipleOperationsAtomicTest
-  - StateTransitionsCorrectlyTest
-  ```
-
-- [ ] **Create `WalJournalTests.cs`**
-  ```
-  - RecoveryReplaysCommittedTest
-  - RecoveryIgnoresUncommittedTest
-  - EncryptionRoundTripTest
-  - CheckpointTruncatesTest
-  - AutoCheckpointOnThresholdTest
-  - ConcurrentWritesSerializedTest
-  ```
-
+- [ ] **Create `WriteAheadLogTests.cs`** (for new unified WAL in Wal/)
 - [ ] **Create `RollbackJournalTests.cs`**
-  ```
-  - RecoveryRestoresOriginalValuesTest
-  - CommitDeletesJournalFileTest
-  - EncryptionSupportTest
-  - MultipleTransactionFilesTest
-  ```
 
 ### 3.3 Integration Tests
 
 - [ ] **Create `TransactionalStoreIntegrationTests.cs`**
-  ```
-  - CrashRecoveryWithWalTest
-  - CrashRecoveryWithRollbackJournalTest
-  - TransactionalBTreeStoreTest
-  - TransactionalLsmStoreTest
-  - EncryptedTransactionalStoreTest
-  ```
 
 ---
 
@@ -137,61 +102,14 @@
 ### 4.1 Options Pattern
 
 - [ ] **Create `TransactionalStoreOptions.cs`**
-  ```csharp
-  public class TransactionalStoreOptions
-  {
-      public TransactionMode Mode { get; set; } = TransactionMode.Wal;
-      public IBlockEncryptor? Encryptor { get; set; }
-      public bool EnableFileLocking { get; set; } = true;
-      public TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(5);
-      public long WalCheckpointThreshold { get; set; } = 1024 * 1024; // 1MB
-  }
-  ```
 
 ### 4.2 Fluent Builder API
 
 - [ ] **Create `TransactionalStoreBuilder.cs`**
-  ```csharp
-  public class TransactionalStoreBuilder
-  {
-      public TransactionalStoreBuilder WithStore(IKeyValueStore store);
-      public TransactionalStoreBuilder WithWalJournal(string path);
-      public TransactionalStoreBuilder WithRollbackJournal(string path);
-      public TransactionalStoreBuilder WithEncryption(IBlockEncryptor encryptor);
-      public TransactionalStoreBuilder WithFileLocking(string dbPath);
-      public TransactionalStoreBuilder WithTimeout(TimeSpan timeout);
-      public ITransactionalStore Build();
-  }
-  
-  // Usage:
-  var store = new TransactionalStoreBuilder()
-      .WithStore(new BTreeStore("data.db"))
-      .WithWalJournal("data.wal")
-      .WithFileLocking("data.db")
-      .WithTimeout(TimeSpan.FromSeconds(10))
-      .Build();
-  ```
 
 ### 4.3 Convenience Extensions
 
 - [ ] **Create `KeyValueStoreExtensions.cs`**
-  ```csharp
-  public static class KeyValueStoreExtensions
-  {
-      // String helpers
-      public static void Put(this IKeyValueStore store, string key, string value);
-      public static string? GetString(this IKeyValueStore store, string key);
-      
-      // JSON helpers (optional)
-      public static void PutJson<T>(this IKeyValueStore store, string key, T value);
-      public static T? GetJson<T>(this IKeyValueStore store, string key);
-      
-      // Transactional wrapper
-      public static ITransactionalStore AsTransactional(
-          this IKeyValueStore store, 
-          TransactionalStoreOptions? options = null);
-  }
-  ```
 
 ---
 
@@ -207,20 +125,8 @@
 ## Phase 6: Performance Optimizations (Future)
 
 - [ ] **Batch operations support**
-  ```csharp
-  using var batch = store.CreateBatch();
-  batch.Put(key1, value1);
-  batch.Put(key2, value2);
-  batch.Commit(); // Single disk write
-  ```
-
-- [ ] **Read-only transactions** (no write lock needed)
-  ```csharp
-  using var tx = store.BeginReadOnlyTransaction();
-  var snapshot = tx.Scan(null, null).ToList(); // Consistent snapshot
-  ```
-
-- [ ] **Optimistic concurrency** with version stamps
+- [ ] **Read-only transactions**
+- [ ] **Optimistic concurrency**
 
 ---
 
@@ -229,12 +135,51 @@
 | Phase | Items | Completed | Progress |
 |-------|-------|-----------|----------|
 | Phase 1 | 4 | 4 | ? 100% |
-| Phase 2 | 4 | 0 | 0% |
+| Phase 2 | 6 | 6 | ? 100% |
 | Phase 3 | 8 | 0 | 0% |
 | Phase 4 | 3 | 0 | 0% |
 | Phase 5 | 4 | 0 | 0% |
 | Phase 6 | 3 | 0 | 0% |
-| **Total** | **26** | **4** | **15%** |
+| **Total** | **28** | **10** | **36%** |
+
+---
+
+## New WAL Architecture
+
+### Structure
+```
+OutWit.Database.Core/
+??? Utils/
+?   ??? Crc32.cs                 # Shared CRC32 utility
+??? Interfaces/
+?   ??? IWriteAheadLog.cs        # Unified WAL interface + visitors
+??? Wal/
+?   ??? WriteAheadLog.cs         # Unified WAL with transactions
+?   ??? WalTransactionJournal.cs # ITransactionJournal adapter
+??? LSM/
+?   ??? WriteAheadLog.cs         # LSM-specific WAL (implements IWriteAheadLog)
+??? Transactions/
+    ??? WalJournal.cs            # [DEPRECATED] Use WalTransactionJournal
+    ??? RollbackJournal.cs       # Rollback journal (keeps old values)
+```
+
+### Usage Examples
+
+```csharp
+// For LSM (non-transactional):
+var lsmWal = new OutWit.Database.Core.LSM.WriteAheadLog("data.wal");
+lsmWal.AppendPut(key, value);
+lsmWal.Replay(new SimpleWalReplayVisitor(onPut, onDelete));
+
+// For BTree with transactions (new unified WAL):
+var wal = new OutWit.Database.Core.Wal.WriteAheadLog("tx.wal");
+var journal = new WalTransactionJournal(wal);
+var store = new TransactionalStore(btree, journal, lockManager);
+
+// Alternative: direct creation
+var journal = new WalTransactionJournal("tx.wal", encryptor: null);
+var store = new TransactionalStore(btree, journal, lockManager);
+```
 
 ---
 
@@ -247,24 +192,28 @@
 3. **Explicit configuration**: ??? ?????, ??? ????????????? ????
 4. **Testability**: ??? ??????????? ?????????????
 
-### ?????????????
+### WAL ?????????
 
-- LSM Store ????? ???? WAL ??? MemTable durability
-- Transaction WAL ????? ??? ????????? multi-key ????????
-- ??? WAL ????? ?????????????? (?????? ????)
-
-### ??????????
-
-1. ? **Completed**: Phase 1 - ????????? ???????????
-2. ?? **In Progress**: Phase 2-3 - ?????????? ? ?????
-3. ?? **Planned**: Phase 4-6 - ????????? API ? ????????????
+| Feature | LSM WAL | Unified WAL | Old WalJournal |
+|---------|---------|-------------|----------------|
+| Interface | IWriteAheadLog | IWriteAheadLog | ITransactionJournal |
+| CRC32 | ? | ? | ? |
+| ArrayPool | ? | ? | ? |
+| Encryption | ? | ? | ? |
+| Transactions | ? | ? | ? |
+| Auto-checkpoint | ? | via adapter | ? |
+| Status | Active | Active | **DEPRECATED** |
 
 ---
 
 ## Changelog
 
 ### 2024-12-19
-- ? Fixed `_ownsStore` public field
-- ? Deleted duplicate `TransactionLog.cs`
-- ? Fixed blocking async dispose in `Transaction`
-- ? Unified `DatabaseLock` sync/async mechanism
+- ? Phase 1 completed
+- ? Phase 2 completed
+- ? Created `Utils/Crc32.cs`
+- ? Created `Interfaces/IWriteAheadLog.cs` with visitors
+- ? Created `Wal/WriteAheadLog.cs` (unified)
+- ? Created `Wal/WalTransactionJournal.cs`
+- ? Updated LSM WAL to implement `IWriteAheadLog`
+- ? Deprecated old `WalJournal`
