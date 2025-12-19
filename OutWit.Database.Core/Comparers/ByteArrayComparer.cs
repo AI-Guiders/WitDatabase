@@ -6,12 +6,25 @@ namespace OutWit.Database.Core.Comparers;
 /// </summary>
 public sealed class ByteArrayComparer : IComparer<byte[]>, IEqualityComparer<byte[]>
 {
+    #region Static
+
     /// <summary>
     /// Default singleton instance.
     /// </summary>
     public static readonly ByteArrayComparer Default = new();
 
-    private ByteArrayComparer() { }
+    #endregion
+
+    #region Functions
+
+    private ByteArrayComparer()
+    {
+
+    }
+
+    #endregion
+
+    #region Compare
 
     /// <summary>
     /// Compares two byte arrays lexicographically.
@@ -42,6 +55,20 @@ public sealed class ByteArrayComparer : IComparer<byte[]>, IEqualityComparer<byt
         if (y is null) return 1;
         return x.SequenceCompareTo(y.AsSpan());
     }
+
+
+
+    /// <summary>
+    /// Compare two spans without allocation.
+    /// </summary>
+    public int Compare(ReadOnlySpan<byte> x, ReadOnlySpan<byte> y)
+    {
+        return x.SequenceCompareTo(y);
+    }
+
+    #endregion
+
+    #region Equality
 
     /// <summary>
     /// Determines whether two byte arrays are equal.
@@ -85,4 +112,6 @@ public sealed class ByteArrayComparer : IComparer<byte[]>, IEqualityComparer<byt
             return hash;
         }
     }
+
+    #endregion
 }
