@@ -46,6 +46,26 @@ namespace OutWit.Database.Core.LSM
         public IBlockEncryptor? Encryptor { get; set; }
 
         /// <summary>
+        /// Whether to enable block cache for SSTable reads.
+        /// Default: true
+        /// </summary>
+        public bool EnableBlockCache { get; set; } = true;
+
+        /// <summary>
+        /// Maximum size of block cache in bytes.
+        /// Only used if EnableBlockCache is true.
+        /// Default: 64 MB
+        /// </summary>
+        public long BlockCacheSizeBytes { get; set; } = 64 * 1024 * 1024;
+
+        /// <summary>
+        /// Whether to run compaction in background thread.
+        /// If false, compaction runs synchronously during flush.
+        /// Default: true
+        /// </summary>
+        public bool BackgroundCompaction { get; set; } = true;
+
+        /// <summary>
         /// Creates default options.
         /// </summary>
         public static LsmOptions Default => new();

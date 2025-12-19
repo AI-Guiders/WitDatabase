@@ -1,25 +1,34 @@
 ﻿using OutWit.Database.Core.Comparers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OutWit.Database.Core.LSM
 {
     /// <summary>
     /// Merge iterator that produces entries from multiple SSTables in sorted order.
+    /// Uses PriorityQueue for O(log n) min selection instead of O(n) scan.
     /// For duplicate keys, yields newest first (highest priority).
     /// </summary>
     internal sealed class MergeIterator
     {
+        #region Nested Types
+
+        private readonly record struct HeapEntry(byte[] Key, byte[]? Value, int SourceIndex) : IComparable<HeapEntry>
+        {
+            public int CompareTo(HeapEntry other)
+            {
+                var cmp = Key.AsSpan().SequenceCompareTo(other.Key);
+                if (cmp != 0) return cmp;
+                // For same key, higher source index (newer) should come first (lower priority value)
+                return other.SourceIndex.CompareTo(SourceIndex);
+            }
+        }
+
+        #endregion
+
         #region Fields
 
-        private readonly List<IEnumerator<(byte[] Key, byte[]? Value)>> m_iterators;
-
-        private readonly List<(byte[] Key, byte[]? Value, int Priority)?> m_current;
-
-        private readonly LsmByteArrayComparer m_comparer;
+        private readonly IEnumerator<(byte[] Key, byte[]? Value)>[] m_iterators;
+        private readonly PriorityQueue<HeapEntry, HeapEntry> m_heap;
+        private readonly bool[] m_exhausted;
 
         #endregion
 
@@ -27,21 +36,22 @@ namespace OutWit.Database.Core.LSM
 
         public MergeIterator(List<SSTableReader> readers, LsmByteArrayComparer comparer)
         {
-            m_comparer = comparer;
-            m_iterators = readers.Select(r => r.Scan().GetEnumerator()).ToList();
-            m_current = new List<(byte[] Key, byte[]? Value, int Priority)?>(readers.Count);
+            m_iterators = readers.Select(r => r.Scan().GetEnumerator()).ToArray();
+            m_exhausted = new bool[readers.Count];
+            m_heap = new PriorityQueue<HeapEntry, HeapEntry>();
 
-            // Initialize current entries
-            for (int i = 0; i < m_iterators.Count; i++)
+            // Initialize heap with first entry from each iterator
+            for (int i = 0; i < m_iterators.Length; i++)
             {
                 if (m_iterators[i].MoveNext())
                 {
                     var entry = m_iterators[i].Current;
-                    m_current.Add((entry.Key, entry.Value, i));
+                    var heapEntry = new HeapEntry(entry.Key, entry.Value, i);
+                    m_heap.Enqueue(heapEntry, heapEntry);
                 }
                 else
                 {
-                    m_current.Add(null);
+                    m_exhausted[i] = true;
                 }
             }
         }
@@ -52,57 +62,45 @@ namespace OutWit.Database.Core.LSM
 
         public IEnumerable<(byte[] Key, byte[]? Value, int Priority)> Iterate()
         {
-            while (true)
+            byte[]? lastYieldedKey = null;
+
+            while (m_heap.Count > 0)
             {
-                // Find minimum key
-                (byte[] Key, byte[]? Value, int Priority)? minEntry = null;
-                int minIndex = -1;
+                var entry = m_heap.Dequeue();
 
-                for (int i = 0; i < m_current.Count; i++)
+                // Skip duplicates (we already yielded the newest version)
+                if (lastYieldedKey != null && 
+                    entry.Key.AsSpan().SequenceCompareTo(lastYieldedKey) == 0)
                 {
-                    var entry = m_current[i];
-                    if (entry == null) continue;
-
-                    if (minEntry == null || m_comparer.Compare(entry.Value.Key, minEntry.Value.Key) < 0)
-                    {
-                        minEntry = entry;
-                        minIndex = i;
-                    }
-                    else if (m_comparer.Compare(entry.Value.Key, minEntry.Value.Key) == 0)
-                    {
-                        // Same key - prefer higher priority (newer file)
-                        if (entry.Value.Priority > minEntry.Value.Priority)
-                        {
-                            minEntry = entry;
-                            minIndex = i;
-                        }
-                    }
+                    // Advance this source's iterator and re-add to heap
+                    AdvanceIterator(entry.SourceIndex);
+                    continue;
                 }
 
-                if (minEntry == null)
-                    yield break;
+                lastYieldedKey = entry.Key;
 
-                // For duplicate keys, advance all iterators with the same key
-                var yieldedKey = minEntry.Value.Key;
-                for (int i = 0; i < m_current.Count; i++)
-                {
-                    var entry = m_current[i];
-                    if (entry != null && m_comparer.Compare(entry.Value.Key, yieldedKey) == 0)
-                    {
-                        // Advance this iterator
-                        if (m_iterators[i].MoveNext())
-                        {
-                            var next = m_iterators[i].Current;
-                            m_current[i] = (next.Key, next.Value, i);
-                        }
-                        else
-                        {
-                            m_current[i] = null;
-                        }
-                    }
-                }
+                // Yield this entry
+                yield return (entry.Key, entry.Value, entry.SourceIndex);
 
-                yield return minEntry.Value;
+                // Advance the iterator that produced this entry
+                AdvanceIterator(entry.SourceIndex);
+            }
+        }
+
+        private void AdvanceIterator(int sourceIndex)
+        {
+            if (m_exhausted[sourceIndex])
+                return;
+
+            if (m_iterators[sourceIndex].MoveNext())
+            {
+                var next = m_iterators[sourceIndex].Current;
+                var heapEntry = new HeapEntry(next.Key, next.Value, sourceIndex);
+                m_heap.Enqueue(heapEntry, heapEntry);
+            }
+            else
+            {
+                m_exhausted[sourceIndex] = true;
             }
         }
 

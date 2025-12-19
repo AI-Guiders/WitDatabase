@@ -8,6 +8,7 @@ namespace OutWit.Database.Core.LSM
     /// Reads immutable SSTable files.
     /// Supports point lookups and range scans via block index.
     /// Uses Bloom filter to skip reads for non-existent keys.
+    /// Optionally uses BlockCache to reduce disk I/O.
     /// Handles both encrypted and unencrypted SSTables.
     /// Thread-safe for concurrent reads.
     /// </summary>
@@ -29,6 +30,7 @@ namespace OutWit.Database.Core.LSM
         private readonly FileStream m_stream;
         private readonly Lock m_streamLock = new();
         private readonly IBlockEncryptor? m_encryptor;
+        private readonly BlockCache? m_cache;
         private readonly List<IndexEntry> m_index = [];
         private readonly LsmByteArrayComparer m_comparer = LsmByteArrayComparer.Instance;
         private BloomFilter? m_bloomFilter;
@@ -45,10 +47,12 @@ namespace OutWit.Database.Core.LSM
         /// </summary>
         /// <param name="filePath">Path to the SSTable file.</param>
         /// <param name="encryptor">Optional block encryptor for decryption.</param>
-        public SSTableReader(string filePath, IBlockEncryptor? encryptor = null)
+        /// <param name="cache">Optional block cache for caching reads.</param>
+        public SSTableReader(string filePath, IBlockEncryptor? encryptor = null, BlockCache? cache = null)
         {
             FilePath = filePath;
             m_encryptor = encryptor;
+            m_cache = cache;
             m_stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096);
             LoadIndex();
         }
@@ -79,8 +83,8 @@ namespace OutWit.Database.Core.LSM
             if (blockIndex < 0)
                 return false;
 
-            // Search within the block
-            var block = ReadBlock(blockIndex);
+            // Search within the block (may use cache)
+            var block = ReadBlockCached(blockIndex);
             if (block == null) return false; // Decryption failed
             return SearchInBlock(block, key, out value);
         }
@@ -94,7 +98,7 @@ namespace OutWit.Database.Core.LSM
 
             for (int i = 0; i < m_index.Count; i++)
             {
-                var block = ReadBlock(i);
+                var block = ReadBlockCached(i);
                 if (block == null) continue; // Skip on decryption failure
                 foreach (var entry in ParseBlock(block))
                 {
@@ -123,7 +127,7 @@ namespace OutWit.Database.Core.LSM
             // Scan blocks
             for (int i = startBlock; i < m_index.Count; i++)
             {
-                var block = ReadBlock(i);
+                var block = ReadBlockCached(i);
                 if (block == null) continue;
                 foreach (var entry in ParseBlock(block))
                 {
@@ -165,7 +169,30 @@ namespace OutWit.Database.Core.LSM
             return result;
         }
 
-        private byte[]? ReadBlock(int blockIndex)
+        /// <summary>
+        /// Reads a block, using cache if available.
+        /// </summary>
+        private byte[]? ReadBlockCached(int blockIndex)
+        {
+            // Try cache first
+            if (m_cache != null && m_cache.TryGet(FilePath, blockIndex, out var cached))
+            {
+                return cached;
+            }
+
+            // Read from disk
+            var block = ReadBlockFromDisk(blockIndex);
+            
+            // Store in cache (if available and read succeeded)
+            if (block != null && m_cache != null)
+            {
+                m_cache.Put(FilePath, blockIndex, block);
+            }
+
+            return block;
+        }
+
+        private byte[]? ReadBlockFromDisk(int blockIndex)
         {
             var entry = m_index[blockIndex];
             
@@ -476,6 +503,7 @@ namespace OutWit.Database.Core.LSM
             if (m_disposed) return;
             m_disposed = true;
             m_stream.Dispose();
+            // Note: We don't dispose the cache - it's shared
         }
 
         #endregion

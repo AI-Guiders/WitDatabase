@@ -18,12 +18,16 @@ namespace OutWit.Database.Core.Stores
         private readonly LsmOptions m_options;
         private readonly ReaderWriterLockSlim m_sstableLock = new(LockRecursionPolicy.NoRecursion);
         private readonly Lock m_writeLock = new();
+        private readonly Lock m_compactionLock = new();
         private readonly List<SSTableReader> m_sstables = [];
+        private readonly BlockCache? m_blockCache;
 
         private MemTable m_activeMemTable;
         private MemTable? m_immutableMemTable;
         private WriteAheadLog? m_wal;
+        private Task? m_compactionTask;
         private int m_nextSstableId;
+        private bool m_compactionPending;
         private bool m_disposed;
 
         #endregion
@@ -40,6 +44,12 @@ namespace OutWit.Database.Core.Stores
             m_directory = directory;
             m_options = options ?? LsmOptions.Default;
             m_activeMemTable = new MemTable();
+
+            // Initialize block cache if enabled
+            if (m_options.EnableBlockCache)
+            {
+                m_blockCache = new BlockCache(m_options.BlockCacheSizeBytes);
+            }
 
             // Ensure directory exists
             System.IO.Directory.CreateDirectory(directory);
@@ -191,33 +201,26 @@ namespace OutWit.Database.Core.Stores
 
         /// <summary>
         /// Scans key-value pairs in the specified range.
+        /// Uses streaming merge to avoid materializing all entries in memory.
         /// </summary>
         public IEnumerable<(byte[] Key, byte[] Value)> Scan(byte[]? startKey, byte[]? endKey)
         {
             ThrowIfDisposed();
 
             var comparer = LsmByteArrayComparer.Instance;
-            var allEntries = new List<(byte[] Key, byte[]? Value, int Priority)>();
-
-            // Priority: higher = newer (checked first)
+            
+            // Collect all sources with their priorities (higher = newer)
+            var sources = new List<(IEnumerable<(byte[] Key, byte[]? Value)> Source, int Priority)>();
             int priority = int.MaxValue;
 
             // 1. Active MemTable (highest priority)
-            foreach (var entry in m_activeMemTable.Scan(startKey, endKey))
-            {
-                allEntries.Add((entry.Key, entry.Value, priority));
-            }
-            priority--;
+            sources.Add((m_activeMemTable.Scan(startKey, endKey), priority--));
 
             // 2. Immutable MemTable
             var immutable = Volatile.Read(ref m_immutableMemTable);
             if (immutable != null)
             {
-                foreach (var entry in immutable.Scan(startKey, endKey))
-                {
-                    allEntries.Add((entry.Key, entry.Value, priority));
-                }
-                priority--;
+                sources.Add((immutable.Scan(startKey, endKey), priority--));
             }
 
             // 3. SSTables (newest to oldest)
@@ -226,11 +229,7 @@ namespace OutWit.Database.Core.Stores
             {
                 for (int i = m_sstables.Count - 1; i >= 0; i--)
                 {
-                    foreach (var entry in m_sstables[i].Scan(startKey, endKey))
-                    {
-                        allEntries.Add((entry.Key, entry.Value, priority));
-                    }
-                    priority--;
+                    sources.Add((m_sstables[i].Scan(startKey, endKey), priority--));
                 }
             }
             finally
@@ -238,31 +237,72 @@ namespace OutWit.Database.Core.Stores
                 m_sstableLock.ExitReadLock();
             }
 
-            // Sort by key, then by priority (descending, so newest first for same key)
-            allEntries.Sort((a, b) =>
+            // Use heap-based merge to stream results
+            return MergeScan(sources, comparer);
+        }
+
+        /// <summary>
+        /// Merges multiple sorted sources using a priority queue.
+        /// </summary>
+        private static IEnumerable<(byte[] Key, byte[] Value)> MergeScan(
+            List<(IEnumerable<(byte[] Key, byte[]? Value)> Source, int Priority)> sources,
+            LsmByteArrayComparer comparer)
+        {
+            // Initialize iterators and heap
+            var iterators = sources.Select(s => s.Source.GetEnumerator()).ToArray();
+            var priorities = sources.Select(s => s.Priority).ToArray();
+            var heap = new PriorityQueue<(byte[] Key, byte[]? Value, int SourceIndex), (byte[] Key, int InversePriority)>();
+
+            // Populate heap with first entry from each source
+            for (int i = 0; i < iterators.Length; i++)
             {
-                var cmp = comparer.Compare(a.Key, b.Key);
-                if (cmp != 0) return cmp;
-                return b.Priority.CompareTo(a.Priority);
-            });
-
-            // Deduplicate and filter tombstones
-            var results = new List<(byte[] Key, byte[] Value)>();
-            byte[]? lastKey = null;
-            foreach (var entry in allEntries)
-            {
-                if (lastKey != null && comparer.Compare(lastKey, entry.Key) == 0)
-                    continue; // Skip duplicates
-
-                lastKey = entry.Key;
-
-                if (entry.Value != null) // Skip tombstones
+                if (iterators[i].MoveNext())
                 {
-                    results.Add((entry.Key, entry.Value));
+                    var entry = iterators[i].Current;
+                    // Use negative priority so higher priority sources come first for same key
+                    heap.Enqueue((entry.Key, entry.Value, i), (entry.Key, -priorities[i]));
                 }
             }
 
-            return results;
+            byte[]? lastKey = null;
+
+            while (heap.Count > 0)
+            {
+                var (key, value, sourceIndex) = heap.Dequeue();
+
+                // Skip duplicates (we already yielded the newest version)
+                if (lastKey != null && comparer.Compare(lastKey, key) == 0)
+                {
+                    // Advance this source and re-add to heap
+                    if (iterators[sourceIndex].MoveNext())
+                    {
+                        var next = iterators[sourceIndex].Current;
+                        heap.Enqueue((next.Key, next.Value, sourceIndex), (next.Key, -priorities[sourceIndex]));
+                    }
+                    continue;
+                }
+
+                lastKey = key;
+
+                // Skip tombstones
+                if (value != null)
+                {
+                    yield return (key, value);
+                }
+
+                // Advance the source iterator
+                if (iterators[sourceIndex].MoveNext())
+                {
+                    var next = iterators[sourceIndex].Current;
+                    heap.Enqueue((next.Key, next.Value, sourceIndex), (next.Key, -priorities[sourceIndex]));
+                }
+            }
+
+            // Dispose iterators
+            foreach (var iter in iterators)
+            {
+                iter.Dispose();
+            }
         }
 
         /// <inheritdoc/>
@@ -312,22 +352,83 @@ namespace OutWit.Database.Core.Stores
         #region Compaction
 
         /// <summary>
-        /// Forces compaction of SSTables.
+        /// Forces compaction of SSTables. Waits for completion.
         /// </summary>
         public void Compact()
         {
             ThrowIfDisposed();
-            TriggerCompaction();
+            
+            if (m_options.BackgroundCompaction)
+            {
+                // Trigger and wait for background compaction
+                ScheduleBackgroundCompaction();
+                WaitForCompaction();
+            }
+            else
+            {
+                ExecuteCompaction();
+            }
         }
 
-        private void TriggerCompaction()
+        /// <summary>
+        /// Waits for any pending background compaction to complete.
+        /// </summary>
+        public void WaitForCompaction()
+        {
+            var task = Volatile.Read(ref m_compactionTask);
+            task?.Wait();
+        }
+
+        private void ScheduleBackgroundCompaction()
+        {
+            lock (m_compactionLock)
+            {
+                // Check if compaction is needed
+                m_sstableLock.EnterReadLock();
+                try
+                {
+                    if (m_sstables.Count < m_options.Level0CompactionTrigger)
+                        return;
+                }
+                finally
+                {
+                    m_sstableLock.ExitReadLock();
+                }
+
+                // Check if compaction is already pending
+                if (m_compactionPending)
+                    return;
+
+                m_compactionPending = true;
+
+                // Start background compaction
+                m_compactionTask = Task.Run(() =>
+                {
+                    try
+                    {
+                        ExecuteCompaction();
+                    }
+                    finally
+                    {
+                        lock (m_compactionLock)
+                        {
+                            m_compactionPending = false;
+                        }
+                    }
+                });
+            }
+        }
+
+        private void ExecuteCompaction()
         {
             // Get current SSTable files
             List<string> filesToCompact;
+            int currentSstableCount;
             m_sstableLock.EnterReadLock();
             try
             {
-                if (m_sstables.Count < m_options.Level0CompactionTrigger)
+                currentSstableCount = m_sstables.Count;
+                if (currentSstableCount < m_options.Level0CompactionTrigger)
                     return;
 
                 filesToCompact = m_sstables.Select(s => s.FilePath).ToList();
@@ -337,11 +438,19 @@ namespace OutWit.Database.Core.Stores
                 m_sstableLock.ExitReadLock();
             }
 
-            // Perform compaction
+            // Generate output path
+            // Use lock to prevent race with FlushMemTableInternal
+            int outputId;
+            lock (m_writeLock)
+            {
+                outputId = m_nextSstableId++;
+            }
+            var outputPath = Path.Combine(m_directory, $"sst_{outputId:D6}.sst");
+
+            // Perform compaction (outside of any locks)
             var compactor = new Compactor(m_directory, m_options.BlockSize);
-            var outputPath = Path.Combine(m_directory, $"sst_{m_nextSstableId:D6}.sst");
-            
             var result = compactor.Compact(filesToCompact, outputPath);
+            
             if (result.OutputEntries == 0 && filesToCompact.Count > 0)
             {
                 // All entries were tombstones, delete output
@@ -353,6 +462,28 @@ namespace OutWit.Database.Core.Stores
             m_sstableLock.EnterWriteLock();
             try
             {
+                // Verify SSTables haven't changed during compaction
+                // If they have, abort this compaction
+                var currentFiles = m_sstables.Select(s => s.FilePath).ToList();
+                if (!filesToCompact.SequenceEqual(currentFiles))
+                {
+                    // SSTables changed, delete our output and abort
+                    if (outputPath != null)
+                    {
+                        try { File.Delete(outputPath); } catch { }
+                    }
+                    return;
+                }
+
+                // Invalidate cache for old files
+                if (m_blockCache != null)
+                {
+                    foreach (var file in filesToCompact)
+                    {
+                        m_blockCache.Invalidate(file);
+                    }
+                }
+
                 // Close old readers
                 foreach (var sst in m_sstables)
                 {
@@ -366,11 +497,10 @@ namespace OutWit.Database.Core.Stores
                     try { File.Delete(file); } catch { }
                 }
 
-                // Open new compacted SSTable
+                // Open new compacted SSTable with cache
                 if (outputPath != null && File.Exists(outputPath))
                 {
-                    m_sstables.Add(new SSTableReader(outputPath, m_options.Encryptor));
-                    m_nextSstableId++;
+                    m_sstables.Add(new SSTableReader(outputPath, m_options.Encryptor, m_blockCache));
                 }
             }
             finally
@@ -393,9 +523,9 @@ namespace OutWit.Database.Core.Stores
             Volatile.Write(ref m_immutableMemTable, oldActive);
             m_activeMemTable = new MemTable();
 
-            // Create new SSTable
-            var sstablePath = Path.Combine(m_directory, $"sst_{m_nextSstableId:D6}.sst");
-            m_nextSstableId++;
+            // Generate SSTable path (m_writeLock already held, so safe)
+            var sstableId = m_nextSstableId++;
+            var sstablePath = Path.Combine(m_directory, $"sst_{sstableId:D6}.sst");
 
             using (var builder = new SSTableBuilder(sstablePath, m_options.BlockSize, m_options.Encryptor))
             {
@@ -410,7 +540,7 @@ namespace OutWit.Database.Core.Stores
             m_sstableLock.EnterWriteLock();
             try
             {
-                m_sstables.Add(new SSTableReader(sstablePath, m_options.Encryptor));
+                m_sstables.Add(new SSTableReader(sstablePath, m_options.Encryptor, m_blockCache));
             }
             finally
             {
@@ -427,8 +557,14 @@ namespace OutWit.Database.Core.Stores
             // Check if compaction needed
             if (m_sstables.Count >= m_options.Level0CompactionTrigger)
             {
-                // TODO: Run in background thread
-                TriggerCompaction();
+                if (m_options.BackgroundCompaction)
+                {
+                    ScheduleBackgroundCompaction();
+                }
+                else
+                {
+                    ExecuteCompaction();
+                }
             }
         }
 
@@ -441,7 +577,7 @@ namespace OutWit.Database.Core.Stores
 
             foreach (var file in sstableFiles)
             {
-                m_sstables.Add(new SSTableReader(file, m_options.Encryptor));
+                m_sstables.Add(new SSTableReader(file, m_options.Encryptor, m_blockCache));
 
                 // Extract ID from filename
                 var filename = Path.GetFileNameWithoutExtension(file);
@@ -488,6 +624,9 @@ namespace OutWit.Database.Core.Stores
             if (m_disposed) return;
             m_disposed = true;
 
+            // Wait for background compaction to complete
+            WaitForCompaction();
+
             lock (m_writeLock)
             {
                 // Flush remaining data
@@ -516,6 +655,7 @@ namespace OutWit.Database.Core.Stores
             }
 
             m_sstableLock.Dispose();
+            m_blockCache?.Dispose();
         }
 
         #endregion
@@ -545,6 +685,16 @@ namespace OutWit.Database.Core.Stores
                 }
             }
         }
+
+        /// <summary>
+        /// Gets the block cache, if enabled. Returns null if caching is disabled.
+        /// </summary>
+        public BlockCache? BlockCache => m_blockCache;
+
+        /// <summary>
+        /// Gets whether a background compaction is currently running.
+        /// </summary>
+        public bool IsCompacting => Volatile.Read(ref m_compactionPending);
 
         #endregion
     }

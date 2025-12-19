@@ -664,7 +664,8 @@ namespace OutWit.Database.Core.Tests.LSM
             { 
                 EnableWal = false,
                 MemTableSizeLimit = 100,
-                Level0CompactionTrigger = 3
+                Level0CompactionTrigger = 3,
+                BackgroundCompaction = false // Use synchronous compaction for predictable test
             };
         
             using var tree = new LsmTreeStore(dir, options);
@@ -696,7 +697,8 @@ namespace OutWit.Database.Core.Tests.LSM
             { 
                 EnableWal = false,
                 MemTableSizeLimit = 100,
-                Level0CompactionTrigger = 3
+                Level0CompactionTrigger = 3,
+                BackgroundCompaction = false // Use synchronous compaction
             };
         
             using var tree = new LsmTreeStore(dir, options);
@@ -811,7 +813,78 @@ namespace OutWit.Database.Core.Tests.LSM
 
         #endregion
 
-        #region Bloom Filter Tests
+        #region BloomFilter Tests
+
+        [Test]
+        public void BloomFilterAddAndContainsTest()
+        {
+            var filter = new BloomFilter(100);
+        
+            filter.Add(ToBytes("test1"));
+            filter.Add(ToBytes("test2"));
+        
+            Assert.That(filter.MightContain(ToBytes("test1")), Is.True);
+            Assert.That(filter.MightContain(ToBytes("test2")), Is.True);
+        }
+
+        [Test]
+        public void BloomFilterSerializeRoundtripTest()
+        {
+            var filter = new BloomFilter(100);
+            filter.Add(ToBytes("key1"));
+            filter.Add(ToBytes("key2"));
+        
+            var bytes = filter.ToBytes();
+            var restored = new BloomFilter(bytes, filter.HashCount, filter.Size);
+        
+            Assert.That(restored.MightContain(ToBytes("key1")), Is.True);
+            Assert.That(restored.MightContain(ToBytes("key2")), Is.True);
+        }
+
+        [Test]
+        public void BloomFilterClearTest()
+        {
+            var filter = new BloomFilter(100);
+            filter.Add(ToBytes("test"));
+        
+            Assert.That(filter.MightContain(ToBytes("test")), Is.True);
+        
+            filter.Clear();
+        
+            Assert.That(filter.MightContain(ToBytes("test")), Is.False);
+        }
+
+        [Test]
+        public void BloomFilterFalsePositiveRateTest()
+        {
+            const int itemCount = 10000;
+            var filter = new BloomFilter(itemCount, 0.01);
+
+            // Add items
+            for (int i = 0; i < itemCount; i++)
+            {
+                filter.Add(BitConverter.GetBytes(i));
+            }
+
+            // All added items should be found
+            for (int i = 0; i < itemCount; i++)
+            {
+                Assert.That(filter.MightContain(BitConverter.GetBytes(i)), Is.True);
+            }
+
+            // Check false positive rate on non-existent items
+            int falsePositives = 0;
+            const int testCount = 10000;
+            for (int i = itemCount; i < itemCount + testCount; i++)
+            {
+                if (filter.MightContain(BitConverter.GetBytes(i)))
+                    falsePositives++;
+            }
+
+            double actualRate = (double)falsePositives / testCount;
+            // Allow 3x the expected rate due to statistical variation
+            Assert.That(actualRate, Is.LessThan(0.03), $"False positive rate {actualRate:P2} too high");
+        }
 
         [Test]
         public void BloomFilterSerializeAndDeserializeWorksTest()
@@ -842,6 +915,271 @@ namespace OutWit.Database.Core.Tests.LSM
             Assert.That(restored.MightContain(ToBytes("b")), Is.True, "Restored 'b'");
             Assert.That(restored.MightContain(ToBytes("c")), Is.True, "Restored 'c'");
             Assert.That(restored.MightContain(ToBytes("d")), Is.False, "Restored 'd' should not exist");
+        }
+
+        #endregion
+
+        #region BlockCache Tests
+
+        [Test]
+        public void BlockCachePutAndGetTest()
+        {
+            using var cache = new BlockCache(1024 * 1024);
+            var data = new byte[] { 1, 2, 3, 4, 5 };
+            
+            cache.Put("test.sst", 0, data);
+            
+            Assert.That(cache.TryGet("test.sst", 0, out var result), Is.True);
+            Assert.That(result, Is.EqualTo(data));
+            Assert.That(cache.Hits, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlockCacheMissTest()
+        {
+            using var cache = new BlockCache(1024 * 1024);
+            
+            Assert.That(cache.TryGet("nonexistent.sst", 0, out _), Is.False);
+            Assert.That(cache.Misses, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlockCacheEvictionTest()
+        {
+            // Small cache that can hold ~10 blocks
+            using var cache = new BlockCache(1000);
+            
+            // Add 20 blocks of 100 bytes each
+            for (int i = 0; i < 20; i++)
+            {
+                cache.Put("test.sst", i, new byte[100]);
+            }
+            
+            // Cache should have evicted some entries
+            Assert.That(cache.CurrentSizeBytes, Is.LessThanOrEqualTo(1000));
+            Assert.That(cache.Count, Is.LessThan(20));
+        }
+
+        [Test]
+        public void BlockCacheInvalidateTest()
+        {
+            using var cache = new BlockCache(1024 * 1024);
+            
+            cache.Put("file1.sst", 0, new byte[100]);
+            cache.Put("file1.sst", 1, new byte[100]);
+            cache.Put("file2.sst", 0, new byte[100]);
+            
+            Assert.That(cache.Count, Is.EqualTo(3));
+            
+            cache.Invalidate("file1.sst");
+            
+            Assert.That(cache.Count, Is.EqualTo(1));
+            Assert.That(cache.TryGet("file1.sst", 0, out _), Is.False);
+            Assert.That(cache.TryGet("file2.sst", 0, out _), Is.True);
+        }
+
+        [Test]
+        public void BlockCacheHitRatioTest()
+        {
+            using var cache = new BlockCache(1024 * 1024);
+            
+            cache.Put("test.sst", 0, new byte[100]);
+            
+            // 2 hits
+            cache.TryGet("test.sst", 0, out _);
+            cache.TryGet("test.sst", 0, out _);
+            
+            // 1 miss
+            cache.TryGet("test.sst", 1, out _);
+            
+            Assert.That(cache.Hits, Is.EqualTo(2));
+            Assert.That(cache.Misses, Is.EqualTo(1));
+            Assert.That(cache.HitRatio, Is.EqualTo(2.0 / 3.0).Within(0.001));
+        }
+
+        [Test]
+        public void BlockCacheLargeBlockSkippedTest()
+        {
+            // Cache of 1000 bytes
+            using var cache = new BlockCache(1000);
+            
+            // Try to cache a block that's > 25% of cache size
+            cache.Put("test.sst", 0, new byte[500]);
+            
+            // Should not be cached
+            Assert.That(cache.TryGet("test.sst", 0, out _), Is.False);
+        }
+
+        [Test]
+        public void BlockCacheConcurrentAccessTest()
+        {
+            using var cache = new BlockCache(10 * 1024 * 1024);
+            const int threadCount = 4;
+            const int opsPerThread = 1000;
+
+            var tasks = Enumerable.Range(0, threadCount)
+                .Select(t => Task.Run(() =>
+                {
+                    for (int i = 0; i < opsPerThread; i++)
+                    {
+                        var blockIndex = i % 100;
+                        var key = $"file{t}.sst";
+                        
+                        if (i % 3 == 0)
+                        {
+                            cache.Put(key, blockIndex, new byte[100]);
+                        }
+                        else
+                        {
+                            cache.TryGet(key, blockIndex, out _);
+                        }
+                    }
+                }))
+                .ToArray();
+
+            Task.WaitAll(tasks);
+            
+            // Should complete without exceptions
+            Assert.That(cache.Count, Is.GreaterThan(0));
+        }
+
+        #endregion
+
+        #region BlockCache Integration Tests
+
+        [Test]
+        public void LsmTreeBlockCacheIntegrationTest()
+        {
+            var dir = Path.Combine(m_testDir, "cache_integration");
+            var options = new LsmOptions 
+            { 
+                EnableWal = false,
+                EnableBlockCache = true,
+                BlockCacheSizeBytes = 1024 * 1024, // 1 MB
+                MemTableSizeLimit = 100,
+                Level0CompactionTrigger = 100 // Disable auto-compaction
+            };
+        
+            using var tree = new LsmTreeStore(dir, options);
+            
+            // Insert and flush to create SSTable
+            for (int i = 0; i < 50; i++)
+            {
+                tree.Put(BitConverter.GetBytes(i), BitConverter.GetBytes(i * 10));
+            }
+            tree.Flush();
+            
+            // First read - should be cache misses
+            var initialMisses = tree.BlockCache?.Misses ?? 0;
+            for (int i = 0; i < 50; i++)
+            {
+                tree.Get(BitConverter.GetBytes(i));
+            }
+            
+            var afterFirstRead = tree.BlockCache;
+            Assert.That(afterFirstRead, Is.Not.Null);
+            Assert.That(afterFirstRead!.Misses, Is.GreaterThan(initialMisses));
+            
+            // Second read - should be cache hits
+            var hitsBeforeSecondRead = afterFirstRead.Hits;
+            for (int i = 0; i < 50; i++)
+            {
+                tree.Get(BitConverter.GetBytes(i));
+            }
+            
+            Assert.That(afterFirstRead.Hits, Is.GreaterThan(hitsBeforeSecondRead));
+            Assert.That(afterFirstRead.HitRatio, Is.GreaterThan(0));
+            TestContext.WriteLine($"Cache stats: Hits={afterFirstRead.Hits}, Misses={afterFirstRead.Misses}, Ratio={afterFirstRead.HitRatio:P}");
+        }
+
+        [Test]
+        public void LsmTreeBlockCacheDisabledTest()
+        {
+            var dir = Path.Combine(m_testDir, "no_cache");
+            var options = new LsmOptions 
+            { 
+                EnableWal = false,
+                EnableBlockCache = false // Disable cache
+            };
+        
+            using var tree = new LsmTreeStore(dir, options);
+            
+            Assert.That(tree.BlockCache, Is.Null);
+            
+            // Operations should still work
+            tree.Put(ToBytes("key"), ToBytes("value"));
+            var result = tree.Get(ToBytes("key"));
+            Assert.That(result, Is.EqualTo(ToBytes("value")));
+        }
+
+        [Test]
+        public void LsmTreeBackgroundCompactionTest()
+        {
+            var dir = Path.Combine(m_testDir, "bg_compaction");
+            var options = new LsmOptions 
+            { 
+                EnableWal = false,
+                EnableBlockCache = false,
+                MemTableSizeLimit = 100,
+                Level0CompactionTrigger = 3,
+                BackgroundCompaction = true
+            };
+        
+            using var tree = new LsmTreeStore(dir, options);
+        
+            // Insert enough data to trigger compaction
+            for (int i = 0; i < 200; i++)
+            {
+                tree.Put(BitConverter.GetBytes(i), BitConverter.GetBytes(i * 10));
+            }
+            tree.Flush();
+
+            // Wait for background compaction
+            tree.WaitForCompaction();
+            
+            // Compaction should not be running
+            Assert.That(tree.IsCompacting, Is.False);
+
+            // All data should still be accessible - this is the key test
+            for (int i = 0; i < 200; i++)
+            {
+                var result = tree.Get(BitConverter.GetBytes(i));
+                Assert.That(result, Is.Not.Null, $"Key {i} not found");
+                Assert.That(BitConverter.ToInt32(result!), Is.EqualTo(i * 10));
+            }
+        }
+
+        [Test]
+        public void LsmTreeSyncCompactionTest()
+        {
+            var dir = Path.Combine(m_testDir, "sync_compaction");
+            var options = new LsmOptions 
+            { 
+                EnableWal = false,
+                EnableBlockCache = false,
+                MemTableSizeLimit = 100,
+                Level0CompactionTrigger = 3,
+                BackgroundCompaction = false // Synchronous compaction
+            };
+        
+            using var tree = new LsmTreeStore(dir, options);
+        
+            // Insert data
+            for (int i = 0; i < 200; i++)
+            {
+                tree.Put(BitConverter.GetBytes(i), BitConverter.GetBytes(i * 10));
+            }
+            tree.Flush();
+
+            // Compaction should have already happened (synchronously)
+            Assert.That(tree.SSTableCount, Is.LessThanOrEqualTo(3));
+
+            // All data should be accessible
+            for (int i = 0; i < 200; i++)
+            {
+                var result = tree.Get(BitConverter.GetBytes(i));
+                Assert.That(result, Is.Not.Null);
+            }
         }
 
         #endregion

@@ -8,39 +8,39 @@
 
 ---
 
-## Phase 1: Critical Fixes (Required for Production)
+## Phase 1: Critical Fixes (Required for Production) ? COMPLETE
 
-### 1.1 Locking Issues
+### 1.1 Locking Issues ?
 - [x] **MemTable: Fix mixed locking** - Replace `ReaderWriterLockSlim` + `Interlocked` with proper `Lock`
 - [x] **LsmTreeStore: Replace `object` lock** - Use `ReaderWriterLockSlim` for SSTable list, `Lock` for writes
 - [x] **SSTableReader: Add thread-safe reads** - Lock for FileStream access
 - [x] **Add tests for concurrent access** - MemTable and LsmTreeStore concurrent tests
 
-### 1.2 Compaction Integration
+### 1.2 Compaction Integration ?
 - [x] **LsmTreeStore: Integrate Compactor** - Call compaction when L0 threshold reached
 - [x] **Atomic SSTable swap** - Replace old tables with compacted ones safely
 - [x] **Add tests for compaction** - CompactorMergesSSTablesTest, CompactorRemovesTombstonesTest
-- [ ] **Background compaction thread** - Don't block writes during compaction (TODO: Phase 2)
+- [x] **Cache invalidation on compaction** - Invalidate old SSTable blocks
 
-### 1.3 Bloom Filter Integration
+### 1.3 Bloom Filter Integration ?
 - [x] **SSTableBuilder: Add Bloom filter** - Build filter during SSTable creation
 - [x] **SSTableReader: Use Bloom filter** - Skip block reads for definite non-matches
 - [x] **Serialize Bloom filter in SSTable footer** - New V2 format (44 bytes)
 - [x] **Add tests for Bloom filter integration** - SSTableBloomFilterSkipsNonExistentKeysTest, SSTableBloomFilterIntegrationTest
 
-### 1.4 Block Cache
-- [ ] **SSTableReader: Add LRU block cache** - Cache recently read blocks
-- [ ] **Make cache size configurable** - Add to LsmOptions
-- [ ] **Add cache hit/miss statistics**
-- [ ] **Add tests for caching behavior**
+### 1.4 Block Cache ?
+- [x] **SSTableReader: Add LRU block cache** - Cache recently read blocks
+- [x] **Make cache size configurable** - EnableBlockCache, BlockCacheSizeBytes in LsmOptions
+- [x] **Add cache hit/miss statistics** - Hits, Misses, HitRatio properties
+- [x] **Add tests for caching behavior** - 7 BlockCache tests + 2 integration tests
 
 ---
 
-## Phase 2: Performance Optimizations
+## Phase 2: Performance Optimizations ?? IN PROGRESS
 
-### 2.1 Scan Improvements
-- [ ] **Streaming Scan** - Use merge iterator instead of materializing all entries
-- [ ] **MergeIterator: Use PriorityQueue** - O(log n) instead of O(n) for min selection
+### 2.1 Scan Improvements ?
+- [x] **Streaming Scan** - Use heap-based merge iterator instead of materializing all entries
+- [x] **MergeIterator: Use PriorityQueue** - O(log n) instead of O(n) for min selection
 - [ ] **Add benchmarks for scan operations**
 
 ### 2.2 Memory Optimizations
@@ -53,8 +53,10 @@
 - [ ] **Configurable compression level**
 - [ ] **Add compression flag to SSTable format**
 
-### 2.4 Background Operations
-- [ ] **Background compaction thread** - Async compaction
+### 2.4 Background Operations ?
+- [x] **Background compaction thread** - Async compaction via Task.Run
+- [x] **WaitForCompaction method** - Wait for pending compaction
+- [x] **IsCompacting property** - Check if compaction is running
 - [ ] **Rate limiting** - Control compaction I/O
 - [ ] **Compaction scheduling** - Smart picking of files
 
@@ -83,8 +85,8 @@
 
 | Phase | Total Items | Completed | Percentage |
 |-------|-------------|-----------|------------|
-| Phase 1 | 12 | 11 | 92% |
-| Phase 2 | 10 | 0 | 0% |
+| Phase 1 | 16 | 16 | 100% ? |
+| Phase 2 | 14 | 5 | 36% |
 | Phase 3 | 7 | 0 | 0% |
 
 **Last Updated**: 2024-12-19
@@ -113,9 +115,24 @@ SSTable V2 footer format (44 bytes):
 Key insight: Must store original bit size separately from byte size
 because `ToBytes()` rounds up to byte boundary.
 
-### 1.4 Block Cache (TODO)
-LRU cache with configurable size. Key = (filePath, blockIndex).
-Should significantly improve point lookup performance.
+### 1.4 Block Cache (COMPLETED)
+- LRU eviction based on `Environment.TickCount64`
+- Configurable via `LsmOptions.EnableBlockCache` and `BlockCacheSizeBytes`
+- Shared cache instance across all SSTableReaders in LsmTreeStore
+- Cache invalidation on compaction
+- Statistics: Hits, Misses, HitRatio, Count, CurrentSizeBytes
+
+### 2.1 Scan Improvements (COMPLETED)
+- MergeIterator now uses `PriorityQueue<T, TPriority>` for O(log n) min selection
+- LsmTreeStore.Scan() uses streaming merge instead of materializing all entries
+- Memory usage now O(sources) instead of O(total entries)
+
+### 2.4 Background Compaction (COMPLETED)
+- `BackgroundCompaction` option in LsmOptions (default: true)
+- `ScheduleBackgroundCompaction()` schedules compaction via Task.Run
+- `ExecuteCompaction()` does actual work, checks for race conditions
+- `WaitForCompaction()` waits for pending compaction
+- `IsCompacting` property indicates if compaction is running
 
 ---
 
@@ -127,6 +144,34 @@ Should significantly improve point lookup performance.
 | WriteAheadLog | 3 tests |
 | SSTable | 7 tests (including Bloom filter) |
 | BloomFilter | 5 tests |
-| LsmTreeStore | 9 tests (including concurrent + compaction) |
+| LsmTreeStore | 13 tests (including concurrent + compaction + cache + background) |
 | Compactor | 2 tests |
-| **Total** | **33 tests** |
+| BlockCache | 7 tests |
+| **Total** | **44 tests** |
+
+---
+
+## Performance Characteristics
+
+### Read Path
+1. MemTable lookup - O(log n) via SortedDictionary
+2. Immutable MemTable lookup (if exists) - O(log n)
+3. SSTable lookups (newest to oldest):
+   - Bloom filter check - O(k) where k = hash count
+   - Block cache lookup - O(1) amortized
+   - Binary search in index - O(log blocks)
+   - Linear scan in block - O(entries per block)
+
+### Write Path
+1. WAL append - O(1) sequential write
+2. MemTable insert - O(log n)
+3. Flush trigger check - O(1)
+
+### Scan Path
+1. Heap-based merge of all sources - O(n log s) where s = sources, n = entries
+2. No materialization - results streamed
+
+### Compaction
+1. Background thread - doesn't block writes
+2. Atomic SSTable swap - minimal read blocking
+3. Cache invalidation - removes stale blocks
