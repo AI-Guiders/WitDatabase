@@ -263,7 +263,9 @@ namespace OutWit.Database.Core.Stores
             // Initialize iterators and heap
             var iterators = sources.Select(s => s.Source.GetEnumerator()).ToArray();
             var priorities = sources.Select(s => s.Priority).ToArray();
-            var heap = new PriorityQueue<(byte[] Key, byte[]? Value, int SourceIndex), (byte[] Key, int InversePriority)>();
+            
+            var heap = new PriorityQueue<(byte[] Key, byte[]? Value, int SourceIndex), (byte[] Key, int InversePriority)>(
+                LsmMergePriorityComparer.Instance);
 
             // Populate heap with first entry from each source
             for (int i = 0; i < iterators.Length; i++)

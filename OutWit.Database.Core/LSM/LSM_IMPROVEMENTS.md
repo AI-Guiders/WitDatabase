@@ -41,7 +41,7 @@
 ### 2.1 Scan Improvements ?
 - [x] **Streaming Scan** - Use heap-based merge iterator instead of materializing all entries
 - [x] **MergeIterator: Use PriorityQueue** - O(log n) instead of O(n) for min selection
-- [ ] **Add benchmarks for scan operations**
+- [x] **Add benchmarks for scan operations** - StoreScanBenchmarks
 
 ### 2.2 Memory Optimizations ?
 - [ ] **MemTable: Consider skip list** - Deferred: SortedDictionary performs well enough
@@ -63,7 +63,7 @@
 
 ---
 
-## Phase 3: Production Features ?? IN PROGRESS
+## Phase 3: Production Features ? MOSTLY COMPLETE
 
 ### 3.1 Level-Based Compaction
 - [ ] **Level structure** - L0, L1, L2... with size ratios
@@ -81,6 +81,19 @@
 - [x] **Bloom filter efficiency** - BloomFilterHits, BloomFilterMisses, BloomFilterEfficiency
 - [x] **Snapshot support** - GetSnapshot() for point-in-time statistics
 
+### 3.4 Integration & Testing ?
+- [x] **IKeyValueStore interface** - Full implementation
+- [x] **Interface conformance tests** - LsmTreeStoreInterfaceTests via KeyValueStoreTestBase
+- [x] **Integration tests** - LsmTreeIntegrationTests with persistence, compaction, cache
+- [x] **Production readiness audit** - LSM_AUDIT.md
+
+### 3.5 Benchmarks ?
+- [x] **LSM vs BTree Insert benchmarks** - StoreInsertBenchmarks
+- [x] **LSM vs BTree Read benchmarks** - StoreReadBenchmarks
+- [x] **LSM vs BTree Scan benchmarks** - StoreScanBenchmarks
+- [x] **Mixed workload benchmarks** - StoreMixedWorkloadBenchmarks
+- [x] **Write-heavy benchmarks** - WriteHeavyBenchmarks
+
 ---
 
 ## Current Progress
@@ -88,102 +101,76 @@
 | Phase | Total Items | Completed | Percentage |
 |-------|-------------|-----------|------------|
 | Phase 1 | 16 | 16 | 100% ? |
-| Phase 2 | 14 | 8 | 57% |
-| Phase 3 | 10 | 4 | 40% |
+| Phase 2 | 14 | 9 | 64% |
+| Phase 3 | 17 | 12 | 71% |
 
 **Last Updated**: 2024-12-19
 
 ---
 
-## Implementation Notes
+## Test Organization
 
-### 1.1 MemTable Locking (COMPLETED)
-Used simple `Lock` (C# 13) for all operations. MemTable write throughput is critical,
-and the simple lock avoids complexity of ReaderWriterLockSlim.
+Tests are now organized into separate files:
 
-### 1.2 LsmTreeStore Locking (COMPLETED)
-- `Lock` for write serialization (Put/Delete)
-- `ReaderWriterLockSlim` for SSTable list (allows concurrent reads)
-- `Volatile.Read/Write` for immutableMemTable reference
-
-### 1.3 Bloom Filter Integration (COMPLETED)
-SSTable V2 footer format (44 bytes):
-```
-[IndexOffset:8][IndexSize:4][EntryCount:4][Flags:4]
-[BloomOffset:8][BloomSizeBytes:4][BloomBitSize:4][BloomHashCount:4]
-[Magic:4]
-```
-
-### 1.4 Block Cache (COMPLETED)
-- LRU eviction based on `Environment.TickCount64`
-- Configurable via `LsmOptions.EnableBlockCache` and `BlockCacheSizeBytes`
-- Shared cache instance across all SSTableReaders in LsmTreeStore
-- Cache invalidation on compaction
-
-### 2.1 Scan Improvements (COMPLETED)
-- MergeIterator now uses `PriorityQueue<T, TPriority>` for O(log n) min selection
-- LsmTreeStore.Scan() uses streaming merge instead of materializing all entries
-
-### 2.2 Memory Optimizations (COMPLETED)
-- `ArrayPool<byte>.Shared` used in SSTableReader for encrypted block reads
-- `ArrayPool<byte>.Shared` used in WriteAheadLog for entry serialization
-- `stackalloc` used for small fixed-size buffers
-
-### 2.4 Background Compaction (COMPLETED)
-- `BackgroundCompaction` option in LsmOptions (default: true)
-- `ScheduleBackgroundCompaction()` schedules compaction via Task.Run
-- `WaitForCompaction()` waits for pending compaction
-
-### 3.3 Monitoring (COMPLETED)
-LsmStatistics provides thread-safe counters:
-- Operations: Gets, Puts, Deletes, Scans
-- Storage: Flushes, Compactions, BytesWritten, BytesRead
-- Bloom filter: BloomFilterHits, BloomFilterMisses, BloomFilterEfficiency
-- Methods: Reset(), GetSnapshot()
+| File | Tests | Description |
+|------|-------|-------------|
+| `MemTableTests.cs` | 12 | MemTable unit tests including concurrency |
+| `WriteAheadLogTests.cs` | 7 | WAL tests including replay and truncate |
+| `SSTableTests.cs` | 11 | SSTable build/read/scan/bloom filter tests |
+| `BloomFilterTests.cs` | 9 | Bloom filter serialization and FPR tests |
+| `BlockCacheTests.cs` | 11 | LRU cache tests including eviction |
+| `CompactorTests.cs` | 8 | Compaction merge and tombstone removal |
+| `LsmTreeStoreTests.cs` | 25 | Core LsmTreeStore tests |
+| `LsmTreeIntegrationTests.cs` | 39+ | Integration tests via KeyValueStoreTestBase |
+| **Total** | **~110** | |
 
 ---
 
-## Test Coverage Summary
+## Benchmark Commands
 
-| Component | Tests |
-|-----------|-------|
-| MemTable | 7 tests (including 2 concurrent) |
-| WriteAheadLog | 3 tests |
-| SSTable | 7 tests (including Bloom filter) |
-| BloomFilter | 5 tests |
-| LsmTreeStore | 14 tests (including concurrent + compaction + cache + background + stats) |
-| Compactor | 2 tests |
-| BlockCache | 7 tests |
-| **Total** | **45 tests** |
+Run LSM vs BTree comparison benchmarks:
+
+```bash
+# Quick comparison
+dotnet run -c Release --project OutWit.Database.Core.Tests.Benchmarks -- --filter "Store*"
+
+# All benchmarks
+dotnet run -c Release --project OutWit.Database.Core.Tests.Benchmarks
+
+# Specific benchmark
+dotnet run -c Release --project OutWit.Database.Core.Tests.Benchmarks -- --filter "*WriteHeavy*"
+```
+
+Expected results:
+- **Write-heavy**: LSM should be 2-5x faster (sequential writes vs random I/O)
+- **Read-heavy**: BTree should be slightly faster (single tree lookup vs multiple sources)
+- **Mixed workload**: Similar performance (workload dependent)
+- **Scans**: BTree slightly faster (single B+Tree vs merge iterator)
 
 ---
 
-## Performance Characteristics
+## Production Recommendations
 
-### Read Path
-1. MemTable lookup - O(log n) via SortedDictionary
-2. Immutable MemTable lookup (if exists) - O(log n)
-3. SSTable lookups (newest to oldest):
-   - Bloom filter check - O(k) where k = hash count
-   - Block cache lookup - O(1) amortized
-   - Binary search in index - O(log blocks)
-   - Linear scan in block - O(entries per block)
+See `LSM_AUDIT.md` for detailed production readiness analysis.
 
-### Write Path
-1. WAL append - O(1) sequential write (uses ArrayPool)
-2. MemTable insert - O(log n)
-3. Flush trigger check - O(1)
+**Key metrics to monitor:**
+```csharp
+tree.Statistics.Gets           // Read throughput
+tree.Statistics.Puts           // Write throughput
+tree.Statistics.BloomFilterEfficiency // Bloom filter effectiveness
+tree.BlockCache?.HitRatio      // Cache effectiveness
+tree.SSTableCount              // Number of SSTables (compaction health)
+```
 
-### Scan Path
-1. Heap-based merge of all sources - O(n log s) where s = sources, n = entries
-2. No materialization - results streamed
-
-### Compaction
-1. Background thread - doesn't block writes
-2. Atomic SSTable swap - minimal read blocking
-3. Cache invalidation - removes stale blocks
-
-### Memory Usage
-- ArrayPool reduces GC pressure for temporary buffers
-- BlockCache has configurable size limit with LRU eviction
-- Streaming scan avoids materializing large result sets
+**Recommended settings:**
+```csharp
+var options = new LsmOptions
+{
+    EnableWal = true,              // Durability
+    SyncWrites = false,            // Better throughput (async durability)
+    MemTableSizeLimit = 8_000_000, // 8MB
+    EnableBlockCache = true,
+    BlockCacheSizeBytes = 128_000_000, // 128MB
+    BackgroundCompaction = true,
+    Level0CompactionTrigger = 4
+};

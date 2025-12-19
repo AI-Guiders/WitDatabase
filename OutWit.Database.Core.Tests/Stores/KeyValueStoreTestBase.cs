@@ -85,7 +85,7 @@ public abstract class KeyValueStoreTestBase
     }
 
     [Test]
-    public void Delete_NonExistentKey_ReturnsFalse()
+    public virtual void Delete_NonExistentKey_ReturnsFalse()
     {
         var deleted = Store.Delete("non-existent"u8);
         Assert.That(deleted, Is.False);
