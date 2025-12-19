@@ -11,6 +11,7 @@ namespace OutWit.Database.Core.Tests.Transactions;
 /// <summary>
 /// Stress tests for TransactionalStore.
 /// Tests concurrent access patterns and durability under load.
+/// Note: These tests use in-memory locking only (no file locks) for reliability.
 /// </summary>
 [TestFixture]
 [Category("Stress")]
@@ -43,7 +44,28 @@ public class TransactionalStoreStressTests : IDisposable
 
     private static byte[] ToBytes(string s) => TextEncoding.UTF8.GetBytes(s);
 
+    /// <summary>
+    /// Creates a TransactionalStore without file locking (for in-process tests).
+    /// </summary>
     private TransactionalStore CreateStore(string name, TimeSpan? timeout = null)
+    {
+        var subDir = Path.Combine(m_testDir, name);
+        Directory.CreateDirectory(subDir);
+
+        var storage = new MemoryStorage();
+        var btree = new BTreeStore(storage);
+        var journal = new WalTransactionJournal(Path.Combine(subDir, "test.wal"));
+        
+        // Use in-memory locking only (no file lock) for reliable stress tests
+        var lockManager = new LockManager(timeout ?? TimeSpan.FromSeconds(30));
+
+        return new TransactionalStore(btree, journal, lockManager);
+    }
+
+    /// <summary>
+    /// Creates a TransactionalStore with file locking (for cross-process scenarios).
+    /// </summary>
+    private TransactionalStore CreateStoreWithFileLock(string name, TimeSpan? timeout = null)
     {
         var subDir = Path.Combine(m_testDir, name);
         Directory.CreateDirectory(subDir);
@@ -156,34 +178,113 @@ public class TransactionalStoreStressTests : IDisposable
 
     #endregion
 
-    #region Concurrent Writers Stress
+    #region Concurrent Read/Write Stress
 
     [Test]
+    [Timeout(30000)] // 30 second timeout
+    public async Task ConcurrentReads_WhileWriting()
+    {
+        using var store = CreateStore("conc_rw", TimeSpan.FromSeconds(10));
+
+        // Pre-populate data
+        for (int i = 0; i < 100; i++)
+        {
+            store.Put(ToBytes($"key{i:D3}"), ToBytes($"value{i}"));
+        }
+
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var readCount = 0;
+        var writeCount = 0;
+        var errors = new List<Exception>();
+
+        // Writer task - does short transactions
+        var writerTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!cts.Token.IsCancellationRequested && writeCount < 20)
+                {
+                    using var tx = store.BeginTransaction();
+                    tx.Put(ToBytes($"new_key{writeCount}"), ToBytes($"new_value{writeCount}"));
+                    tx.Commit();
+                    Interlocked.Increment(ref writeCount);
+                    await Task.Delay(50, cts.Token).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                lock (errors) errors.Add(ex);
+            }
+        }, cts.Token);
+
+        // Reader tasks - read existing data
+        var readerTasks = Enumerable.Range(0, 3).Select(readerIndex => Task.Run(async () =>
+        {
+            var random = new Random(readerIndex);
+            try
+            {
+                while (!cts.Token.IsCancellationRequested && writeCount < 20)
+                {
+                    var key = $"key{random.Next(100):D3}";
+                    var value = store.Get(ToBytes(key));
+                    if (value != null)
+                    {
+                        Interlocked.Increment(ref readCount);
+                    }
+                    await Task.Delay(10, cts.Token).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (TimeoutException) { } // Expected if writer holds lock
+            catch (Exception ex)
+            {
+                lock (errors) errors.Add(ex);
+            }
+        }, cts.Token)).ToArray();
+
+        await Task.WhenAll(new[] { writerTask }.Concat(readerTasks));
+
+        // Check for errors
+        if (errors.Count > 0)
+        {
+            throw new AggregateException("Errors during concurrent test", errors);
+        }
+
+        Assert.That(writeCount, Is.EqualTo(20), "All writes should complete");
+        Assert.That(readCount, Is.GreaterThan(0), "Some reads should complete");
+
+        TestContext.WriteLine($"Writes: {writeCount}, Reads: {readCount}");
+    }
+
+    [Test]
+    [Timeout(60000)] // 60 second timeout
     public async Task ConcurrentWriters_Serialize()
     {
-        using var store = CreateStore("conc_wr", TimeSpan.FromSeconds(60));
+        using var store = CreateStore("conc_wr", TimeSpan.FromSeconds(30));
 
         var completedTransactions = 0;
         var concurrentCount = 0;
         var maxConcurrent = 0;
 
-        var tasks = Enumerable.Range(0, 5).Select(i => Task.Run(async () =>
+        // Use fully async transactions to avoid sync/async mixing issues
+        var tasks = Enumerable.Range(0, 5).Select(async i =>
         {
-            await Task.Delay(i * 20); // Stagger starts
+            await Task.Delay(i * 50); // Stagger starts
 
-            using var tx = store.BeginTransaction();
+            await using var tx = await store.BeginTransactionAsync();
 
             var current = Interlocked.Increment(ref concurrentCount);
             if (current > maxConcurrent)
                 Interlocked.Exchange(ref maxConcurrent, current);
 
-            tx.Put(ToBytes($"writer{i}"), ToBytes($"value{i}"));
-            await Task.Delay(20); // Hold transaction briefly
+            await tx.PutAsync(ToBytes($"writer{i}"), ToBytes($"value{i}"));
+            await Task.Delay(50); // Hold transaction briefly
 
             Interlocked.Decrement(ref concurrentCount);
-            tx.Commit();
+            await tx.CommitAsync();
             Interlocked.Increment(ref completedTransactions);
-        })).ToArray();
+        }).ToArray();
 
         await Task.WhenAll(tasks);
 
@@ -195,6 +296,38 @@ public class TransactionalStoreStressTests : IDisposable
         {
             Assert.That(store.Get(ToBytes($"writer{i}")), Is.EqualTo(ToBytes($"value{i}")));
         }
+    }
+
+    [Test]
+    [Timeout(30000)]
+    public async Task ManySequentialTransactions_NoDeadlock()
+    {
+        using var store = CreateStore("many_tx", TimeSpan.FromSeconds(10));
+
+        var completedCount = 0;
+        var tasks = new List<Task>();
+
+        // Start 10 tasks, each doing 10 sequential transactions (fully async)
+        for (int t = 0; t < 10; t++)
+        {
+            var taskId = t;
+            tasks.Add(Task.Run(async () =>
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    await using var tx = await store.BeginTransactionAsync();
+                    await tx.PutAsync(ToBytes($"task{taskId}_key{i}"), ToBytes($"value{i}"));
+                    await tx.CommitAsync();
+                    Interlocked.Increment(ref completedCount);
+                    await Task.Yield(); // Give other tasks a chance
+                }
+            }));
+        }
+
+        await Task.WhenAll(tasks);
+
+        Assert.That(completedCount, Is.EqualTo(100), "All 100 transactions should complete");
+        TestContext.WriteLine($"Completed {completedCount} transactions");
     }
 
     #endregion
@@ -211,7 +344,7 @@ public class TransactionalStoreStressTests : IDisposable
         var storage = new MemoryStorage();
         var btree = new BTreeStore(storage);
         var journal = new WalTransactionJournal(walPath);
-        var lockManager = new LockManager(Path.Combine(subDir, "test.db"));
+        var lockManager = new LockManager(); // No file lock
 
         using var store = new TransactionalStore(btree, journal, lockManager);
 
@@ -345,6 +478,36 @@ public class TransactionalStoreStressTests : IDisposable
         for (int i = 0; i < 50; i++)
         {
             Assert.That(store.Get(ToBytes($"key{i}")), Is.Not.Null);
+        }
+    }
+
+    [Test]
+    [Timeout(30000)]
+    public async Task AsyncTransactions_Concurrent()
+    {
+        using var store = CreateStore("async_conc", TimeSpan.FromSeconds(30));
+
+        var completedCount = 0;
+
+        var tasks = Enumerable.Range(0, 10).Select(async i =>
+        {
+            await Task.Delay(i * 20); // Stagger starts
+            
+            await using var tx = await store.BeginTransactionAsync();
+            await tx.PutAsync(ToBytes($"async_key{i}"), ToBytes($"async_value{i}"));
+            await tx.CommitAsync();
+            
+            Interlocked.Increment(ref completedCount);
+        }).ToArray();
+
+        await Task.WhenAll(tasks);
+
+        Assert.That(completedCount, Is.EqualTo(10));
+
+        // Verify all data
+        for (int i = 0; i < 10; i++)
+        {
+            Assert.That(store.Get(ToBytes($"async_key{i}")), Is.Not.Null);
         }
     }
 

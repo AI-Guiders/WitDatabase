@@ -5,8 +5,10 @@ namespace OutWit.Database.Core.Concurrency
     /// Supports shared (read) and exclusive (write) locks.
     /// Includes both synchronous and asynchronous APIs.
     /// 
-    /// Uses a unified SemaphoreSlim-based implementation for both sync and async paths
-    /// to ensure consistent behavior and avoid potential race conditions.
+    /// Implementation uses a fair reader-writer lock pattern:
+    /// - Multiple readers can hold locks simultaneously
+    /// - Writers have priority over new readers (prevents writer starvation)
+    /// - Uses SemaphoreSlim for both sync and async support
     /// </summary>
     public sealed class DatabaseLock : IDisposable
     {
@@ -16,14 +18,23 @@ namespace OutWit.Database.Core.Concurrency
         /// Gets the default lock timeout.
         /// </summary>
         internal static readonly TimeSpan DEFAULT_TIMEOUT = TimeSpan.FromSeconds(5);
+        
+        /// <summary>
+        /// Timeout for release operations (should never actually timeout).
+        /// </summary>
+        private static readonly TimeSpan RELEASE_TIMEOUT = TimeSpan.FromSeconds(30);
 
         #endregion
 
         #region Fields
 
-        // Unified locking using SemaphoreSlim (supports both sync and async)
+        // Main lock for coordinating readers and writers
         private readonly SemaphoreSlim m_writeSemaphore = new(1, 1);
+        // Protects reader count modifications
         private readonly SemaphoreSlim m_readerCountLock = new(1, 1);
+        // Gate for new readers when writer is waiting (writer priority)
+        private readonly SemaphoreSlim m_readerGate = new(1, 1);
+        
         private readonly TimeSpan m_lockTimeout;
         private int m_readerCount;
         private int m_waitingWriters;
@@ -50,6 +61,7 @@ namespace OutWit.Database.Core.Concurrency
         /// <summary>
         /// Acquires a shared (read) lock.
         /// Multiple readers can hold shared locks simultaneously.
+        /// Writers have priority - new readers wait if a writer is waiting.
         /// </summary>
         /// <returns>A disposable handle that releases the lock when disposed.</returns>
         /// <exception cref="TimeoutException">Thrown if the lock cannot be acquired within the timeout.</exception>
@@ -60,25 +72,37 @@ namespace OutWit.Database.Core.Concurrency
             
             try
             {
-                if (!m_readerCountLock.Wait(m_lockTimeout))
+                // Wait for reader gate (blocks if writer is waiting - writer priority)
+                if (!m_readerGate.Wait(m_lockTimeout))
                     throw new TimeoutException($"Could not acquire read lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
                 
                 try
                 {
-                    m_readerCount++;
-                    if (m_readerCount == 1)
+                    // Now acquire reader count lock
+                    if (!m_readerCountLock.Wait(m_lockTimeout))
+                        throw new TimeoutException($"Could not acquire read lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
+                    
+                    try
                     {
-                        // First reader blocks writers
-                        if (!m_writeSemaphore.Wait(m_lockTimeout))
+                        m_readerCount++;
+                        if (m_readerCount == 1)
                         {
-                            m_readerCount--;
-                            throw new TimeoutException($"Could not acquire read lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
+                            // First reader blocks writers
+                            if (!m_writeSemaphore.Wait(m_lockTimeout))
+                            {
+                                m_readerCount--;
+                                throw new TimeoutException($"Could not acquire read lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
+                            }
                         }
+                    }
+                    finally
+                    {
+                        m_readerCountLock.Release();
                     }
                 }
                 finally
                 {
-                    m_readerCountLock.Release();
+                    m_readerGate.Release();
                 }
                 
                 Interlocked.Decrement(ref m_waitingReaders);
@@ -106,19 +130,29 @@ namespace OutWit.Database.Core.Concurrency
 
             try
             {
-                await m_readerCountLock.WaitAsync(cts.Token).ConfigureAwait(false);
+                // Wait for reader gate (blocks if writer is waiting)
+                await m_readerGate.WaitAsync(cts.Token).ConfigureAwait(false);
+                
                 try
                 {
-                    m_readerCount++;
-                    if (m_readerCount == 1)
+                    await m_readerCountLock.WaitAsync(cts.Token).ConfigureAwait(false);
+                    try
                     {
-                        // First reader blocks writers
-                        await m_writeSemaphore.WaitAsync(cts.Token).ConfigureAwait(false);
+                        m_readerCount++;
+                        if (m_readerCount == 1)
+                        {
+                            // First reader blocks writers
+                            await m_writeSemaphore.WaitAsync(cts.Token).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        m_readerCountLock.Release();
                     }
                 }
                 finally
                 {
-                    m_readerCountLock.Release();
+                    m_readerGate.Release();
                 }
 
                 Interlocked.Decrement(ref m_waitingReaders);
@@ -138,7 +172,13 @@ namespace OutWit.Database.Core.Concurrency
 
         private void ReleaseReadLock()
         {
-            m_readerCountLock.Wait();
+            // Use timeout to prevent deadlock, but it should never actually timeout
+            if (!m_readerCountLock.Wait(RELEASE_TIMEOUT))
+            {
+                // This should never happen, but if it does, we have a serious problem
+                throw new InvalidOperationException("Failed to release read lock - potential deadlock detected");
+            }
+            
             try
             {
                 m_readerCount--;
@@ -155,7 +195,10 @@ namespace OutWit.Database.Core.Concurrency
 
         private async ValueTask ReleaseReadLockAsync()
         {
-            await m_readerCountLock.WaitAsync().ConfigureAwait(false);
+            // Use timeout to prevent deadlock
+            using var cts = new CancellationTokenSource(RELEASE_TIMEOUT);
+            
+            await m_readerCountLock.WaitAsync(cts.Token).ConfigureAwait(false);
             try
             {
                 m_readerCount--;
@@ -177,6 +220,7 @@ namespace OutWit.Database.Core.Concurrency
         /// <summary>
         /// Acquires an exclusive (write) lock.
         /// Only one writer can hold the lock, and no readers are allowed.
+        /// Writers have priority over new readers.
         /// </summary>
         /// <returns>A disposable handle that releases the lock when disposed.</returns>
         /// <exception cref="TimeoutException">Thrown if the lock cannot be acquired within the timeout.</exception>
@@ -185,16 +229,36 @@ namespace OutWit.Database.Core.Concurrency
             ThrowIfDisposed();
             Interlocked.Increment(ref m_waitingWriters);
             
+            bool readerGateAcquired = false;
+            bool writeSemaphoreAcquired = false;
+            
             try
             {
+                // Block new readers while writer is waiting
+                if (!m_readerGate.Wait(m_lockTimeout))
+                    throw new TimeoutException($"Could not acquire write lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
+                readerGateAcquired = true;
+                
+                // Now wait for write semaphore (existing readers will release it)
                 if (!m_writeSemaphore.Wait(m_lockTimeout))
                     throw new TimeoutException($"Could not acquire write lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
+                writeSemaphoreAcquired = true;
                 
                 Interlocked.Decrement(ref m_waitingWriters);
-                return new LockHandleSync(() => m_writeSemaphore.Release());
+                return new LockHandleSync(() =>
+                {
+                    m_writeSemaphore.Release();
+                    m_readerGate.Release();
+                });
             }
             catch
             {
+                // Clean up on failure
+                if (writeSemaphoreAcquired)
+                    m_writeSemaphore.Release();
+                if (readerGateAcquired)
+                    m_readerGate.Release();
+                    
                 Interlocked.Decrement(ref m_waitingWriters);
                 throw;
             }
@@ -213,23 +277,46 @@ namespace OutWit.Database.Core.Concurrency
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(m_lockTimeout);
 
+            bool readerGateAcquired = false;
+            bool writeSemaphoreAcquired = false;
+
             try
             {
+                // Block new readers while writer is waiting
+                await m_readerGate.WaitAsync(cts.Token).ConfigureAwait(false);
+                readerGateAcquired = true;
+                
+                // Now wait for write semaphore
                 await m_writeSemaphore.WaitAsync(cts.Token).ConfigureAwait(false);
+                writeSemaphoreAcquired = true;
+                
                 Interlocked.Decrement(ref m_waitingWriters);
                 return new LockHandleAsync(() =>
                 {
                     m_writeSemaphore.Release();
+                    m_readerGate.Release();
                     return ValueTask.CompletedTask;
                 });
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                // Clean up on failure
+                if (writeSemaphoreAcquired)
+                    m_writeSemaphore.Release();
+                if (readerGateAcquired)
+                    m_readerGate.Release();
+                    
                 Interlocked.Decrement(ref m_waitingWriters);
                 throw new TimeoutException($"Could not acquire write lock within {m_lockTimeout.TotalSeconds:F1} seconds. Database is locked.");
             }
             catch
             {
+                // Clean up on failure
+                if (writeSemaphoreAcquired)
+                    m_writeSemaphore.Release();
+                if (readerGateAcquired)
+                    m_readerGate.Release();
+                    
                 Interlocked.Decrement(ref m_waitingWriters);
                 throw;
             }
@@ -254,6 +341,7 @@ namespace OutWit.Database.Core.Concurrency
             m_disposed = true;
             m_writeSemaphore.Dispose();
             m_readerCountLock.Dispose();
+            m_readerGate.Dispose();
         }
 
         #endregion
@@ -279,6 +367,11 @@ namespace OutWit.Database.Core.Concurrency
         /// Gets whether any thread holds a write lock.
         /// </summary>
         public bool IsWriteLockHeld => m_writeSemaphore.CurrentCount == 0 && Volatile.Read(ref m_readerCount) == 0;
+
+        /// <summary>
+        /// Gets the current number of active readers.
+        /// </summary>
+        public int CurrentReaderCount => Volatile.Read(ref m_readerCount);
 
         #endregion
 
