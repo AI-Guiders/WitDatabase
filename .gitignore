@@ -74,3 +74,6 @@ Migrations/
 # JetBrains Rider
 .idea/
 .idea_modules/
+
+# BenchmarkDotNet artifacts
+BenchmarkDotNet.Artifacts/
