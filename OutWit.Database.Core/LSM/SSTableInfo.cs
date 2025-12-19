@@ -10,4 +10,5 @@ public sealed class SSTableInfo
     public required long FileSize { get; init; }
     public required int BlockCount { get; init; }
     public bool Encrypted { get; init; }
+    public bool HasBloomFilter { get; init; }
 }

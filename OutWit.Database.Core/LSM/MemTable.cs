@@ -5,7 +5,7 @@ namespace OutWit.Database.Core.LSM
     /// <summary>
     /// In-memory sorted storage for LSM-Tree.
     /// Uses a skip list (via SortedDictionary) for O(log n) operations.
-    /// Thread-safe for concurrent reads, single writer.
+    /// Thread-safe for concurrent reads and writes using Lock.
     /// </summary>
     public sealed class MemTable : IDisposable
     {
@@ -13,7 +13,7 @@ namespace OutWit.Database.Core.LSM
 
         private readonly SortedDictionary<byte[], byte[]?> m_entries;
 
-        private readonly ReaderWriterLockSlim m_lock = new();
+        private readonly Lock m_lock = new();
 
         private readonly LsmByteArrayComparer m_comparer;
 
@@ -49,14 +49,9 @@ namespace OutWit.Database.Core.LSM
             ThrowIfDisposed();
             var keyArray = key.ToArray();
 
-            m_lock.EnterReadLock();
-            try
+            lock (m_lock)
             {
                 return m_entries.TryGetValue(keyArray, out value);
-            }
-            finally
-            {
-                m_lock.ExitReadLock();
             }
         }
 
@@ -71,26 +66,21 @@ namespace OutWit.Database.Core.LSM
             var keyArray = key.ToArray();
             var valueArray = value.ToArray();
 
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
                 if (m_entries.TryGetValue(keyArray, out var existingValue))
                 {
                     // Update: subtract old size, add new size
                     var oldSize = existingValue?.Length ?? 0;
-                    Interlocked.Add(ref m_approximateSize, valueArray.Length - oldSize);
+                    m_approximateSize += valueArray.Length - oldSize;
                     m_entries[keyArray] = valueArray;
                 }
                 else
                 {
                     // New entry
-                    Interlocked.Add(ref m_approximateSize, keyArray.Length + valueArray.Length);
+                    m_approximateSize += keyArray.Length + valueArray.Length;
                     m_entries[keyArray] = valueArray;
                 }
-            }
-            finally
-            {
-                m_lock.ExitWriteLock();
             }
         }
 
@@ -103,25 +93,20 @@ namespace OutWit.Database.Core.LSM
             ThrowIfDisposed();
             var keyArray = key.ToArray();
 
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
                 if (m_entries.TryGetValue(keyArray, out var existingValue))
                 {
                     // Subtract value size but keep key
                     var oldSize = existingValue?.Length ?? 0;
-                    Interlocked.Add(ref m_approximateSize, -oldSize);
+                    m_approximateSize -= oldSize;
                 }
                 else
                 {
                     // New tombstone entry
-                    Interlocked.Add(ref m_approximateSize, keyArray.Length);
+                    m_approximateSize += keyArray.Length;
                 }
                 m_entries[keyArray] = null; // Tombstone
-            }
-            finally
-            {
-                m_lock.ExitWriteLock();
             }
         }
 
@@ -133,8 +118,7 @@ namespace OutWit.Database.Core.LSM
         {
             ThrowIfDisposed();
 
-            m_lock.EnterReadLock();
-            try
+            lock (m_lock)
             {
                 // Return a copy to avoid holding the lock
                 var entries = new List<(byte[] Key, byte[]? Value)>(m_entries.Count);
@@ -143,10 +127,6 @@ namespace OutWit.Database.Core.LSM
                     entries.Add((kvp.Key, kvp.Value));
                 }
                 return entries;
-            }
-            finally
-            {
-                m_lock.ExitReadLock();
             }
         }
 
@@ -160,8 +140,7 @@ namespace OutWit.Database.Core.LSM
         {
             ThrowIfDisposed();
 
-            m_lock.EnterReadLock();
-            try
+            lock (m_lock)
             {
                 var results = new List<(byte[] Key, byte[]? Value)>();
 
@@ -177,10 +156,6 @@ namespace OutWit.Database.Core.LSM
 
                 return results;
             }
-            finally
-            {
-                m_lock.ExitReadLock();
-            }
         }
 
         /// <summary>
@@ -190,15 +165,10 @@ namespace OutWit.Database.Core.LSM
         {
             ThrowIfDisposed();
 
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
                 m_entries.Clear();
-                Interlocked.Exchange(ref m_approximateSize, 0);
-            }
-            finally
-            {
-                m_lock.ExitWriteLock();
+                m_approximateSize = 0;
             }
         }
 
@@ -208,8 +178,7 @@ namespace OutWit.Database.Core.LSM
 
         private void ThrowIfDisposed()
         {
-            if (m_disposed)
-                throw new ObjectDisposedException(nameof(MemTable));
+            ObjectDisposedException.ThrowIf(m_disposed, this);
         }
 
         #endregion
@@ -221,15 +190,9 @@ namespace OutWit.Database.Core.LSM
             if (m_disposed) return;
             m_disposed = true;
 
-            m_lock.EnterWriteLock();
-            try
+            lock (m_lock)
             {
                 m_entries.Clear();
-            }
-            finally
-            {
-                m_lock.ExitWriteLock();
-                m_lock.Dispose();
             }
         }
 
@@ -240,7 +203,16 @@ namespace OutWit.Database.Core.LSM
         /// <summary>
         /// Gets the approximate size of the MemTable in bytes.
         /// </summary>
-        public long ApproximateSize => Interlocked.Read(ref m_approximateSize);
+        public long ApproximateSize
+        {
+            get
+            {
+                lock (m_lock)
+                {
+                    return m_approximateSize;
+                }
+            }
+        }
 
         /// <summary>
         /// Gets the number of entries (including tombstones).
@@ -249,14 +221,9 @@ namespace OutWit.Database.Core.LSM
         {
             get
             {
-                m_lock.EnterReadLock();
-                try
+                lock (m_lock)
                 {
                     return m_entries.Count;
-                }
-                finally
-                {
-                    m_lock.ExitReadLock();
                 }
             }
         }

@@ -8,6 +8,7 @@ namespace OutWit.Database.Core.Stores
     /// <summary>
     /// Main LSM-Tree implementation providing key-value storage.
     /// Combines MemTable, WAL, and SSTables for efficient reads and writes.
+    /// Thread-safe: concurrent reads allowed, writes are serialized.
     /// </summary>
     public sealed class LsmTreeStore : IKeyValueStore
     {
@@ -15,8 +16,9 @@ namespace OutWit.Database.Core.Stores
 
         private readonly string m_directory;
         private readonly LsmOptions m_options;
-        private readonly object m_writeLock = new();
-        private readonly List<SSTableReader> m_sstables = new();
+        private readonly ReaderWriterLockSlim m_sstableLock = new(LockRecursionPolicy.NoRecursion);
+        private readonly Lock m_writeLock = new();
+        private readonly List<SSTableReader> m_sstables = [];
 
         private MemTable m_activeMemTable;
         private MemTable? m_immutableMemTable;
@@ -64,20 +66,22 @@ namespace OutWit.Database.Core.Stores
         {
             ThrowIfDisposed();
 
-            // 1. Check active MemTable
+            // 1. Check active MemTable (thread-safe via MemTable's internal lock)
             if (m_activeMemTable.TryGet(key, out var value))
             {
                 return value; // null = tombstone (deleted)
             }
 
             // 2. Check immutable MemTable (if flushing)
-            if (m_immutableMemTable?.TryGet(key, out value) == true)
+            var immutable = Volatile.Read(ref m_immutableMemTable);
+            if (immutable?.TryGet(key, out value) == true)
             {
                 return value;
             }
 
-            // 3. Check SSTables (newest to oldest)
-            lock (m_writeLock)
+            // 3. Check SSTables (newest to oldest) - read lock allows concurrent readers
+            m_sstableLock.EnterReadLock();
+            try
             {
                 for (int i = m_sstables.Count - 1; i >= 0; i--)
                 {
@@ -86,6 +90,10 @@ namespace OutWit.Database.Core.Stores
                         return value;
                     }
                 }
+            }
+            finally
+            {
+                m_sstableLock.ExitReadLock();
             }
 
             return null;
@@ -124,11 +132,10 @@ namespace OutWit.Database.Core.Stores
                 // Check if MemTable needs to be flushed
                 if (m_activeMemTable.ApproximateSize >= m_options.MemTableSizeLimit)
                 {
-                    FlushMemTable();
+                    FlushMemTableInternal();
                 }
             }
         }
-
 
         /// <inheritdoc/>
         public ValueTask PutAsync(byte[] key, byte[] value, CancellationToken cancellationToken = default)
@@ -164,13 +171,12 @@ namespace OutWit.Database.Core.Stores
                 // Check if MemTable needs to be flushed
                 if (m_activeMemTable.ApproximateSize >= m_options.MemTableSizeLimit)
                 {
-                    FlushMemTable();
+                    FlushMemTableInternal();
                 }
             }
 
             return true; // LSM-Tree always "deletes" (writes tombstone)
         }
-
 
         /// <inheritdoc/>
         public ValueTask<bool> DeleteAsync(byte[] key, CancellationToken cancellationToken = default)
@@ -190,12 +196,7 @@ namespace OutWit.Database.Core.Stores
         {
             ThrowIfDisposed();
 
-            // Merge entries from all sources
-            var seen = new HashSet<byte[]>(ByteArrayComparer.Default);
-            var results = new List<(byte[] Key, byte[] Value)>();
             var comparer = LsmByteArrayComparer.Instance;
-
-            // Collect all entries from all sources
             var allEntries = new List<(byte[] Key, byte[]? Value, int Priority)>();
 
             // Priority: higher = newer (checked first)
@@ -209,9 +210,10 @@ namespace OutWit.Database.Core.Stores
             priority--;
 
             // 2. Immutable MemTable
-            if (m_immutableMemTable != null)
+            var immutable = Volatile.Read(ref m_immutableMemTable);
+            if (immutable != null)
             {
-                foreach (var entry in m_immutableMemTable.Scan(startKey, endKey))
+                foreach (var entry in immutable.Scan(startKey, endKey))
                 {
                     allEntries.Add((entry.Key, entry.Value, priority));
                 }
@@ -219,7 +221,8 @@ namespace OutWit.Database.Core.Stores
             }
 
             // 3. SSTables (newest to oldest)
-            lock (m_writeLock)
+            m_sstableLock.EnterReadLock();
+            try
             {
                 for (int i = m_sstables.Count - 1; i >= 0; i--)
                 {
@@ -229,6 +232,10 @@ namespace OutWit.Database.Core.Stores
                     }
                     priority--;
                 }
+            }
+            finally
+            {
+                m_sstableLock.ExitReadLock();
             }
 
             // Sort by key, then by priority (descending, so newest first for same key)
@@ -240,6 +247,7 @@ namespace OutWit.Database.Core.Stores
             });
 
             // Deduplicate and filter tombstones
+            var results = new List<(byte[] Key, byte[] Value)>();
             byte[]? lastKey = null;
             foreach (var entry in allEntries)
             {
@@ -286,7 +294,7 @@ namespace OutWit.Database.Core.Stores
             {
                 if (m_activeMemTable.Count > 0)
                 {
-                    FlushMemTable();
+                    FlushMemTableInternal();
                 }
             }
         }
@@ -301,21 +309,88 @@ namespace OutWit.Database.Core.Stores
 
         #endregion
 
-        #region Functions
+        #region Compaction
 
         /// <summary>
-        /// Forces compaction of SSTables (not yet implemented).
+        /// Forces compaction of SSTables.
         /// </summary>
         public void Compact()
         {
             ThrowIfDisposed();
-            // TODO: Implement compaction
+            TriggerCompaction();
         }
 
-        private void FlushMemTable()
+        private void TriggerCompaction()
+        {
+            // Get current SSTable files
+            List<string> filesToCompact;
+            m_sstableLock.EnterReadLock();
+            try
+            {
+                if (m_sstables.Count < m_options.Level0CompactionTrigger)
+                    return;
+
+                filesToCompact = m_sstables.Select(s => s.FilePath).ToList();
+            }
+            finally
+            {
+                m_sstableLock.ExitReadLock();
+            }
+
+            // Perform compaction
+            var compactor = new Compactor(m_directory, m_options.BlockSize);
+            var outputPath = Path.Combine(m_directory, $"sst_{m_nextSstableId:D6}.sst");
+            
+            var result = compactor.Compact(filesToCompact, outputPath);
+            if (result.OutputEntries == 0 && filesToCompact.Count > 0)
+            {
+                // All entries were tombstones, delete output
+                try { File.Delete(outputPath); } catch { }
+                outputPath = null;
+            }
+
+            // Swap SSTables atomically
+            m_sstableLock.EnterWriteLock();
+            try
+            {
+                // Close old readers
+                foreach (var sst in m_sstables)
+                {
+                    sst.Dispose();
+                }
+                m_sstables.Clear();
+
+                // Delete old files
+                foreach (var file in filesToCompact)
+                {
+                    try { File.Delete(file); } catch { }
+                }
+
+                // Open new compacted SSTable
+                if (outputPath != null && File.Exists(outputPath))
+                {
+                    m_sstables.Add(new SSTableReader(outputPath, m_options.Encryptor));
+                    m_nextSstableId++;
+                }
+            }
+            finally
+            {
+                m_sstableLock.ExitWriteLock();
+            }
+        }
+
+        #endregion
+
+        #region Functions
+
+        /// <summary>
+        /// Flushes MemTable to SSTable. Must be called with m_writeLock held.
+        /// </summary>
+        private void FlushMemTableInternal()
         {
             // Move active to immutable
-            m_immutableMemTable = m_activeMemTable;
+            var oldActive = m_activeMemTable;
+            Volatile.Write(ref m_immutableMemTable, oldActive);
             m_activeMemTable = new MemTable();
 
             // Create new SSTable
@@ -324,22 +399,37 @@ namespace OutWit.Database.Core.Stores
 
             using (var builder = new SSTableBuilder(sstablePath, m_options.BlockSize, m_options.Encryptor))
             {
-                foreach (var entry in m_immutableMemTable.GetAllEntries())
+                foreach (var entry in oldActive.GetAllEntries())
                 {
                     builder.Add(entry.Key, entry.Value);
                 }
                 builder.Finish();
             }
 
-            // Open new SSTable for reading
-            m_sstables.Add(new SSTableReader(sstablePath, m_options.Encryptor));
+            // Add new SSTable to list (write lock to prevent concurrent reads during add)
+            m_sstableLock.EnterWriteLock();
+            try
+            {
+                m_sstables.Add(new SSTableReader(sstablePath, m_options.Encryptor));
+            }
+            finally
+            {
+                m_sstableLock.ExitWriteLock();
+            }
 
             // Clear immutable MemTable
-            m_immutableMemTable.Dispose();
-            m_immutableMemTable = null;
+            oldActive.Dispose();
+            Volatile.Write(ref m_immutableMemTable, null);
 
             // Truncate WAL
             m_wal?.Truncate();
+
+            // Check if compaction needed
+            if (m_sstables.Count >= m_options.Level0CompactionTrigger)
+            {
+                // TODO: Run in background thread
+                TriggerCompaction();
+            }
         }
 
         private void Recover()
@@ -374,7 +464,7 @@ namespace OutWit.Database.Core.Stores
                     // WAL had entries - flush if large
                     if (m_activeMemTable.ApproximateSize >= m_options.MemTableSizeLimit)
                     {
-                        FlushMemTable();
+                        FlushMemTableInternal();
                     }
                 }
             }
@@ -386,8 +476,7 @@ namespace OutWit.Database.Core.Stores
 
         private void ThrowIfDisposed()
         {
-            if (m_disposed)
-                throw new ObjectDisposedException(nameof(LsmTreeStore));
+            ObjectDisposedException.ThrowIf(m_disposed, this);
         }
 
         #endregion
@@ -404,19 +493,29 @@ namespace OutWit.Database.Core.Stores
                 // Flush remaining data
                 if (m_activeMemTable.Count > 0)
                 {
-                    try { FlushMemTable(); } catch { /* Best effort */ }
+                    try { FlushMemTableInternal(); } catch { /* Best effort */ }
                 }
 
                 m_activeMemTable.Dispose();
                 m_immutableMemTable?.Dispose();
                 m_wal?.Dispose();
 
-                foreach (var sst in m_sstables)
+                m_sstableLock.EnterWriteLock();
+                try
                 {
-                    sst.Dispose();
+                    foreach (var sst in m_sstables)
+                    {
+                        sst.Dispose();
+                    }
+                    m_sstables.Clear();
                 }
-                m_sstables.Clear();
+                finally
+                {
+                    m_sstableLock.ExitWriteLock();
+                }
             }
+
+            m_sstableLock.Dispose();
         }
 
         #endregion
@@ -435,9 +534,14 @@ namespace OutWit.Database.Core.Stores
         {
             get
             {
-                lock (m_writeLock)
+                m_sstableLock.EnterReadLock();
+                try
                 {
                     return m_sstables.Count;
+                }
+                finally
+                {
+                    m_sstableLock.ExitReadLock();
                 }
             }
         }

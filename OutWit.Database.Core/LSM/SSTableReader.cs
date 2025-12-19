@@ -7,7 +7,9 @@ namespace OutWit.Database.Core.LSM
     /// <summary>
     /// Reads immutable SSTable files.
     /// Supports point lookups and range scans via block index.
+    /// Uses Bloom filter to skip reads for non-existent keys.
     /// Handles both encrypted and unencrypted SSTables.
+    /// Thread-safe for concurrent reads.
     /// </summary>
     public sealed class SSTableReader : IDisposable
     {
@@ -15,18 +17,23 @@ namespace OutWit.Database.Core.LSM
 
         private const uint MAGIC = 0x53535431; // "SST1"
         private const uint FLAG_ENCRYPTED = 0x01;
-        private const int FOOTER_SIZE_V1 = 8 + 4 + 4 + 4; // IndexOffset + IndexSize + EntryCount + Magic (old format)
-        private const int FOOTER_SIZE_V2 = 8 + 4 + 4 + 4 + 4; // IndexOffset + IndexSize + EntryCount + Flags + Magic
+        private const uint FLAG_HAS_BLOOM = 0x02;
+        private const int FOOTER_SIZE_V1 = 8 + 4 + 4 + 4; // IndexOffset + IndexSize + EntryCount + Magic = 20 bytes
+        private const int FOOTER_SIZE_V2_OLD = 8 + 4 + 4 + 4 + 4; // + Flags = 24 bytes
+        private const int FOOTER_SIZE_V2 = 44; // With bloom: + BloomOffset(8) + BloomSizeBytes(4) + BloomBitSize(4) + HashCount(4)
 
         #endregion
 
         #region Fields
 
         private readonly FileStream m_stream;
+        private readonly Lock m_streamLock = new();
         private readonly IBlockEncryptor? m_encryptor;
-        private readonly List<IndexEntry> m_index = new();
+        private readonly List<IndexEntry> m_index = [];
         private readonly LsmByteArrayComparer m_comparer = LsmByteArrayComparer.Instance;
+        private BloomFilter? m_bloomFilter;
         private bool m_encrypted;
+        private bool m_hasBloomFilter;
         private bool m_disposed;
 
         #endregion
@@ -60,6 +67,12 @@ namespace OutWit.Database.Core.LSM
         {
             ThrowIfDisposed();
             value = null;
+
+            // Check Bloom filter first (fast path for non-existent keys)
+            if (m_bloomFilter != null && !m_bloomFilter.MightContain(key))
+            {
+                return false; // Bloom filter says definitely not here
+            }
 
             // Find the block that might contain the key
             var blockIndex = FindBlockForKey(key);
@@ -155,56 +168,90 @@ namespace OutWit.Database.Core.LSM
         private byte[]? ReadBlock(int blockIndex)
         {
             var entry = m_index[blockIndex];
-            m_stream.Position = entry.BlockOffset;
+            
+            lock (m_streamLock)
+            {
+                m_stream.Position = entry.BlockOffset;
 
-            if (m_encrypted)
-            {
-                // Read encrypted block: [len:4][encrypted data]
-                var lenBuf = new byte[4];
-                m_stream.ReadExactly(lenBuf);
-                var encLen = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
+                if (m_encrypted)
+                {
+                    // Read encrypted block: [len:4][encrypted data]
+                    var lenBuf = new byte[4];
+                    m_stream.ReadExactly(lenBuf);
+                    var encLen = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
             
-                var encrypted = new byte[encLen];
-                m_stream.ReadExactly(encrypted);
+                    var encrypted = new byte[encLen];
+                    m_stream.ReadExactly(encrypted);
             
-                if (m_encryptor == null)
-                    throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
+                    if (m_encryptor == null)
+                        throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
             
-                return m_encryptor.Decrypt(encrypted, blockIndex);
-            }
-            else
-            {
-                var block = new byte[entry.BlockSize];
-                m_stream.ReadExactly(block);
-                return block;
+                    return m_encryptor.Decrypt(encrypted, blockIndex);
+                }
+                else
+                {
+                    var block = new byte[entry.BlockSize];
+                    m_stream.ReadExactly(block);
+                    return block;
+                }
             }
         }
 
         private byte[]? ReadIndexBlock(long indexOffset, int indexSize)
         {
-            m_stream.Position = indexOffset;
+            lock (m_streamLock)
+            {
+                m_stream.Position = indexOffset;
 
-            if (m_encrypted)
-            {
-                // Read encrypted index block
-                var lenBuf = new byte[4];
-                m_stream.ReadExactly(lenBuf);
-                var encLen = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
+                if (m_encrypted)
+                {
+                    var lenBuf = new byte[4];
+                    m_stream.ReadExactly(lenBuf);
+                    var encLen = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
             
-                var encrypted = new byte[encLen];
-                m_stream.ReadExactly(encrypted);
+                    var encrypted = new byte[encLen];
+                    m_stream.ReadExactly(encrypted);
             
-                if (m_encryptor == null)
-                    throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
+                    if (m_encryptor == null)
+                        throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
             
-                // Index block uses special fixed block ID
-                return m_encryptor.Decrypt(encrypted, SSTableBuilder.INDEX_BLOCK_ID);
+                    return m_encryptor.Decrypt(encrypted, SSTableBuilder.INDEX_BLOCK_ID);
+                }
+                else
+                {
+                    var indexData = new byte[indexSize];
+                    m_stream.ReadExactly(indexData);
+                    return indexData;
+                }
             }
-            else
+        }
+
+        private byte[]? ReadBloomFilter(long bloomOffset, int bloomSize)
+        {
+            lock (m_streamLock)
             {
-                var indexData = new byte[indexSize];
-                m_stream.ReadExactly(indexData);
-                return indexData;
+                m_stream.Position = bloomOffset;
+
+                if (m_encrypted)
+                {
+                    var lenBuf = new byte[4];
+                    m_stream.ReadExactly(lenBuf);
+                    var encLen = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
+            
+                    var encrypted = new byte[encLen];
+                    m_stream.ReadExactly(encrypted);
+            
+                    if (m_encryptor == null)
+                        throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
+            
+                    return m_encryptor.Decrypt(encrypted, SSTableBuilder.BLOOM_BLOCK_ID);
+                }
+                else
+                {
+                    var bloomData = new byte[bloomSize];
+                    m_stream.ReadExactly(bloomData);
+                    return bloomData;
+                }
             }
         }
 
@@ -215,7 +262,6 @@ namespace OutWit.Database.Core.LSM
 
             while (offset < block.Length)
             {
-                // Parse entry
                 var keyLen = BinaryPrimitives.ReadInt32LittleEndian(block.AsSpan(offset));
                 offset += 4;
 
@@ -240,7 +286,6 @@ namespace OutWit.Database.Core.LSM
                 }
                 if (cmp < 0)
                 {
-                    // Key not in this block (sorted order)
                     return false;
                 }
             }
@@ -276,13 +321,80 @@ namespace OutWit.Database.Core.LSM
 
         private void LoadIndex()
         {
-            // Try reading new format footer first (with flags), fall back to old format
             if (m_stream.Length < FOOTER_SIZE_V2)
-                throw new InvalidDataException("SSTable file is too small");
+            {
+                // Try older formats
+                LoadIndexLegacy();
+                return;
+            }
 
-            // Read footer (new format with flags)
+            // Try new format footer first (with bloom filter) - 44 bytes
             m_stream.Position = m_stream.Length - FOOTER_SIZE_V2;
             Span<byte> footer = stackalloc byte[FOOTER_SIZE_V2];
+            m_stream.ReadExactly(footer);
+
+            // Footer V2 layout (44 bytes):
+            // [0-7]   IndexOffset: 8 bytes
+            // [8-11]  IndexSize: 4 bytes
+            // [12-15] EntryCount: 4 bytes
+            // [16-19] Flags: 4 bytes
+            // [20-27] BloomOffset: 8 bytes
+            // [28-31] BloomSizeBytes: 4 bytes (size on disk)
+            // [32-35] BloomBitSize: 4 bytes (original bit size)
+            // [36-39] BloomHashCount: 4 bytes
+            // [40-43] Magic: 4 bytes
+            var magic = BinaryPrimitives.ReadUInt32LittleEndian(footer.Slice(40));
+            
+            if (magic == MAGIC)
+            {
+                // New V2 format with bloom filter
+                var indexOffset = BinaryPrimitives.ReadInt64LittleEndian(footer);
+                var indexSize = BinaryPrimitives.ReadInt32LittleEndian(footer.Slice(8));
+                EntryCount = BinaryPrimitives.ReadInt32LittleEndian(footer.Slice(12));
+                var flags = BinaryPrimitives.ReadUInt32LittleEndian(footer.Slice(16));
+                var bloomOffset = BinaryPrimitives.ReadInt64LittleEndian(footer.Slice(20));
+                var bloomSizeBytes = BinaryPrimitives.ReadInt32LittleEndian(footer.Slice(28));
+                var bloomBitSize = BinaryPrimitives.ReadInt32LittleEndian(footer.Slice(32));
+                var bloomHashCount = BinaryPrimitives.ReadInt32LittleEndian(footer.Slice(36));
+
+                m_encrypted = (flags & FLAG_ENCRYPTED) != 0;
+                m_hasBloomFilter = (flags & FLAG_HAS_BLOOM) != 0;
+
+                if (m_encrypted && m_encryptor == null)
+                    throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
+
+                // Load index
+                var indexData = ReadIndexBlock(indexOffset, indexSize);
+                if (indexData == null)
+                    throw new InvalidDataException("Failed to decrypt index block");
+                ParseIndexBlock(indexData);
+
+                // Load bloom filter
+                if (m_hasBloomFilter && bloomSizeBytes > 0)
+                {
+                    var bloomData = ReadBloomFilter(bloomOffset, bloomSizeBytes);
+                    if (bloomData != null)
+                    {
+                        // Use original bit size for correct deserialization
+                        m_bloomFilter = new BloomFilter(bloomData, bloomHashCount, bloomBitSize);
+                    }
+                }
+            }
+            else
+            {
+                // Fall back to legacy format
+                LoadIndexLegacy();
+            }
+        }
+
+        private void LoadIndexLegacy()
+        {
+            // Try old format without bloom (24 bytes footer)
+            if (m_stream.Length < FOOTER_SIZE_V2_OLD)
+                throw new InvalidDataException("SSTable file is too small");
+
+            m_stream.Position = m_stream.Length - FOOTER_SIZE_V2_OLD;
+            Span<byte> footer = stackalloc byte[FOOTER_SIZE_V2_OLD];
             m_stream.ReadExactly(footer);
 
             var indexOffset = BinaryPrimitives.ReadInt64LittleEndian(footer);
@@ -293,7 +405,7 @@ namespace OutWit.Database.Core.LSM
 
             if (magic != MAGIC)
             {
-                // Try old format (without flags)
+                // Try even older format (20 bytes, no flags)
                 m_stream.Position = m_stream.Length - FOOTER_SIZE_V1;
                 Span<byte> footerV1 = stackalloc byte[FOOTER_SIZE_V1];
                 m_stream.ReadExactly(footerV1);
@@ -302,22 +414,21 @@ namespace OutWit.Database.Core.LSM
                 indexSize = BinaryPrimitives.ReadInt32LittleEndian(footerV1.Slice(8));
                 EntryCount = BinaryPrimitives.ReadInt32LittleEndian(footerV1.Slice(12));
                 magic = BinaryPrimitives.ReadUInt32LittleEndian(footerV1.Slice(16));
-                flags = 0; // Old format assumed unencrypted
+                flags = 0;
 
                 if (magic != MAGIC)
                     throw new InvalidDataException($"Invalid SSTable magic: expected 0x{MAGIC:X8}, got 0x{magic:X8}");
             }
 
             m_encrypted = (flags & FLAG_ENCRYPTED) != 0;
+            m_hasBloomFilter = false;
 
             if (m_encrypted && m_encryptor == null)
                 throw new InvalidOperationException("SSTable is encrypted but no encryptor provided");
 
-            // Read and parse index
             var indexData = ReadIndexBlock(indexOffset, indexSize);
             if (indexData == null)
                 throw new InvalidDataException("Failed to decrypt index block");
-
             ParseIndexBlock(indexData);
         }
 
@@ -353,8 +464,7 @@ namespace OutWit.Database.Core.LSM
 
         private void ThrowIfDisposed()
         {
-            if (m_disposed)
-                throw new ObjectDisposedException(nameof(SSTableReader));
+            ObjectDisposedException.ThrowIf(m_disposed, this);
         }
 
         #endregion
@@ -391,6 +501,11 @@ namespace OutWit.Database.Core.LSM
         /// Gets whether this SSTable is encrypted.
         /// </summary>
         public bool IsEncrypted => m_encrypted;
+
+        /// <summary>
+        /// Gets whether this SSTable has a Bloom filter.
+        /// </summary>
+        public bool HasBloomFilter => m_hasBloomFilter;
 
         #endregion
     }

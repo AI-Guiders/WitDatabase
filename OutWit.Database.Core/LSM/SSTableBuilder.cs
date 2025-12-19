@@ -5,19 +5,22 @@ namespace OutWit.Database.Core.LSM
     /// <summary>
     /// Builds immutable SSTable files from sorted key-value pairs.
     /// 
-    /// SSTable Format (unencrypted):
-    /// [Data Block 1] [Data Block 2] ... [Data Block N] [Index Block] [Footer]
-    /// 
-    /// SSTable Format (encrypted):
-    /// [EncBlockLen:4][EncBlock 1] ... [EncBlockLen:4][Index Block Enc] [Footer]
+    /// SSTable Format V2 (with Bloom filter):
+    /// [Data Block 1] [Data Block 2] ... [Data Block N] [Index Block] [Bloom Filter] [Footer]
     /// 
     /// Data Block: [Entry1][Entry2]...[EntryN]
     /// Entry: [KeyLen:4][Key][ValueLen:4][Value] (ValueLen = -1 for tombstone)
     /// 
     /// Index Block: [FirstKey1][BlockOffset1][BlockSize1]...
     /// 
-    /// Footer: [IndexOffset:8][IndexSize:4][EntryCount:4][Flags:4][Magic:4]
-    /// Flags: bit 0 = encrypted
+    /// Bloom Filter: [FilterData:N bytes]
+    /// 
+    /// Footer V2 (40 bytes):
+    /// [IndexOffset:8][IndexSize:4][EntryCount:4][Flags:4]
+    /// [BloomOffset:8][BloomSize:4][BloomHashCount:4]
+    /// [Magic:4]
+    /// 
+    /// Flags: bit 0 = encrypted, bit 1 = has bloom filter
     /// </summary>
     public sealed class SSTableBuilder : IDisposable
     {
@@ -25,9 +28,11 @@ namespace OutWit.Database.Core.LSM
 
         private const uint MAGIC = 0x53535431; // "SST1"
         private const uint FLAG_ENCRYPTED = 0x01;
+        private const uint FLAG_HAS_BLOOM = 0x02;
         internal const long INDEX_BLOCK_ID = -1; // Special block ID for index block encryption
+        internal const long BLOOM_BLOCK_ID = -2; // Special block ID for bloom filter encryption
         private const int DEFAULT_BLOCK_SIZE = 4096;
-        private const int FOOTER_SIZE = 8 + 4 + 4 + 4 + 4; // IndexOffset + IndexSize + EntryCount + Flags + Magic
+        private const int FOOTER_SIZE_V2 = 44; // Updated to include bloomBitSize
 
         #endregion
 
@@ -37,7 +42,8 @@ namespace OutWit.Database.Core.LSM
         private readonly BinaryWriter m_writer;
         private readonly int m_targetBlockSize;
         private readonly IBlockEncryptor? m_encryptor;
-        private readonly List<IndexEntry> m_indexEntries = new();
+        private readonly List<IndexEntry> m_indexEntries = [];
+        private readonly List<byte[]> m_keys = []; // Store keys for Bloom filter
     
         private MemoryStream m_currentBlock = new();
         private byte[]? m_currentBlockFirstKey;
@@ -56,7 +62,10 @@ namespace OutWit.Database.Core.LSM
         /// <param name="filePath">Output file path.</param>
         /// <param name="targetBlockSize">Target size for data blocks.</param>
         /// <param name="encryptor">Optional block encryptor.</param>
-        public SSTableBuilder(string filePath, int targetBlockSize = DEFAULT_BLOCK_SIZE, IBlockEncryptor? encryptor = null)
+        public SSTableBuilder(
+            string filePath, 
+            int targetBlockSize = DEFAULT_BLOCK_SIZE, 
+            IBlockEncryptor? encryptor = null)
         {
             FilePath = filePath;
             m_targetBlockSize = targetBlockSize;
@@ -79,6 +88,9 @@ namespace OutWit.Database.Core.LSM
             ThrowIfDisposed();
             if (m_finished)
                 throw new InvalidOperationException("SSTableBuilder has already been finished.");
+
+            // Store key for Bloom filter (built at finish time)
+            m_keys.Add(key);
 
             // Entry format: [KeyLen:4][Key][ValueLen:4][Value]
             // ValueLen = -1 for tombstone
@@ -139,16 +151,35 @@ namespace OutWit.Database.Core.LSM
             }
         
             var indexData = indexStream.ToArray();
-            WriteIndexBlock(indexData); // Encrypt with special index block ID
+            WriteBlock(indexData, INDEX_BLOCK_ID);
             var indexSize = (int)(m_stream.Position - indexOffset);
 
-            // Write footer (never encrypted)
-            uint flags = m_encryptor != null ? FLAG_ENCRYPTED : 0;
-            m_writer.Write(indexOffset);
-            m_writer.Write(indexSize);
-            m_writer.Write(m_entryCount);
-            m_writer.Write(flags);
-            m_writer.Write(MAGIC);
+            // Build and write Bloom filter (now with correct size)
+            var bloomOffset = m_stream.Position;
+            var bloomFilter = new BloomFilter(Math.Max(100, m_entryCount), 0.01);
+            foreach (var key in m_keys)
+            {
+                bloomFilter.Add(key);
+            }
+            var bloomData = bloomFilter.ToBytes();
+            WriteBlock(bloomData, BLOOM_BLOCK_ID);
+            var bloomSizeInBytes = bloomData.Length;
+            var bloomBitSize = bloomFilter.Size; // Original bit size (may be less than bytes * 8)
+            var bloomHashCount = bloomFilter.HashCount;
+
+            // Write footer (never encrypted) - 44 bytes now (added bloomBitSize)
+            uint flags = FLAG_HAS_BLOOM;
+            if (m_encryptor != null) flags |= FLAG_ENCRYPTED;
+            
+            m_writer.Write(indexOffset);         // 8 bytes [0-7]
+            m_writer.Write(indexSize);           // 4 bytes [8-11]
+            m_writer.Write(m_entryCount);        // 4 bytes [12-15]
+            m_writer.Write(flags);               // 4 bytes [16-19]
+            m_writer.Write(bloomOffset);         // 8 bytes [20-27]
+            m_writer.Write(bloomSizeInBytes);    // 4 bytes [28-31] - size on disk
+            m_writer.Write(bloomBitSize);        // 4 bytes [32-35] - original bit size
+            m_writer.Write(bloomHashCount);      // 4 bytes [36-39]
+            m_writer.Write(MAGIC);               // 4 bytes [40-43] = total 44
 
             m_writer.Flush();
             m_finished = true;
@@ -159,7 +190,8 @@ namespace OutWit.Database.Core.LSM
                 EntryCount = m_entryCount,
                 FileSize = m_stream.Length,
                 BlockCount = m_indexEntries.Count,
-                Encrypted = m_encryptor != null
+                Encrypted = m_encryptor != null,
+                HasBloomFilter = true
             };
         }
 
@@ -168,7 +200,7 @@ namespace OutWit.Database.Core.LSM
             var blockOffset = m_stream.Position;
             var blockData = m_currentBlock.ToArray();
         
-            var writtenSize = WriteBlock(blockData);
+            var writtenSize = WriteBlock(blockData, m_blockCounter++);
 
             m_indexEntries.Add(new IndexEntry
             {
@@ -181,29 +213,11 @@ namespace OutWit.Database.Core.LSM
             m_currentBlockFirstKey = null;
         }
 
-        private int WriteBlock(byte[] data)
+        private int WriteBlock(byte[] data, long blockId)
         {
             if (m_encryptor != null)
             {
-                // Encrypt block with block counter as block ID
-                var encrypted = m_encryptor.Encrypt(data, m_blockCounter++);
-                m_writer.Write(encrypted.Length);
-                m_stream.Write(encrypted);
-                return 4 + encrypted.Length;
-            }
-            else
-            {
-                m_stream.Write(data);
-                return data.Length;
-            }
-        }
-
-        private int WriteIndexBlock(byte[] data)
-        {
-            if (m_encryptor != null)
-            {
-                // Encrypt index block with special fixed ID
-                var encrypted = m_encryptor.Encrypt(data, INDEX_BLOCK_ID);
+                var encrypted = m_encryptor.Encrypt(data, blockId);
                 m_writer.Write(encrypted.Length);
                 m_stream.Write(encrypted);
                 return 4 + encrypted.Length;
@@ -221,8 +235,7 @@ namespace OutWit.Database.Core.LSM
 
         private void ThrowIfDisposed()
         {
-            if (m_disposed)
-                throw new ObjectDisposedException(nameof(SSTableBuilder));
+            ObjectDisposedException.ThrowIf(m_disposed, this);
         }
 
         #endregion
