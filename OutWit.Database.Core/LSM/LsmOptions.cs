@@ -1,0 +1,54 @@
+using OutWit.Database.Core.Interfaces;
+
+namespace OutWit.Database.Core.LSM
+{
+    /// <summary>
+    /// Configuration options for LSM-Tree.
+    /// </summary>
+    public sealed class LsmOptions
+    {
+        /// <summary>
+        /// Maximum size of MemTable in bytes before flushing to SSTable.
+        /// Default: 4 MB
+        /// </summary>
+        public long MemTableSizeLimit { get; set; } = 4 * 1024 * 1024;
+
+        /// <summary>
+        /// Target size for SSTable data blocks in bytes.
+        /// Default: 4 KB
+        /// </summary>
+        public int BlockSize { get; set; } = 4096;
+
+        /// <summary>
+        /// Whether to enable Write-Ahead Log for durability.
+        /// If false, data may be lost on crash but writes are faster.
+        /// Default: true
+        /// </summary>
+        public bool EnableWal { get; set; } = true;
+
+        /// <summary>
+        /// Whether to sync WAL to disk after each write.
+        /// If false, relies on OS buffering (faster but less durable).
+        /// Default: true
+        /// </summary>
+        public bool SyncWrites { get; set; } = true;
+
+        /// <summary>
+        /// Maximum number of Level-0 SSTables before triggering compaction.
+        /// Default: 4
+        /// </summary>
+        public int Level0CompactionTrigger { get; set; } = 4;
+
+        /// <summary>
+        /// Optional block encryptor for encrypting WAL and SSTables.
+        /// Default: null (no encryption)
+        /// </summary>
+        public IBlockEncryptor? Encryptor { get; set; }
+
+        /// <summary>
+        /// Creates default options.
+        /// </summary>
+        public static LsmOptions Default => new();
+    }
+}
+

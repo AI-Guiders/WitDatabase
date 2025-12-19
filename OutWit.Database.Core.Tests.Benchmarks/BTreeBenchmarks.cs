@@ -3,11 +3,14 @@ using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Reports;
+using OutWit.Database.Core.Encryption;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.Managers;
+using OutWit.Database.Core.Providers;
 using OutWit.Database.Core.Storage;
 using OutWit.Database.Core.Stores;
 using OutWit.Database.Core.Tree;
+using System.Security.Cryptography;
 
 namespace OutWit.Database.Core.Tests.Benchmarks;
 
@@ -591,6 +594,283 @@ public class OverflowBenchmarks
         {
             m_store.Put(m_keys[i], m_largeValues[i]);
         }
+    }
+}
+
+#endregion
+
+#region Encryption Benchmarks
+
+/// <summary>
+/// Benchmarks for encryption overhead.
+/// </summary>
+[Config(typeof(CleanBenchmarkConfig))]
+[MemoryDiagnoser]
+[Orderer(SummaryOrderPolicy.FastestToSlowest)]
+public class EncryptionBenchmarks
+{
+    private byte[] m_key = null!;
+    private byte[] m_salt = null!;
+    private PageEncryptor m_pageEncryptor = null!;
+    private BlockEncryptor m_blockEncryptor = null!;
+    private byte[] m_plaintext = null!;
+    private byte[] m_ciphertext = null!;
+    private byte[] m_decrypted = null!;
+
+    [Params(4096, 8192, 16384)]
+    public int PageSize { get; set; }
+
+    [GlobalSetup]
+    public void GlobalSetup()
+    {
+        m_key = RandomNumberGenerator.GetBytes(32);
+        m_salt = RandomNumberGenerator.GetBytes(16);
+        
+        // Each encryptor gets its own provider (they dispose it)
+        m_pageEncryptor = new PageEncryptor(new AesGcmCryptoProvider(m_key), m_salt);
+        m_blockEncryptor = new BlockEncryptor(new AesGcmCryptoProvider(m_key), m_salt);
+
+        m_plaintext = new byte[PageSize];
+        Random.Shared.NextBytes(m_plaintext);
+        m_ciphertext = new byte[PageSize + m_pageEncryptor.Overhead];
+        m_decrypted = new byte[PageSize];
+    }
+
+    [GlobalCleanup]
+    public void GlobalCleanup()
+    {
+        m_blockEncryptor?.Dispose();
+        m_pageEncryptor?.Dispose();
+    }
+
+    [Benchmark(Description = "PageEncryptor.Encrypt")]
+    public int PageEncrypt()
+    {
+        return m_pageEncryptor.Encrypt(m_plaintext, pageNumber: 1, m_ciphertext);
+    }
+
+    [Benchmark(Description = "PageEncryptor.Encrypt+Decrypt")]
+    public int PageEncryptDecrypt()
+    {
+        int encLen = m_pageEncryptor.Encrypt(m_plaintext, pageNumber: 1, m_ciphertext);
+        return m_pageEncryptor.Decrypt(m_ciphertext.AsSpan(0, encLen), pageNumber: 1, m_decrypted);
+    }
+
+    [Benchmark(Description = "BlockEncryptor.Encrypt")]
+    public byte[] BlockEncrypt()
+    {
+        return m_blockEncryptor.Encrypt(m_plaintext, blockId: 1);
+    }
+
+    [Benchmark(Description = "BlockEncryptor.Encrypt+Decrypt")]
+    public byte[]? BlockEncryptDecrypt()
+    {
+        var encrypted = m_blockEncryptor.Encrypt(m_plaintext, blockId: 1);
+        return m_blockEncryptor.Decrypt(encrypted, blockId: 1);
+    }
+}
+
+#endregion
+
+#region Encrypted Storage Benchmarks
+
+/// <summary>
+/// Benchmarks comparing encrypted vs non-encrypted storage.
+/// </summary>
+[Config(typeof(CleanBenchmarkConfig))]
+[MemoryDiagnoser]
+[Orderer(SummaryOrderPolicy.FastestToSlowest)]
+public class EncryptedStorageBenchmarks
+{
+    private byte[] m_key = null!;
+    private byte[] m_salt = null!;
+    private IStorage m_storage = null!;
+    private BTreeStore m_store = null!;
+    private byte[][] m_keys = null!;
+    private byte[][] m_values = null!;
+
+    [Params(1000, 5000)]
+    public int Count { get; set; }
+
+    [Params(false, true)]
+    public bool Encrypted { get; set; }
+
+    [GlobalSetup]
+    public void GlobalSetup()
+    {
+        m_key = RandomNumberGenerator.GetBytes(32);
+        m_salt = RandomNumberGenerator.GetBytes(16);
+
+        var random = new Random(42);
+        m_keys = new byte[Count][];
+        m_values = new byte[Count][];
+
+        for (int i = 0; i < Count; i++)
+        {
+            m_keys[i] = BitConverter.GetBytes(i);
+            m_values[i] = new byte[100];
+            random.NextBytes(m_values[i]);
+        }
+    }
+
+    [IterationSetup]
+    public void IterationSetup()
+    {
+        if (Encrypted)
+        {
+            var innerStorage = new MemoryStorage(4096 + 28, Count / 3 + 1000);
+            var provider = new AesGcmCryptoProvider(m_key);
+            var encryptor = new PageEncryptor(provider, m_salt);
+            m_storage = new EncryptedStorage(innerStorage, encryptor);
+        }
+        else
+        {
+            m_storage = new MemoryStorage(4096, Count / 3 + 1000);
+        }
+        
+        m_store = new BTreeStore(m_storage, ownsStorage: false);
+    }
+
+    [IterationCleanup]
+    public void IterationCleanup()
+    {
+        m_store?.Dispose();
+        m_storage?.Dispose();
+    }
+
+    [Benchmark(Description = "Insert")]
+    public void Insert()
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            m_store.Put(m_keys[i], m_values[i]);
+        }
+    }
+
+    [Benchmark(Description = "Insert + Get")]
+    public int InsertAndGet()
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            m_store.Put(m_keys[i], m_values[i]);
+        }
+
+        int found = 0;
+        for (int i = 0; i < Count; i++)
+        {
+            if (m_store.Get(m_keys[i]) != null) found++;
+        }
+        return found;
+    }
+}
+
+#endregion
+
+#region Encrypted Mixed Workload Benchmarks
+
+/// <summary>
+/// Realistic mixed workload benchmarks with encryption.
+/// </summary>
+[Config(typeof(CleanBenchmarkConfig))]
+[MemoryDiagnoser]
+[Orderer(SummaryOrderPolicy.FastestToSlowest)]
+public class EncryptedMixedWorkloadBenchmarks
+{
+    private byte[] m_key = null!;
+    private byte[] m_salt = null!;
+    private IStorage m_storage = null!;
+    private BTreeStore m_store = null!;
+    private (int Op, byte[] Key, byte[] Value)[] m_operations = null!;
+
+    [Params(10000)]
+    public int OperationCount { get; set; }
+
+    [Params(false, true)]
+    public bool Encrypted { get; set; }
+
+    [GlobalSetup]
+    public void GlobalSetup()
+    {
+        m_key = RandomNumberGenerator.GetBytes(32);
+        m_salt = RandomNumberGenerator.GetBytes(16);
+
+        var random = new Random(42);
+        m_operations = new (int, byte[], byte[])[OperationCount];
+
+        for (int i = 0; i < OperationCount; i++)
+        {
+            int op = random.Next(100);
+            int keyInt = random.Next(5000);
+            byte[] key = BitConverter.GetBytes(keyInt);
+            byte[] value = BitConverter.GetBytes(i);
+
+            int opType = op switch
+            {
+                < 50 => 0,  // Get
+                < 85 => 1,  // Put
+                _ => 2      // Delete
+            };
+
+            m_operations[i] = (opType, key, value);
+        }
+    }
+
+    [IterationSetup]
+    public void IterationSetup()
+    {
+        if (Encrypted)
+        {
+            var innerStorage = new MemoryStorage(4096 + 28, 5000);
+            var provider = new AesGcmCryptoProvider(m_key);
+            var encryptor = new PageEncryptor(provider, m_salt);
+            m_storage = new EncryptedStorage(innerStorage, encryptor);
+        }
+        else
+        {
+            m_storage = new MemoryStorage(4096, 5000);
+        }
+
+        m_store = new BTreeStore(m_storage, ownsStorage: false);
+
+        // Pre-populate
+        for (int i = 0; i < 2500; i++)
+        {
+            m_store.Put(BitConverter.GetBytes(i), BitConverter.GetBytes(i));
+        }
+    }
+
+    [IterationCleanup]
+    public void IterationCleanup()
+    {
+        m_store?.Dispose();
+        m_storage?.Dispose();
+    }
+
+    [Benchmark(Description = "Mixed (50% read, 35% write, 15% delete)")]
+    public int MixedOperations()
+    {
+        int result = 0;
+
+        for (int i = 0; i < OperationCount; i++)
+        {
+            var (op, key, value) = m_operations[i];
+
+            switch (op)
+            {
+                case 0:
+                    if (m_store.Get(key) != null) result++;
+                    break;
+                case 1:
+                    m_store.Put(key, value);
+                    result++;
+                    break;
+                case 2:
+                    if (m_store.Delete(key)) result++;
+                    break;
+            }
+        }
+
+        return result;
     }
 }
 

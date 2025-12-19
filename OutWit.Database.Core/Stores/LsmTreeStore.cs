@@ -1,0 +1,447 @@
+using System.Runtime.CompilerServices;
+using OutWit.Database.Core.Comparers;
+using OutWit.Database.Core.Interfaces;
+using OutWit.Database.Core.LSM;
+
+namespace OutWit.Database.Core.Stores
+{
+    /// <summary>
+    /// Main LSM-Tree implementation providing key-value storage.
+    /// Combines MemTable, WAL, and SSTables for efficient reads and writes.
+    /// </summary>
+    public sealed class LsmTreeStore : IKeyValueStore
+    {
+        #region Fields
+
+        private readonly string m_directory;
+        private readonly LsmOptions m_options;
+        private readonly object m_writeLock = new();
+        private readonly List<SSTableReader> m_sstables = new();
+
+        private MemTable m_activeMemTable;
+        private MemTable? m_immutableMemTable;
+        private WriteAheadLog? m_wal;
+        private int m_nextSstableId;
+        private bool m_disposed;
+
+        #endregion
+
+        #region Constructors
+
+        /// <summary>
+        /// Creates or opens an LSM-Tree in the specified directory.
+        /// </summary>
+        /// <param name="directory">Directory for data storage.</param>
+        /// <param name="options">Configuration options.</param>
+        public LsmTreeStore(string directory, LsmOptions? options = null)
+        {
+            m_directory = directory;
+            m_options = options ?? LsmOptions.Default;
+            m_activeMemTable = new MemTable();
+
+            // Ensure directory exists
+            System.IO.Directory.CreateDirectory(directory);
+
+            // Initialize WAL if enabled
+            if (m_options.EnableWal)
+            {
+                var walPath = Path.Combine(directory, "wal.log");
+                m_wal = new WriteAheadLog(walPath, createNew: false, encryptor: m_options.Encryptor);
+            }
+
+            // Load existing SSTables and recover from WAL
+            Recover();
+        }
+
+        #endregion
+
+        #region Get
+
+        /// <summary>
+        /// Gets the value for a key.
+        /// </summary>
+        public byte[]? Get(ReadOnlySpan<byte> key)
+        {
+            ThrowIfDisposed();
+
+            // 1. Check active MemTable
+            if (m_activeMemTable.TryGet(key, out var value))
+            {
+                return value; // null = tombstone (deleted)
+            }
+
+            // 2. Check immutable MemTable (if flushing)
+            if (m_immutableMemTable?.TryGet(key, out value) == true)
+            {
+                return value;
+            }
+
+            // 3. Check SSTables (newest to oldest)
+            lock (m_writeLock)
+            {
+                for (int i = m_sstables.Count - 1; i >= 0; i--)
+                {
+                    if (m_sstables[i].TryGet(key, out value))
+                    {
+                        return value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(Get(key));
+        }
+
+        #endregion
+
+        #region Put
+
+        /// <summary>
+        /// Inserts or updates a key-value pair.
+        /// </summary>
+        public void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+        {
+            ThrowIfDisposed();
+
+            lock (m_writeLock)
+            {
+                // Write to WAL first for durability
+                m_wal?.AppendPut(key, value);
+                if (m_options.SyncWrites)
+                {
+                    m_wal?.Sync();
+                }
+
+                // Write to MemTable
+                m_activeMemTable.Put(key, value);
+
+                // Check if MemTable needs to be flushed
+                if (m_activeMemTable.ApproximateSize >= m_options.MemTableSizeLimit)
+                {
+                    FlushMemTable();
+                }
+            }
+        }
+
+
+        /// <inheritdoc/>
+        public ValueTask PutAsync(byte[] key, byte[] value, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Put(key, value);
+            return ValueTask.CompletedTask;
+        }
+
+        #endregion
+
+        #region Delete
+
+        /// <summary>
+        /// Deletes a key from the store.
+        /// </summary>
+        public bool Delete(ReadOnlySpan<byte> key)
+        {
+            ThrowIfDisposed();
+
+            lock (m_writeLock)
+            {
+                // Write tombstone to WAL
+                m_wal?.AppendDelete(key);
+                if (m_options.SyncWrites)
+                {
+                    m_wal?.Sync();
+                }
+
+                // Write tombstone to MemTable
+                m_activeMemTable.Delete(key);
+
+                // Check if MemTable needs to be flushed
+                if (m_activeMemTable.ApproximateSize >= m_options.MemTableSizeLimit)
+                {
+                    FlushMemTable();
+                }
+            }
+
+            return true; // LSM-Tree always "deletes" (writes tombstone)
+        }
+
+
+        /// <inheritdoc/>
+        public ValueTask<bool> DeleteAsync(byte[] key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(Delete(key));
+        }
+
+        #endregion
+
+        #region Scan
+
+        /// <summary>
+        /// Scans key-value pairs in the specified range.
+        /// </summary>
+        public IEnumerable<(byte[] Key, byte[] Value)> Scan(byte[]? startKey, byte[]? endKey)
+        {
+            ThrowIfDisposed();
+
+            // Merge entries from all sources
+            var seen = new HashSet<byte[]>(ByteArrayComparer.Default);
+            var results = new List<(byte[] Key, byte[] Value)>();
+            var comparer = LsmByteArrayComparer.Instance;
+
+            // Collect all entries from all sources
+            var allEntries = new List<(byte[] Key, byte[]? Value, int Priority)>();
+
+            // Priority: higher = newer (checked first)
+            int priority = int.MaxValue;
+
+            // 1. Active MemTable (highest priority)
+            foreach (var entry in m_activeMemTable.Scan(startKey, endKey))
+            {
+                allEntries.Add((entry.Key, entry.Value, priority));
+            }
+            priority--;
+
+            // 2. Immutable MemTable
+            if (m_immutableMemTable != null)
+            {
+                foreach (var entry in m_immutableMemTable.Scan(startKey, endKey))
+                {
+                    allEntries.Add((entry.Key, entry.Value, priority));
+                }
+                priority--;
+            }
+
+            // 3. SSTables (newest to oldest)
+            lock (m_writeLock)
+            {
+                for (int i = m_sstables.Count - 1; i >= 0; i--)
+                {
+                    foreach (var entry in m_sstables[i].Scan(startKey, endKey))
+                    {
+                        allEntries.Add((entry.Key, entry.Value, priority));
+                    }
+                    priority--;
+                }
+            }
+
+            // Sort by key, then by priority (descending, so newest first for same key)
+            allEntries.Sort((a, b) =>
+            {
+                var cmp = comparer.Compare(a.Key, b.Key);
+                if (cmp != 0) return cmp;
+                return b.Priority.CompareTo(a.Priority);
+            });
+
+            // Deduplicate and filter tombstones
+            byte[]? lastKey = null;
+            foreach (var entry in allEntries)
+            {
+                if (lastKey != null && comparer.Compare(lastKey, entry.Key) == 0)
+                    continue; // Skip duplicates
+
+                lastKey = entry.Key;
+
+                if (entry.Value != null) // Skip tombstones
+                {
+                    results.Add((entry.Key, entry.Value));
+                }
+            }
+
+            return results;
+        }
+
+        /// <inheritdoc/>
+        public async IAsyncEnumerable<(byte[] Key, byte[] Value)> ScanAsync(
+            byte[]? startKey,
+            byte[]? endKey,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var item in Scan(startKey, endKey))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return item;
+            }
+            await ValueTask.CompletedTask;
+        }
+
+        #endregion
+
+        #region Flush
+
+        /// <summary>
+        /// Forces flush of MemTable to SSTable.
+        /// </summary>
+        public void Flush()
+        {
+            ThrowIfDisposed();
+
+            lock (m_writeLock)
+            {
+                if (m_activeMemTable.Count > 0)
+                {
+                    FlushMemTable();
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public ValueTask FlushAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Flush();
+            return ValueTask.CompletedTask;
+        }
+
+        #endregion
+
+        #region Functions
+
+        /// <summary>
+        /// Forces compaction of SSTables (not yet implemented).
+        /// </summary>
+        public void Compact()
+        {
+            ThrowIfDisposed();
+            // TODO: Implement compaction
+        }
+
+        private void FlushMemTable()
+        {
+            // Move active to immutable
+            m_immutableMemTable = m_activeMemTable;
+            m_activeMemTable = new MemTable();
+
+            // Create new SSTable
+            var sstablePath = Path.Combine(m_directory, $"sst_{m_nextSstableId:D6}.sst");
+            m_nextSstableId++;
+
+            using (var builder = new SSTableBuilder(sstablePath, m_options.BlockSize, m_options.Encryptor))
+            {
+                foreach (var entry in m_immutableMemTable.GetAllEntries())
+                {
+                    builder.Add(entry.Key, entry.Value);
+                }
+                builder.Finish();
+            }
+
+            // Open new SSTable for reading
+            m_sstables.Add(new SSTableReader(sstablePath, m_options.Encryptor));
+
+            // Clear immutable MemTable
+            m_immutableMemTable.Dispose();
+            m_immutableMemTable = null;
+
+            // Truncate WAL
+            m_wal?.Truncate();
+        }
+
+        private void Recover()
+        {
+            // Load existing SSTables
+            var sstableFiles = System.IO.Directory.GetFiles(m_directory, "sst_*.sst")
+                .OrderBy(f => f)
+                .ToList();
+
+            foreach (var file in sstableFiles)
+            {
+                m_sstables.Add(new SSTableReader(file, m_options.Encryptor));
+
+                // Extract ID from filename
+                var filename = Path.GetFileNameWithoutExtension(file);
+                if (int.TryParse(filename.Replace("sst_", ""), out var id))
+                {
+                    m_nextSstableId = Math.Max(m_nextSstableId, id + 1);
+                }
+            }
+
+            // Replay WAL
+            if (m_wal != null)
+            {
+                var replayed = m_wal.Replay(
+                    onPut: (key, value) => m_activeMemTable.Put(key, value),
+                    onDelete: (key) => m_activeMemTable.Delete(key)
+                );
+
+                if (replayed > 0)
+                {
+                    // WAL had entries - flush if large
+                    if (m_activeMemTable.ApproximateSize >= m_options.MemTableSizeLimit)
+                    {
+                        FlushMemTable();
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        #region Tools
+
+        private void ThrowIfDisposed()
+        {
+            if (m_disposed)
+                throw new ObjectDisposedException(nameof(LsmTreeStore));
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        public void Dispose()
+        {
+            if (m_disposed) return;
+            m_disposed = true;
+
+            lock (m_writeLock)
+            {
+                // Flush remaining data
+                if (m_activeMemTable.Count > 0)
+                {
+                    try { FlushMemTable(); } catch { /* Best effort */ }
+                }
+
+                m_activeMemTable.Dispose();
+                m_immutableMemTable?.Dispose();
+                m_wal?.Dispose();
+
+                foreach (var sst in m_sstables)
+                {
+                    sst.Dispose();
+                }
+                m_sstables.Clear();
+            }
+        }
+
+        #endregion
+
+        #region Properties
+
+        /// <summary>
+        /// Gets the directory where data is stored.
+        /// </summary>
+        public string Directory => m_directory;
+
+        /// <summary>
+        /// Gets the number of SSTables on disk.
+        /// </summary>
+        public int SSTableCount
+        {
+            get
+            {
+                lock (m_writeLock)
+                {
+                    return m_sstables.Count;
+                }
+            }
+        }
+
+        #endregion
+    }
+}
