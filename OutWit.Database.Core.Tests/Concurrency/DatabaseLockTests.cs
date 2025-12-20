@@ -31,7 +31,7 @@ public class DatabaseLockTests : IDisposable
     #region Read Lock Tests
 
     [Test]
-    public void AcquireReadLock_SingleThread_Succeeds()
+    public void AcquireReadLockSingleThreadSucceedsTest()
     {
         using var handle = m_lock.AcquireReadLock();
         
@@ -39,7 +39,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireReadLock_MultipleReaders_AllSucceed()
+    public void AcquireReadLockMultipleReadersAllSucceedTest()
     {
         var handles = new List<IDisposable>();
         
@@ -59,7 +59,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireReadLockAsync_SingleThread_Succeeds()
+    public async Task AcquireReadLockAsyncSingleThreadSucceedsTest()
     {
         await using var handle = await m_lock.AcquireReadLockAsync();
         
@@ -67,7 +67,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireReadLockAsync_MultipleReaders_AllSucceed()
+    public async Task AcquireReadLockAsyncMultipleReadersAllSucceedTest()
     {
         var handles = new List<IAsyncDisposable>();
         
@@ -87,7 +87,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireReadLock_ReleasedOnDispose()
+    public void AcquireReadLockReleasedOnDisposeTest()
     {
         {
             using var handle = m_lock.AcquireReadLock();
@@ -102,7 +102,7 @@ public class DatabaseLockTests : IDisposable
     #region Write Lock Tests
 
     [Test]
-    public void AcquireWriteLock_SingleThread_Succeeds()
+    public void AcquireWriteLockSingleThreadSucceedsTest()
     {
         using var handle = m_lock.AcquireWriteLock();
         
@@ -110,7 +110,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireWriteLockAsync_SingleThread_Succeeds()
+    public async Task AcquireWriteLockAsyncSingleThreadSucceedsTest()
     {
         await using var handle = await m_lock.AcquireWriteLockAsync();
         
@@ -118,7 +118,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireWriteLock_ReleasedOnDispose()
+    public void AcquireWriteLockReleasedOnDisposeTest()
     {
         {
             using var handle = m_lock.AcquireWriteLock();
@@ -129,7 +129,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireWriteLock_BlocksOtherWriters()
+    public void AcquireWriteLockBlocksOtherWritersTest()
     {
         using var handle1 = m_lock.AcquireWriteLock();
         
@@ -157,7 +157,7 @@ public class DatabaseLockTests : IDisposable
     #region Read-Write Interaction Tests
 
     [Test]
-    public async Task ReadersCanAcquireAfterWriterReleases()
+    public async Task ReadersCanAcquireAfterWriterReleasesTest()
     {
         // Writer acquires and releases
         using (var writeHandle = m_lock.AcquireWriteLock())
@@ -171,7 +171,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task WriterCanAcquireAfterReadersRelease()
+    public async Task WriterCanAcquireAfterReadersReleaseTest()
     {
         // Readers acquire and release
         for (int i = 0; i < 3; i++)
@@ -190,7 +190,7 @@ public class DatabaseLockTests : IDisposable
     #region Timeout Tests
 
     [Test]
-    public void AcquireWriteLock_ThrowsTimeoutException_WhenBlocked()
+    public void AcquireWriteLockThrowsTimeoutExceptionWhenBlockedTest()
     {
         var shortTimeoutLock = new DatabaseLock(TimeSpan.FromMilliseconds(100));
         
@@ -215,7 +215,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireReadLock_ThrowsTimeoutException_WhenWriterHoldsLock()
+    public void AcquireReadLockThrowsTimeoutExceptionWhenWriterHoldsLockTest()
     {
         var shortTimeoutLock = new DatabaseLock(TimeSpan.FromMilliseconds(100));
         
@@ -240,7 +240,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireWriteLockAsync_ThrowsTimeoutException_WhenBlocked()
+    public async Task AcquireWriteLockAsyncThrowsTimeoutExceptionWhenBlockedTest()
     {
         var shortTimeoutLock = new DatabaseLock(TimeSpan.FromMilliseconds(100));
         
@@ -269,7 +269,7 @@ public class DatabaseLockTests : IDisposable
     #region Sync/Async Interoperability Tests
 
     [Test]
-    public async Task SyncReadLock_BlocksAsyncWriter()
+    public async Task SyncReadLockBlocksAsyncWriterTest()
     {
         var shortTimeoutLock = new DatabaseLock(TimeSpan.FromMilliseconds(200));
         
@@ -294,7 +294,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task AsyncReadLock_BlocksSyncWriter()
+    public async Task AsyncReadLockBlocksSyncWriterTest()
     {
         var shortTimeoutLock = new DatabaseLock(TimeSpan.FromMilliseconds(200));
         
@@ -319,7 +319,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task MixedSyncAsyncReaders_AllSucceed()
+    public async Task MixedSyncAsyncReadersAllSucceedTest()
     {
         var handles = new List<object>();
         
@@ -345,7 +345,7 @@ public class DatabaseLockTests : IDisposable
 
     [Test]
     [Category("Stress")]
-    public async Task ConcurrentReaders_AllSucceed()
+    public async Task ConcurrentReadersAllSucceedTest()
     {
         const int readerCount = 50;
         var tasks = new List<Task>();
@@ -368,7 +368,7 @@ public class DatabaseLockTests : IDisposable
 
     [Test]
     [Category("Stress")]
-    public async Task ConcurrentWriters_Serialized()
+    public async Task ConcurrentWritersSerializedTest()
     {
         const int writerCount = 10;
         var tasks = new List<Task>();
@@ -401,7 +401,7 @@ public class DatabaseLockTests : IDisposable
 
     [Test]
     [Category("Stress")]
-    public async Task MixedReadersAndWriters_NoDeadlock()
+    public async Task MixedReadersAndWritersNoDeadlockTest()
     {
         const int operationCount = 50;
         var tasks = new List<Task>();
@@ -438,7 +438,7 @@ public class DatabaseLockTests : IDisposable
     #region Dispose Tests
 
     [Test]
-    public void DisposedLock_ThrowsObjectDisposedException()
+    public void DisposedLockThrowsObjectDisposedExceptionTest()
     {
         var disposableLock = new DatabaseLock();
         disposableLock.Dispose();
@@ -452,7 +452,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void DoubleDispose_DoesNotThrow()
+    public void DoubleDisposeDoesNotThrowTest()
     {
         var disposableLock = new DatabaseLock();
         
@@ -468,13 +468,13 @@ public class DatabaseLockTests : IDisposable
     #region Properties Tests
 
     [Test]
-    public void WaitingReadCount_IsAccessible()
+    public void WaitingReadCountIsAccessibleTest()
     {
         Assert.That(m_lock.WaitingReadCount, Is.GreaterThanOrEqualTo(0));
     }
 
     [Test]
-    public void WaitingWriteCount_IsAccessible()
+    public void WaitingWriteCountIsAccessibleTest()
     {
         Assert.That(m_lock.WaitingWriteCount, Is.GreaterThanOrEqualTo(0));
     }
@@ -484,7 +484,7 @@ public class DatabaseLockTests : IDisposable
     #region Reentrancy Detection Tests
 
     [Test]
-    public void WriteLock_ThrowsLockRecursionException_OnReentrantAcquisition()
+    public void WriteLockThrowsLockRecursionExceptionOnReentrantAcquisitionTest()
     {
         using var handle = m_lock.AcquireWriteLock();
         
@@ -493,7 +493,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void ReadLock_ThrowsLockRecursionException_WhenWriteLockHeld()
+    public void ReadLockThrowsLockRecursionExceptionWhenWriteLockHeldTest()
     {
         using var handle = m_lock.AcquireWriteLock();
         
@@ -501,13 +501,13 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void IsWriteLockHeldByCurrentThread_FalseByDefault()
+    public void IsWriteLockHeldByCurrentThreadFalseByDefaultTest()
     {
         Assert.That(m_lock.IsWriteLockHeldByCurrentThread, Is.False);
     }
 
     [Test]
-    public void IsWriteLockHeldByCurrentThread_TrueWhenHeld()
+    public void IsWriteLockHeldByCurrentThreadTrueWhenHeldTest()
     {
         using var handle = m_lock.AcquireWriteLock();
         
@@ -515,7 +515,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void IsWriteLockHeldByCurrentThread_FalseAfterRelease()
+    public void IsWriteLockHeldByCurrentThreadFalseAfterReleaseTest()
     {
         {
             using var handle = m_lock.AcquireWriteLock();
@@ -526,7 +526,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public async Task ReentrancyDetection_WorksAcrossThreads()
+    public async Task ReentrancyDetectionWorksAcrossThreadsTest()
     {
         // Thread 1 holds write lock
         using var handle = m_lock.AcquireWriteLock();
@@ -542,7 +542,7 @@ public class DatabaseLockTests : IDisposable
     }
 
     [Test]
-    public void WriteLock_CanBeAcquiredAgainAfterRelease()
+    public void WriteLockCanBeAcquiredAgainAfterReleaseTest()
     {
         {
             using var handle1 = m_lock.AcquireWriteLock();

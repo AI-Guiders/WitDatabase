@@ -33,7 +33,7 @@ public class StorageStackIntegrationTest
     #region Memory Storage Integration
 
     [Test]
-    public void MemoryStorage_FullLifecycle()
+    public void MemoryStorageFullLifecycleTest()
     {
         using var storage = new MemoryStorage(4096, 1000);
         using var pageManager = new PageManager(storage);
@@ -61,7 +61,7 @@ public class StorageStackIntegrationTest
     }
 
     [Test]
-    public void MemoryStorage_MultipleTreesSharePageManager()
+    public void MemoryStorageMultipleTreesSharePageManagerTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -90,7 +90,7 @@ public class StorageStackIntegrationTest
     #region File Storage Integration
 
     [Test]
-    public void FileStorage_CreateAndReopen()
+    public void FileStorageCreateAndReopenTest()
     {
         var dbPath = Path.Combine(m_testDir!, "test.db");
 
@@ -117,7 +117,7 @@ public class StorageStackIntegrationTest
     }
 
     [Test]
-    public void FileStorage_ModifyAndReopen()
+    public void FileStorageModifyAndReopenTest()
     {
         var dbPath = Path.Combine(m_testDir!, "modify.db");
 
@@ -180,7 +180,7 @@ public class StorageStackIntegrationTest
     }
 
     [Test]
-    public void FileStorage_LargeDataset()
+    public void FileStorageLargeDatasetTest()
     {
         var dbPath = Path.Combine(m_testDir!, "large.db");
         const int count = 50000;
@@ -219,7 +219,7 @@ public class StorageStackIntegrationTest
     #region Cache Behavior
 
     [Test]
-    public void SmallCache_StillWorks()
+    public void SmallCacheStillWorksTest()
     {
         using var storage = new MemoryStorage(4096, 10000);
         using var pageManager = new PageManager(storage, cacheSize: 10); // Very small cache
@@ -241,7 +241,7 @@ public class StorageStackIntegrationTest
     }
 
     [Test]
-    public void CacheFlush_PersistsAllData()
+    public void CacheFlushPersistsAllDataTest()
     {
         using var storage = new MemoryStorage(4096, 1000);
         using var pageManager = new PageManager(storage, cacheSize: 100);
@@ -271,7 +271,7 @@ public class StorageStackIntegrationTest
     #region Overflow Pages Integration
 
     [Test]
-    public void OverflowPages_PersistCorrectly()
+    public void OverflowPagesPersistCorrectlyTest()
     {
         var dbPath = Path.Combine(m_testDir!, "overflow.db");
         var largeValues = new Dictionary<int, byte[]>();
@@ -305,7 +305,7 @@ public class StorageStackIntegrationTest
     }
 
     [Test]
-    public void OverflowPages_DeletedCorrectly()
+    public void OverflowPagesDeletedCorrectlyTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -345,7 +345,7 @@ public class StorageStackIntegrationTest
     #region Error Recovery Scenarios
 
     [Test]
-    public void DisposedStore_ThrowsOnAccess()
+    public void DisposedStoreThrowsOnAccessTest()
     {
         using var storage = new MemoryStorage();
         var store = new BTreeStore(storage, ownsStorage: false);
@@ -362,7 +362,7 @@ public class StorageStackIntegrationTest
     #region Async Integration
 
     [Test]
-    public async Task AsyncOperations_FullWorkflow()
+    public async Task AsyncOperationsFullWorkflowTest()
     {
         using var storage = new MemoryStorage(4096, 1000);
         using var store = new BTreeStore(storage);

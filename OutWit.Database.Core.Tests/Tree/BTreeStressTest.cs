@@ -16,7 +16,7 @@ public class BTreeStressTest
     #region Concurrent-like Access Patterns
 
     [Test]
-    public void InterleavedInsertDelete_MaintainsConsistency()
+    public void InterleavedInsertDeleteMaintainsConsistencyTest()
     {
         using var storage = new MemoryStorage(4096, 5000);
         using var pageManager = new PageManager(storage);
@@ -60,7 +60,7 @@ public class BTreeStressTest
     #region Key Distribution Patterns
 
     [Test]
-    public void AllSamePrefix_HandlesCorrectly()
+    public void AllSamePrefixHandlesCorrectlyTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -94,7 +94,7 @@ public class BTreeStressTest
     }
 
     [Test]
-    public void AlternatingPattern_InsertOddDeleteEven()
+    public void AlternatingPatternInsertOddDeleteEvenTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -130,7 +130,7 @@ public class BTreeStressTest
     }
 
     [Test]
-    public void ZigZagInsert_FromBothEnds()
+    public void ZigZagInsertFromBothEndsTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -167,7 +167,7 @@ public class BTreeStressTest
     #region Value Size Extremes
 
     [Test]
-    public void MixedInlineAndOverflow_Rapidly()
+    public void MixedInlineAndOverflowRapidlyTest()
     {
         using var storage = new MemoryStorage(4096, 5000);
         using var pageManager = new PageManager(storage);
@@ -204,7 +204,7 @@ public class BTreeStressTest
     }
 
     [Test]
-    public void UpdateBetweenInlineAndOverflow()
+    public void UpdateBetweenInlineAndOverflowTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -248,7 +248,7 @@ public class BTreeStressTest
     #region Split Edge Cases
 
     [Test]
-    public void ForceManyInternalSplits()
+    public void ForceManyInternalSplitsTest()
     {
         using var storage = new MemoryStorage(4096, 10000);
         using var pageManager = new PageManager(storage);
@@ -274,7 +274,7 @@ public class BTreeStressTest
     }
 
     [Test]
-    public void ForceMultipleLevelTree()
+    public void ForceMultipleLevelTreeTest()
     {
         using var storage = new MemoryStorage(4096, 15000);
         using var pageManager = new PageManager(storage);
@@ -304,7 +304,7 @@ public class BTreeStressTest
     #region Compaction Under Stress
 
     [Test]
-    public void RepeatedUpsertSameKeys_CompactionWorks()
+    public void RepeatedUpsertSameKeysCompactionWorksTest()
     {
         using var storage = new MemoryStorage(4096, 1000);
         using var pageManager = new PageManager(storage);
@@ -342,7 +342,7 @@ public class BTreeStressTest
     }
 
     [Test]
-    public void DeleteHalfInsertHalf_RepeatedCycles()
+    public void DeleteHalfInsertHalfRepeatedCyclesTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -384,7 +384,7 @@ public class BTreeStressTest
     #region Range Scan Edge Cases
 
     [Test]
-    public void RangeScan_SpanningMultipleLeaves()
+    public void RangeScanSpanningMultipleLeavesTest()
     {
         using var storage = new MemoryStorage(4096, 2000);
         using var pageManager = new PageManager(storage);
@@ -414,7 +414,7 @@ public class BTreeStressTest
     }
 
     [Test]
-    public void RangeScan_WithOverflowValues()
+    public void RangeScanWithOverflowValuesTest()
     {
         using var storage = new MemoryStorage(4096, 3000);
         using var pageManager = new PageManager(storage);
@@ -456,7 +456,7 @@ public class BTreeStressTest
     #region Persistence Stress
 
     [Test]
-    public void ReopenAfterHeavyOperations()
+    public void ReopenAfterHeavyOperationsTest()
     {
         using var storage = new MemoryStorage(4096, 5000);
         using var pageManager = new PageManager(storage);

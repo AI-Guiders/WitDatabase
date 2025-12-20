@@ -37,7 +37,7 @@ public class FileLockTests : IDisposable
     #region Basic Lock Tests
 
     [Test]
-    public void AcquireSharedLock_Succeeds()
+    public void AcquireSharedLockSucceedsTest()
     {
         var lockPath = Path.Combine(m_testDir, "test.db");
         using var fileLock = new FileLock(lockPath);
@@ -47,7 +47,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireExclusiveLock_Succeeds()
+    public void AcquireExclusiveLockSucceedsTest()
     {
         var lockPath = Path.Combine(m_testDir, "test.db");
         using var fileLock = new FileLock(lockPath);
@@ -57,7 +57,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireSharedLockAsync_Succeeds()
+    public async Task AcquireSharedLockAsyncSucceedsTest()
     {
         var lockPath = Path.Combine(m_testDir, "test.db");
         using var fileLock = new FileLock(lockPath);
@@ -68,7 +68,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireExclusiveLockAsync_Succeeds()
+    public async Task AcquireExclusiveLockAsyncSucceedsTest()
     {
         var lockPath = Path.Combine(m_testDir, "test.db");
         using var fileLock = new FileLock(lockPath);
@@ -83,7 +83,7 @@ public class FileLockTests : IDisposable
     #region Exclusive Lock Blocking Tests
 
     [Test]
-    public void ExclusiveLock_BlocksOtherExclusive()
+    public void ExclusiveLockBlocksOtherExclusiveTest()
     {
         var lockPath = Path.Combine(m_testDir, "exclusive.db");
         using var fileLock1 = new FileLock(lockPath, TimeSpan.FromMilliseconds(100));
@@ -95,7 +95,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void ExclusiveLock_BlocksShared()
+    public void ExclusiveLockBlocksSharedTest()
     {
         var lockPath = Path.Combine(m_testDir, "excl_blocks_shared.db");
         using var fileLock1 = new FileLock(lockPath, TimeSpan.FromMilliseconds(100));
@@ -107,7 +107,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void SharedLock_BlocksExclusive()
+    public void SharedLockBlocksExclusiveTest()
     {
         var lockPath = Path.Combine(m_testDir, "shared_blocks_excl.db");
         using var fileLock1 = new FileLock(lockPath, TimeSpan.FromMilliseconds(100));
@@ -123,7 +123,7 @@ public class FileLockTests : IDisposable
     #region Lock Release Tests
 
     [Test]
-    public void ReleaseLock_AllowsNewLock()
+    public void ReleaseLockAllowsNewLockTest()
     {
         var lockPath = Path.Combine(m_testDir, "release.db");
         using var fileLock1 = new FileLock(lockPath);
@@ -139,7 +139,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void Dispose_ReleasesLock()
+    public void DisposeReleasesLockTest()
     {
         var lockPath = Path.Combine(m_testDir, "dispose_test.db");
         
@@ -158,7 +158,7 @@ public class FileLockTests : IDisposable
     #region Lock File Lifecycle Tests
 
     [Test]
-    public void LockFile_CreatedOnAcquire()
+    public void LockFileCreatedOnAcquireTest()
     {
         var lockPath = Path.Combine(m_testDir, "created.db");
         var lockFilePath = lockPath + ".lock";
@@ -177,7 +177,7 @@ public class FileLockTests : IDisposable
     #region Timeout and Retry Tests
 
     [Test]
-    public void AcquireLock_RetriesOnContention()
+    public void AcquireLockRetriesOnContentionTest()
     {
         var lockPath = Path.Combine(m_testDir, "retry.db");
         using var fileLock1 = new FileLock(lockPath);
@@ -197,7 +197,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void AcquireLock_ThrowsTimeoutException_AfterMaxRetries()
+    public void AcquireLockThrowsTimeoutExceptionAfterMaxRetriesTest()
     {
         var lockPath = Path.Combine(m_testDir, "timeout.db");
         using var fileLock1 = new FileLock(lockPath);
@@ -213,7 +213,7 @@ public class FileLockTests : IDisposable
     #region Properties Tests
 
     [Test]
-    public void HasExclusiveLock_TrueAfterAcquire()
+    public void HasExclusiveLockTrueAfterAcquireTest()
     {
         var lockPath = Path.Combine(m_testDir, "has_excl.db");
         using var fileLock = new FileLock(lockPath);
@@ -226,7 +226,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void HasSharedLock_TrueAfterAcquire()
+    public void HasSharedLockTrueAfterAcquireTest()
     {
         var lockPath = Path.Combine(m_testDir, "has_shared.db");
         using var fileLock = new FileLock(lockPath);
@@ -243,7 +243,7 @@ public class FileLockTests : IDisposable
     #region Dispose Tests
 
     [Test]
-    public void DoubleDispose_NoThrow()
+    public void DoubleDisposeNoThrowTest()
     {
         var lockPath = Path.Combine(m_testDir, "double_dispose.db");
         var fileLock = new FileLock(lockPath);
@@ -256,7 +256,7 @@ public class FileLockTests : IDisposable
     }
 
     [Test]
-    public void DisposedLock_ThrowsObjectDisposedException()
+    public void DisposedLockThrowsObjectDisposedExceptionTest()
     {
         var lockPath = Path.Combine(m_testDir, "disposed.db");
         var fileLock = new FileLock(lockPath);

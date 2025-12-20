@@ -41,7 +41,7 @@ public class WriteAheadLogTests : IDisposable
     #region Basic Operations Tests
 
     [Test]
-    public void AppendPut_IncreasesSize()
+    public void AppendPutIncreasesSizeTest()
     {
         var walPath = Path.Combine(m_testDir, "basic.wal");
         
@@ -55,7 +55,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void AppendDelete_IncreasesSize()
+    public void AppendDeleteIncreasesSizeTest()
     {
         var walPath = Path.Combine(m_testDir, "delete.wal");
         
@@ -68,7 +68,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void Sync_FlushesToDisk()
+    public void SyncFlushesToDiskTest()
     {
         var walPath = Path.Combine(m_testDir, "sync.wal");
         
@@ -82,7 +82,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void Truncate_ResetsSize()
+    public void TruncateResetsSizeTest()
     {
         var walPath = Path.Combine(m_testDir, "truncate.wal");
         
@@ -104,7 +104,7 @@ public class WriteAheadLogTests : IDisposable
     #region Replay Tests
 
     [Test]
-    public void Replay_ReturnsAllEntries()
+    public void ReplayReturnsAllEntriesTest()
     {
         var walPath = Path.Combine(m_testDir, "replay.wal");
         
@@ -135,7 +135,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void Replay_PreservesOrder()
+    public void ReplayPreservesOrderTest()
     {
         var walPath = Path.Combine(m_testDir, "order.wal");
         
@@ -169,7 +169,7 @@ public class WriteAheadLogTests : IDisposable
     #region Transaction Support Tests
 
     [Test]
-    public void TransactionMarkers_Recorded()
+    public void TransactionMarkersRecordedTest()
     {
         var walPath = Path.Combine(m_testDir, "tx_markers.wal");
         
@@ -203,7 +203,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void TransactionalReplay_OnlyCommittedTransactions()
+    public void TransactionalReplayOnlyCommittedTransactionsTest()
     {
         var walPath = Path.Combine(m_testDir, "tx_replay.wal");
         
@@ -243,7 +243,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void MultipleTransactions_ReplayedInOrder()
+    public void MultipleTransactionsReplayedInOrderTest()
     {
         var walPath = Path.Combine(m_testDir, "multi_tx.wal");
         
@@ -281,7 +281,7 @@ public class WriteAheadLogTests : IDisposable
     #region CRC32 Integrity Tests
 
     [Test]
-    public void CorruptedEntry_StopsReplay()
+    public void CorruptedEntryStopsReplayTest()
     {
         var walPath = Path.Combine(m_testDir, "corrupted.wal");
         
@@ -316,7 +316,7 @@ public class WriteAheadLogTests : IDisposable
     #region Reopen Tests
 
     [Test]
-    public void ReopenAndAppend_PreservesData()
+    public void ReopenAndAppendPreservesDataTest()
     {
         var walPath = Path.Combine(m_testDir, "reopen.wal");
         
@@ -352,7 +352,7 @@ public class WriteAheadLogTests : IDisposable
     #region Properties Tests
 
     [Test]
-    public void FilePath_ReturnsCorrectPath()
+    public void FilePathReturnsCorrectPathTest()
     {
         var walPath = Path.Combine(m_testDir, "path_test.wal");
         
@@ -362,7 +362,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void IsEncrypted_ReturnsFalse_WhenNoEncryptor()
+    public void IsEncryptedReturnsFalseWhenNoEncryptorTest()
     {
         var walPath = Path.Combine(m_testDir, "plain.wal");
         
@@ -372,7 +372,7 @@ public class WriteAheadLogTests : IDisposable
     }
 
     [Test]
-    public void EntryCount_TracksEntries()
+    public void EntryCountTracksEntriesTest()
     {
         var walPath = Path.Combine(m_testDir, "count.wal");
         
@@ -395,7 +395,7 @@ public class WriteAheadLogTests : IDisposable
     #region Large Data Tests
 
     [Test]
-    public void LargeValue_RoundTrips()
+    public void LargeValueRoundTripsTest()
     {
         var walPath = Path.Combine(m_testDir, "large.wal");
         var largeValue = new byte[100_000];
@@ -421,7 +421,7 @@ public class WriteAheadLogTests : IDisposable
 
     [Test]
     [Category("Stress")]
-    public void ManyEntries_AllRecovered()
+    public void ManyEntriesAllRecoveredTest()
     {
         var walPath = Path.Combine(m_testDir, "many.wal");
         const int entryCount = 10_000;

@@ -42,7 +42,7 @@ public class LockManagerTests : IDisposable
     #region Basic Lock Tests
 
     [Test]
-    public void AcquireReadLock_Succeeds()
+    public void AcquireReadLockSucceedsTest()
     {
         using var handle = m_lockManager.AcquireReadLock();
         
@@ -50,7 +50,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public void AcquireWriteLock_Succeeds()
+    public void AcquireWriteLockSucceedsTest()
     {
         using var handle = m_lockManager.AcquireWriteLock();
         
@@ -58,7 +58,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireReadLockAsync_Succeeds()
+    public async Task AcquireReadLockAsyncSucceedsTest()
     {
         await using var handle = await m_lockManager.AcquireReadLockAsync();
         
@@ -66,7 +66,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public async Task AcquireWriteLockAsync_Succeeds()
+    public async Task AcquireWriteLockAsyncSucceedsTest()
     {
         await using var handle = await m_lockManager.AcquireWriteLockAsync();
         
@@ -78,7 +78,7 @@ public class LockManagerTests : IDisposable
     #region Multiple Readers Tests
 
     [Test]
-    public void MultipleReaders_AllSucceed()
+    public void MultipleReadersAllSucceedTest()
     {
         var handles = new List<IDisposable>();
         
@@ -96,7 +96,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public async Task MultipleReadersAsync_AllSucceed()
+    public async Task MultipleReadersAsyncAllSucceedTest()
     {
         var handles = new List<IAsyncDisposable>();
         
@@ -118,7 +118,7 @@ public class LockManagerTests : IDisposable
     #region Writer Blocking Tests
 
     [Test]
-    public void WriteLock_BlocksOtherWriters()
+    public void WriteLockBlocksOtherWritersTest()
     {
         var subDir = Path.Combine(m_testDir, "blocking1");
         Directory.CreateDirectory(subDir);
@@ -148,7 +148,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public void WriteLock_BlocksReaders()
+    public void WriteLockBlocksReadersTest()
     {
         var subDir = Path.Combine(m_testDir, "blocking2");
         Directory.CreateDirectory(subDir);
@@ -177,7 +177,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public void ReadLock_BlocksWriters()
+    public void ReadLockBlocksWritersTest()
     {
         var subDir = Path.Combine(m_testDir, "blocking3");
         Directory.CreateDirectory(subDir);
@@ -210,7 +210,7 @@ public class LockManagerTests : IDisposable
     #region Lock Release Tests
 
     [Test]
-    public async Task LockRelease_AllowsNextAcquire()
+    public async Task LockReleaseAllowsNextAcquireTest()
     {
         // Acquire and release
         {
@@ -223,7 +223,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public async Task ReadLockRelease_AllowsWriter()
+    public async Task ReadLockReleaseAllowsWriterTest()
     {
         // Multiple readers acquire and release
         for (int i = 0; i < 3; i++)
@@ -242,7 +242,7 @@ public class LockManagerTests : IDisposable
 
     [Test]
     [Category("Stress")]
-    public async Task ConcurrentReaders_NoContention()
+    public async Task ConcurrentReadersNoContentionTest()
     {
         const int readerCount = 20;
         var tasks = new List<Task>();
@@ -265,7 +265,7 @@ public class LockManagerTests : IDisposable
 
     [Test]
     [Category("Stress")]
-    public async Task ConcurrentWriters_Serialized()
+    public async Task ConcurrentWritersSerializedTest()
     {
         const int writerCount = 10;
         var tasks = new List<Task>();
@@ -299,7 +299,7 @@ public class LockManagerTests : IDisposable
     [Test]
     [Category("Stress")]
     [Ignore("Flaky due to file lock timing issues")]
-    public async Task MixedOperations_Complete()
+    public async Task MixedOperationsCompleteTest()
     {
         const int operationCount = 20;
         var tasks = new List<Task>();
@@ -336,7 +336,7 @@ public class LockManagerTests : IDisposable
     #region Dispose Tests
 
     [Test]
-    public void Dispose_ReleasesResources()
+    public void DisposeReleasesResourcesTest()
     {
         var manager = new LockManager(Path.Combine(m_testDir, "dispose.db"));
         
@@ -349,7 +349,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public void DoubleDispose_NoThrow()
+    public void DoubleDisposeNoThrowTest()
     {
         var manager = new LockManager(Path.Combine(m_testDir, "double.db"));
         
@@ -365,7 +365,7 @@ public class LockManagerTests : IDisposable
     #region File Lock Integration Tests
 
     [Test]
-    public void UseFileLocking_TrueForPathConstructor()
+    public void UseFileLockingTrueForPathConstructorTest()
     {
         var dbPath = Path.Combine(m_testDir, "withfilelock.db");
         var manager = new LockManager(dbPath);
@@ -376,7 +376,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public void UseFileLocking_FalseForNoPathConstructor()
+    public void UseFileLockingFalseForNoPathConstructorTest()
     {
         var manager = new LockManager();
         
@@ -386,7 +386,7 @@ public class LockManagerTests : IDisposable
     }
 
     [Test]
-    public void InMemoryLockManager_WorksWithoutFileLock()
+    public void InMemoryLockManagerWorksWithoutFileLockTest()
     {
         var manager = new LockManager(TimeSpan.FromSeconds(1));
         
@@ -403,13 +403,13 @@ public class LockManagerTests : IDisposable
     #region Properties Tests
 
     [Test]
-    public void WaitingReadCount_IsAccessible()
+    public void WaitingReadCountIsAccessibleTest()
     {
         Assert.That(m_lockManager.WaitingReadCount, Is.GreaterThanOrEqualTo(0));
     }
 
     [Test]
-    public void WaitingWriteCount_IsAccessible()
+    public void WaitingWriteCountIsAccessibleTest()
     {
         Assert.That(m_lockManager.WaitingWriteCount, Is.GreaterThanOrEqualTo(0));
     }

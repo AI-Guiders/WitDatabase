@@ -81,7 +81,7 @@ public class TransactionalStoreStressTests : IDisposable
     #region Sequential Transaction Stress
 
     [Test]
-    public void SequentialTransactions_100Commits()
+    public void SequentialTransactions100CommitsTest()
     {
         using var store = CreateStore("seq_100");
 
@@ -101,7 +101,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public void SequentialTransactions_AlternatingCommitRollback()
+    public void SequentialTransactionsAlternatingCommitRollbackTest()
     {
         using var store = CreateStore("seq_alt");
         var committedKeys = new List<int>();
@@ -135,7 +135,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public void LargeTransaction_1000Operations()
+    public void LargeTransaction1000OperationsTest()
     {
         using var store = CreateStore("large_tx");
 
@@ -154,7 +154,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public void LargeTransaction_Rollback_1000Operations()
+    public void LargeTransactionRollback1000OperationsTest()
     {
         using var store = CreateStore("large_rb");
 
@@ -182,7 +182,7 @@ public class TransactionalStoreStressTests : IDisposable
 
     [Test]
     [Timeout(30000)] // 30 second timeout
-    public async Task ConcurrentReads_WhileWriting()
+    public async Task ConcurrentReadsWhileWritingTest()
     {
         using var store = CreateStore("conc_rw", TimeSpan.FromSeconds(10));
 
@@ -259,7 +259,7 @@ public class TransactionalStoreStressTests : IDisposable
 
     [Test]
     [Timeout(60000)] // 60 second timeout
-    public async Task ConcurrentWriters_Serialize()
+    public async Task ConcurrentWritersSerializeTest()
     {
         using var store = CreateStore("conc_wr", TimeSpan.FromSeconds(30));
 
@@ -300,7 +300,7 @@ public class TransactionalStoreStressTests : IDisposable
 
     [Test]
     [Timeout(30000)]
-    public async Task ManySequentialTransactions_NoDeadlock()
+    public async Task ManySequentialTransactionsNoDeadlockTest()
     {
         using var store = CreateStore("many_tx", TimeSpan.FromSeconds(10));
 
@@ -335,7 +335,7 @@ public class TransactionalStoreStressTests : IDisposable
     #region Durability Stress
 
     [Test]
-    public void JournalGrowth_ManyTransactions()
+    public void JournalGrowthManyTransactionsTest()
     {
         var subDir = Path.Combine(m_testDir, "journal_growth");
         Directory.CreateDirectory(subDir);
@@ -373,7 +373,7 @@ public class TransactionalStoreStressTests : IDisposable
     #region Mixed Operations Stress
 
     [Test]
-    public void MixedOperations_PutDeleteGet()
+    public void MixedOperationsPutDeleteGetTest()
     {
         using var store = CreateStore("mixed_ops");
         var random = new Random(42);
@@ -427,7 +427,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public void ReadYourOwnWrites_InTransaction()
+    public void ReadYourOwnWritesInTransactionTest()
     {
         using var store = CreateStore("read_own");
 
@@ -463,7 +463,7 @@ public class TransactionalStoreStressTests : IDisposable
     #region Async Stress Tests
 
     [Test]
-    public async Task AsyncTransactions_Sequential()
+    public async Task AsyncTransactionsSequentialTest()
     {
         using var store = CreateStore("async_seq");
 
@@ -483,7 +483,7 @@ public class TransactionalStoreStressTests : IDisposable
 
     [Test]
     [Timeout(30000)]
-    public async Task AsyncTransactions_Concurrent()
+    public async Task AsyncTransactionsConcurrentTest()
     {
         using var store = CreateStore("async_conc", TimeSpan.FromSeconds(30));
 
@@ -516,7 +516,7 @@ public class TransactionalStoreStressTests : IDisposable
     #region Edge Cases
 
     [Test]
-    public void EmptyTransaction_CommitSucceeds()
+    public void EmptyTransactionCommitSucceedsTest()
     {
         using var store = CreateStore("empty_tx");
 
@@ -528,7 +528,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public void EmptyTransaction_RollbackSucceeds()
+    public void EmptyTransactionRollbackSucceedsTest()
     {
         using var store = CreateStore("empty_rb");
 
@@ -540,7 +540,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public async Task TransactionTimeout_ThrowsOnConflict()
+    public async Task TransactionTimeoutThrowsOnConflictTest()
     {
         using var store = CreateStore("timeout", TimeSpan.FromMilliseconds(100));
 
@@ -559,7 +559,7 @@ public class TransactionalStoreStressTests : IDisposable
     }
 
     [Test]
-    public void LargeValues_InTransaction()
+    public void LargeValuesInTransactionTest()
     {
         using var store = CreateStore("large_val");
         var random = new Random(42);

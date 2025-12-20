@@ -57,7 +57,7 @@ public class TransactionalStoreTests : IDisposable
     #region Basic Operations Tests
 
     [Test]
-    public void Put_WithoutTransaction_Succeeds()
+    public void PutWithoutTransactionSucceedsTest()
     {
         m_store.Put(ToBytes("key1"), ToBytes("value1"));
         
@@ -66,7 +66,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Get_NonExistentKey_ReturnsNull()
+    public void GetNonExistentKeyReturnsNullTest()
     {
         var result = m_store.Get(ToBytes("nonexistent"));
         
@@ -74,7 +74,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Delete_ExistingKey_Succeeds()
+    public void DeleteExistingKeySucceedsTest()
     {
         m_store.Put(ToBytes("key1"), ToBytes("value1"));
         
@@ -85,7 +85,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Flush_PersistsData()
+    public void FlushPersistsDataTest()
     {
         m_store.Put(ToBytes("key1"), ToBytes("value1"));
         m_store.Flush();
@@ -98,7 +98,7 @@ public class TransactionalStoreTests : IDisposable
     #region Transaction Lifecycle Tests
 
     [Test]
-    public void BeginTransaction_ReturnsActiveTransaction()
+    public void BeginTransactionReturnsActiveTransactionTest()
     {
         using var tx = m_store.BeginTransaction();
         
@@ -107,7 +107,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public async Task BeginTransactionAsync_ReturnsActiveTransaction()
+    public async Task BeginTransactionAsyncReturnsActiveTransactionTest()
     {
         await using var tx = await m_store.BeginTransactionAsync();
         
@@ -116,7 +116,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Commit_SetsStateToCommitted()
+    public void CommitSetsStateToCommittedTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key"), ToBytes("value"));
@@ -126,7 +126,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Rollback_SetsStateToRolledBack()
+    public void RollbackSetsStateToRolledBackTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key"), ToBytes("value"));
@@ -136,7 +136,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Dispose_RollsBackActiveTransaction()
+    public void DisposeRollsBackActiveTransactionTest()
     {
         ITransaction tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key"), ToBytes("value"));
@@ -151,7 +151,7 @@ public class TransactionalStoreTests : IDisposable
     #region Transaction Isolation Tests
 
     [Test]
-    public void Transaction_SeesOwnChanges()
+    public void TransactionSeesOwnChangesTest()
     {
         using var tx = m_store.BeginTransaction();
         
@@ -162,7 +162,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Transaction_CommitPersistsChanges()
+    public void TransactionCommitPersistsChangesTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key1"), ToBytes("value1"));
@@ -174,7 +174,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Transaction_RollbackDiscardsChanges()
+    public void TransactionRollbackDiscardsChangesTest()
     {
         m_store.Put(ToBytes("existing"), ToBytes("original"));
         
@@ -188,7 +188,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Transaction_DeleteIsRolledBack()
+    public void TransactionDeleteIsRolledBackTest()
     {
         m_store.Put(ToBytes("key"), ToBytes("value"));
         
@@ -205,7 +205,7 @@ public class TransactionalStoreTests : IDisposable
     #region Multiple Operations Tests
 
     [Test]
-    public void Transaction_MultipleOperationsAtomic()
+    public void TransactionMultipleOperationsAtomicTest()
     {
         using var tx = m_store.BeginTransaction();
         
@@ -223,7 +223,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Transaction_OverwritesSameKey()
+    public void TransactionOverwritesSameKeyTest()
     {
         using var tx = m_store.BeginTransaction();
         
@@ -240,7 +240,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Transaction_DeleteThenPut()
+    public void TransactionDeleteThenPutTest()
     {
         m_store.Put(ToBytes("key"), ToBytes("original"));
         
@@ -253,7 +253,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Transaction_PutThenDelete()
+    public void TransactionPutThenDeleteTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key"), ToBytes("value"));
@@ -268,7 +268,7 @@ public class TransactionalStoreTests : IDisposable
     #region Error Handling Tests
 
     [Test]
-    public void CommitAfterCommit_ThrowsInvalidOperation()
+    public void CommitAfterCommitThrowsInvalidOperationTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key"), ToBytes("value"));
@@ -278,7 +278,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void RollbackAfterCommit_ThrowsInvalidOperation()
+    public void RollbackAfterCommitThrowsInvalidOperationTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Put(ToBytes("key"), ToBytes("value"));
@@ -288,7 +288,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void PutAfterCommit_ThrowsInvalidOperation()
+    public void PutAfterCommitThrowsInvalidOperationTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Commit();
@@ -297,7 +297,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void GetAfterCommit_ThrowsInvalidOperation()
+    public void GetAfterCommitThrowsInvalidOperationTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Commit();
@@ -306,7 +306,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void DeleteAfterRollback_ThrowsInvalidOperation()
+    public void DeleteAfterRollbackThrowsInvalidOperationTest()
     {
         using var tx = m_store.BeginTransaction();
         tx.Rollback();
@@ -319,7 +319,7 @@ public class TransactionalStoreTests : IDisposable
     #region Async Tests
 
     [Test]
-    public async Task CommitAsync_PersistsChanges()
+    public async Task CommitAsyncPersistsChangesTest()
     {
         await using var tx = await m_store.BeginTransactionAsync();
         await tx.PutAsync(ToBytes("key"), ToBytes("value"));
@@ -330,7 +330,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public async Task RollbackAsync_DiscardsChanges()
+    public async Task RollbackAsyncDiscardsChangesTest()
     {
         await using var tx = await m_store.BeginTransactionAsync();
         await tx.PutAsync(ToBytes("key"), ToBytes("value"));
@@ -341,7 +341,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public async Task DisposeAsync_RollsBackActiveTransaction()
+    public async Task DisposeAsyncRollsBackActiveTransactionTest()
     {
         ITransaction tx = await m_store.BeginTransactionAsync();
         await tx.PutAsync(ToBytes("key"), ToBytes("value"));
@@ -355,7 +355,7 @@ public class TransactionalStoreTests : IDisposable
     #region Concurrent Transaction Tests
 
     [Test]
-    public async Task ConcurrentTransactionStart_Blocks()
+    public async Task ConcurrentTransactionStartBlocksTest()
     {
         var shortTimeoutStore = CreateStoreWithTimeout(TimeSpan.FromMilliseconds(200));
         
@@ -376,7 +376,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void TransactionCompleted_AllowsNext()
+    public void TransactionCompletedAllowsNextTest()
     {
         using var tx1 = m_store.BeginTransaction();
         tx1.Put(ToBytes("key1"), ToBytes("value1"));
@@ -395,7 +395,7 @@ public class TransactionalStoreTests : IDisposable
     #region Scan Tests
 
     [Test]
-    public void Scan_ReturnsAllKeys()
+    public void ScanReturnsAllKeysTest()
     {
         for (int i = 0; i < 10; i++)
         {
@@ -408,7 +408,7 @@ public class TransactionalStoreTests : IDisposable
     }
 
     [Test]
-    public void Scan_WithRange_ReturnsFilteredKeys()
+    public void ScanWithRangeReturnsFilteredKeysTest()
     {
         for (int i = 0; i < 10; i++)
         {
