@@ -14,8 +14,16 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public DefinitionIndex? GetIndex(string name)
     {
-        m_indexes.TryGetValue(name, out var index);
-        return index;
+        m_lock.EnterReadLock();
+        try
+        {
+            m_indexes.TryGetValue(name, out var index);
+            return index;
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -23,7 +31,17 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public IEnumerable<DefinitionIndex> GetTableIndexes(string tableName)
     {
-        return m_indexes.Values.Where(i => i.TableName.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+        m_lock.EnterReadLock();
+        try
+        {
+            return m_indexes.Values
+                .Where(i => i.TableName.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -31,14 +49,22 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void CreateIndex(DefinitionIndex index)
     {
-        if (m_indexes.ContainsKey(index.Name))
-            throw new InvalidOperationException($"Index '{index.Name}' already exists");
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (m_indexes.ContainsKey(index.Name))
+                throw new InvalidOperationException($"Index '{index.Name}' already exists");
 
-        if (!m_tables.ContainsKey(index.TableName))
-            throw new InvalidOperationException($"Table '{index.TableName}' does not exist");
+            if (!m_tables.ContainsKey(index.TableName))
+                throw new InvalidOperationException($"Table '{index.TableName}' does not exist");
 
-        m_indexes[index.Name] = index;
-        SaveSchema();
+            m_indexes[index.Name] = index;
+            SaveSchema();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -46,11 +72,19 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public bool DropIndex(string name)
     {
-        if (!m_indexes.Remove(name))
-            return false;
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_indexes.Remove(name))
+                return false;
 
-        SaveSchema();
-        return true;
+            SaveSchema();
+            return true;
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     #endregion

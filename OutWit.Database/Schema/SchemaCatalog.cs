@@ -7,8 +7,9 @@ namespace OutWit.Database.Schema;
 /// <summary>
 /// Manages database schema (tables, indexes, views, triggers, sequences) stored in the key-value store.
 /// Uses special keys with "$schema:" prefix for metadata storage.
+/// Thread-safe for concurrent read/write access.
 /// </summary>
-public sealed partial class SchemaCatalog
+public sealed partial class SchemaCatalog : IDisposable
 {
     #region Constants
 
@@ -18,19 +19,29 @@ public sealed partial class SchemaCatalog
     private const string VIEWS_KEY = "$schema:_views";
     private const string TRIGGERS_KEY = "$schema:_triggers";
     private const string SEQUENCES_KEY = "$schema:_sequences";
-    private const string ROWID_KEY = "$schema:_rowid";
+    private const string ROWID_PREFIX = "$schema:_rowid:";
+
+    // Pre-computed UTF8 bytes for frequently used keys
+    private static readonly byte[] TABLES_KEY_BYTES = Encoding.UTF8.GetBytes(TABLES_KEY);
+    private static readonly byte[] INDEXES_KEY_BYTES = Encoding.UTF8.GetBytes(INDEXES_KEY);
+    private static readonly byte[] VIEWS_KEY_BYTES = Encoding.UTF8.GetBytes(VIEWS_KEY);
+    private static readonly byte[] TRIGGERS_KEY_BYTES = Encoding.UTF8.GetBytes(TRIGGERS_KEY);
+    private static readonly byte[] SEQUENCES_KEY_BYTES = Encoding.UTF8.GetBytes(SEQUENCES_KEY);
+    private static readonly byte[] ROWID_PREFIX_BYTES = Encoding.UTF8.GetBytes(ROWID_PREFIX);
 
     #endregion
 
     #region Fields
 
     private readonly IKeyValueStore m_store;
+    private readonly ReaderWriterLockSlim m_lock = new(LockRecursionPolicy.NoRecursion);
     private readonly Dictionary<string, DefinitionTable> m_tables = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DefinitionIndex> m_indexes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DefinitionView> m_views = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DefinitionTrigger> m_triggers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DefinitionSequence> m_sequences = new(StringComparer.OrdinalIgnoreCase);
-    private long m_nextRowId = 0;
+    private readonly Dictionary<string, long> m_tableRowIds = new(StringComparer.OrdinalIgnoreCase);
+    private bool m_disposed;
 
     #endregion
 
@@ -47,17 +58,61 @@ public sealed partial class SchemaCatalog
 
     #endregion
 
+    #region IDisposable
+
+    /// <summary>
+    /// Disposes the schema catalog and releases the lock.
+    /// </summary>
+    public void Dispose()
+    {
+        if (m_disposed)
+            return;
+
+        m_disposed = true;
+        m_lock.Dispose();
+    }
+
+    #endregion
+
     #region Properties
 
     /// <summary>
     /// Gets all table names.
     /// </summary>
-    public IEnumerable<string> TableNames => m_tables.Keys;
+    public IEnumerable<string> TableNames
+    {
+        get
+        {
+            m_lock.EnterReadLock();
+            try
+            {
+                return m_tables.Keys.ToList();
+            }
+            finally
+            {
+                m_lock.ExitReadLock();
+            }
+        }
+    }
 
     /// <summary>
     /// Gets all tables.
     /// </summary>
-    public IEnumerable<DefinitionTable> Tables => m_tables.Values;
+    public IEnumerable<DefinitionTable> Tables
+    {
+        get
+        {
+            m_lock.EnterReadLock();
+            try
+            {
+                return m_tables.Values.ToList();
+            }
+            finally
+            {
+                m_lock.ExitReadLock();
+            }
+        }
+    }
 
     #endregion
 
@@ -65,11 +120,141 @@ public sealed partial class SchemaCatalog
 
     /// <summary>
     /// Gets the next row ID for a table.
+    /// Each table maintains its own independent sequence.
+    /// Note: For bulk inserts, use GetNextRowIdBatch for better performance.
     /// </summary>
     public long GetNextRowId(string tableName)
     {
-        // In a real implementation, this would be per-table
-        return Interlocked.Increment(ref m_nextRowId);
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            if (!m_tableRowIds.TryGetValue(tableName, out var currentId))
+                currentId = 0;
+
+            var nextId = currentId + 1;
+            m_tableRowIds[tableName] = nextId;
+            SaveTableRowId(tableName, nextId);
+
+            return nextId;
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Reserves a batch of row IDs for bulk insert operations.
+    /// Returns the first ID in the batch; use IDs from firstId to firstId + count - 1.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="count">Number of IDs to reserve.</param>
+    /// <returns>The first row ID in the reserved batch.</returns>
+    public long GetNextRowIdBatch(string tableName, int count)
+    {
+        if (count <= 0)
+            throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive");
+
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            if (!m_tableRowIds.TryGetValue(tableName, out var currentId))
+                currentId = 0;
+
+            var firstId = currentId + 1;
+            var lastId = currentId + count;
+            m_tableRowIds[tableName] = lastId;
+            SaveTableRowId(tableName, lastId);
+
+            return firstId;
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Gets the current max row ID for a table without incrementing.
+    /// </summary>
+    public long GetCurrentRowId(string tableName)
+    {
+        m_lock.EnterReadLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            return m_tableRowIds.TryGetValue(tableName, out var currentId) ? currentId : 0;
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Resets the row ID counter for a table (e.g., after TRUNCATE).
+    /// </summary>
+    public void ResetRowId(string tableName, long startFrom = 0)
+    {
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            m_tableRowIds[tableName] = startFrom;
+            SaveTableRowId(tableName, startFrom);
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    private void SaveTableRowId(string tableName, long rowId)
+    {
+        // Build key: "$schema:_rowid:{tableName}"
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWID_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWID_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWID_PREFIX_BYTES.Length);
+
+        Span<byte> rowIdBytes = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(rowIdBytes, rowId);
+        m_store.Put(keyBytes.AsSpan(), rowIdBytes);
+    }
+
+    private void LoadTableRowId(string tableName)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWID_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWID_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWID_PREFIX_BYTES.Length);
+
+        var rowIdData = m_store.Get(keyBytes.AsSpan());
+        if (rowIdData != null && rowIdData.Length == 8)
+        {
+            m_tableRowIds[tableName] = System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(rowIdData);
+        }
+    }
+
+    private void DeleteTableRowId(string tableName)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWID_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWID_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWID_PREFIX_BYTES.Length);
+
+        m_store.Delete(keyBytes.AsSpan());
+        m_tableRowIds.Remove(tableName);
     }
 
     /// <summary>

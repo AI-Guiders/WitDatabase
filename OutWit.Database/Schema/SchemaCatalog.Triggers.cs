@@ -14,19 +14,38 @@ public sealed partial class SchemaCatalog
     /// <summary>
     /// Gets a trigger by name.
     /// </summary>
-    public DefinitionTrigger? GetTrigger(string name) =>
-        m_triggers.GetValueOrDefault(name);
+    public DefinitionTrigger? GetTrigger(string name)
+    {
+        m_lock.EnterReadLock();
+        try
+        {
+            return m_triggers.GetValueOrDefault(name);
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+    }
 
     /// <summary>
     /// Gets all triggers for a specific table and event.
     /// </summary>
     public IEnumerable<DefinitionTrigger> GetTriggersForTable(string tableName, TriggerEvent? evt = null, TriggerTime? time = null)
     {
-        return m_triggers.Values
-            .Where(trigger => trigger.TableName.Equals(tableName, StringComparison.OrdinalIgnoreCase))
-            .Where(trigger => evt == null || trigger.Event == evt)
-            .Where(trigger => time == null || trigger.Time == time)
-            .OrderBy(trigger => trigger.Name);
+        m_lock.EnterReadLock();
+        try
+        {
+            return m_triggers.Values
+                .Where(trigger => trigger.TableName.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                .Where(trigger => evt == null || trigger.Event == evt)
+                .Where(trigger => time == null || trigger.Time == time)
+                .OrderBy(trigger => trigger.Name)
+                .ToList();
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -34,14 +53,22 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void CreateTrigger(DefinitionTrigger trigger)
     {
-        if (m_triggers.ContainsKey(trigger.Name))
-            throw new InvalidOperationException($"Trigger '{trigger.Name}' already exists");
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (m_triggers.ContainsKey(trigger.Name))
+                throw new InvalidOperationException($"Trigger '{trigger.Name}' already exists");
 
-        if (!m_tables.ContainsKey(trigger.TableName) && !m_views.ContainsKey(trigger.TableName))
-            throw new InvalidOperationException($"Table or view '{trigger.TableName}' not found");
+            if (!m_tables.ContainsKey(trigger.TableName) && !m_views.ContainsKey(trigger.TableName))
+                throw new InvalidOperationException($"Table or view '{trigger.TableName}' not found");
 
-        m_triggers[trigger.Name] = trigger;
-        SaveTriggers();
+            m_triggers[trigger.Name] = trigger;
+            SaveTriggers();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -49,27 +76,35 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public bool DropTrigger(string name)
     {
-        if (!m_triggers.Remove(name))
-            return false;
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_triggers.Remove(name))
+                return false;
 
-        SaveTriggers();
-        return true;
+            SaveTriggers();
+            return true;
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     private void SaveTriggers()
     {
         List<DefinitionTrigger> triggers = m_triggers.Values.ToList();
-        m_store.Put(Encoding.UTF8.GetBytes(TRIGGERS_KEY).AsSpan(), triggers.ToJsonBytes());
+        m_store.Put(TRIGGERS_KEY_BYTES.AsSpan(), triggers.ToJsonBytes());
     }
 
     private void LoadTriggers()
     {
-        var triggersData = m_store.Get(Encoding.UTF8.GetBytes(TRIGGERS_KEY).AsSpan());
-        if (triggersData == null || triggersData.Length == 0) 
+        var triggersData = m_store.Get(TRIGGERS_KEY_BYTES.AsSpan());
+        if (triggersData == null || triggersData.Length == 0)
             return;
 
         var triggers = triggersData.FromJsonBytes<List<DefinitionTrigger>>();
-        if (triggers == null) 
+        if (triggers == null)
             return;
 
         foreach (var trigger in triggers)

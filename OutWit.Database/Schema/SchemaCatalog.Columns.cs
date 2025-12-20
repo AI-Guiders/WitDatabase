@@ -15,37 +15,45 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void AddColumn(string tableName, DefinitionColumn column)
     {
-        if (!m_tables.TryGetValue(tableName, out var table))
-            throw new InvalidOperationException($"Table '{tableName}' not found");
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.TryGetValue(tableName, out var table))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
 
-        var newColumns = table.Columns.ToList();
-        var newColumn = new DefinitionColumn
+            var newColumns = table.Columns.ToList();
+            var newColumn = new DefinitionColumn
+            {
+                Name = column.Name,
+                Type = column.Type,
+                Nullable = column.Nullable,
+                IsPrimaryKey = column.IsPrimaryKey,
+                IsAutoIncrement = column.IsAutoIncrement,
+                IsUnique = column.IsUnique,
+                DefaultValue = column.DefaultValue,
+                Ordinal = newColumns.Count,
+                CheckExpression = column.CheckExpression,
+                ForeignKey = column.ForeignKey
+            };
+            newColumns.Add(newColumn);
+
+            m_tables[tableName] = new DefinitionTable
+            {
+                Name = table.Name,
+                Columns = newColumns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
+            };
+            SaveSchema();
+        }
+        finally
         {
-            Name = column.Name,
-            Type = column.Type,
-            Nullable = column.Nullable,
-            IsPrimaryKey = column.IsPrimaryKey,
-            IsAutoIncrement = column.IsAutoIncrement,
-            IsUnique = column.IsUnique,
-            DefaultValue = column.DefaultValue,
-            Ordinal = newColumns.Count,
-            CheckExpression = column.CheckExpression,
-            ForeignKey = column.ForeignKey
-        };
-        newColumns.Add(newColumn);
-        
-        m_tables[tableName] = new DefinitionTable
-        {
-            Name = table.Name,
-            Columns = newColumns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        SaveSchema();
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -53,43 +61,51 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void DropColumn(string tableName, string columnName)
     {
-        if (!m_tables.TryGetValue(tableName, out var table))
-            throw new InvalidOperationException($"Table '{tableName}' not found");
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.TryGetValue(tableName, out var table))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
 
-        var newColumns = new List<DefinitionColumn>();
-        int ordinal = 0;
-        foreach (var c in table.Columns)
-        {
-            if (!c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase))
+            var newColumns = new List<DefinitionColumn>();
+            int ordinal = 0;
+            foreach (var c in table.Columns)
             {
-                newColumns.Add(new DefinitionColumn
+                if (!c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase))
                 {
-                    Name = c.Name,
-                    Type = c.Type,
-                    Nullable = c.Nullable,
-                    IsPrimaryKey = c.IsPrimaryKey,
-                    IsAutoIncrement = c.IsAutoIncrement,
-                    IsUnique = c.IsUnique,
-                    DefaultValue = c.DefaultValue,
-                    Ordinal = ordinal++,
-                    CheckExpression = c.CheckExpression,
-                    ForeignKey = c.ForeignKey
-                });
+                    newColumns.Add(new DefinitionColumn
+                    {
+                        Name = c.Name,
+                        Type = c.Type,
+                        Nullable = c.Nullable,
+                        IsPrimaryKey = c.IsPrimaryKey,
+                        IsAutoIncrement = c.IsAutoIncrement,
+                        IsUnique = c.IsUnique,
+                        DefaultValue = c.DefaultValue,
+                        Ordinal = ordinal++,
+                        CheckExpression = c.CheckExpression,
+                        ForeignKey = c.ForeignKey
+                    });
+                }
             }
+
+            m_tables[tableName] = new DefinitionTable
+            {
+                Name = table.Name,
+                Columns = newColumns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
+            };
+            SaveSchema();
         }
-        
-        m_tables[tableName] = new DefinitionTable
+        finally
         {
-            Name = table.Name,
-            Columns = newColumns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        SaveSchema();
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -97,38 +113,46 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void RenameColumn(string tableName, string oldColumnName, string newColumnName)
     {
-        if (!m_tables.TryGetValue(tableName, out var table))
-            throw new InvalidOperationException($"Table '{tableName}' not found");
-
-        var newColumns = table.Columns.Select(c => 
-            c.Name.Equals(oldColumnName, StringComparison.OrdinalIgnoreCase) 
-                ? new DefinitionColumn
-                {
-                    Name = newColumnName,
-                    Type = c.Type,
-                    Nullable = c.Nullable,
-                    IsPrimaryKey = c.IsPrimaryKey,
-                    IsAutoIncrement = c.IsAutoIncrement,
-                    IsUnique = c.IsUnique,
-                    DefaultValue = c.DefaultValue,
-                    Ordinal = c.Ordinal,
-                    CheckExpression = c.CheckExpression,
-                    ForeignKey = c.ForeignKey
-                }
-                : c).ToList();
-        
-        m_tables[tableName] = new DefinitionTable
+        m_lock.EnterWriteLock();
+        try
         {
-            Name = table.Name,
-            Columns = newColumns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        SaveSchema();
+            if (!m_tables.TryGetValue(tableName, out var table))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            var newColumns = table.Columns.Select(c =>
+                c.Name.Equals(oldColumnName, StringComparison.OrdinalIgnoreCase)
+                    ? new DefinitionColumn
+                    {
+                        Name = newColumnName,
+                        Type = c.Type,
+                        Nullable = c.Nullable,
+                        IsPrimaryKey = c.IsPrimaryKey,
+                        IsAutoIncrement = c.IsAutoIncrement,
+                        IsUnique = c.IsUnique,
+                        DefaultValue = c.DefaultValue,
+                        Ordinal = c.Ordinal,
+                        CheckExpression = c.CheckExpression,
+                        ForeignKey = c.ForeignKey
+                    }
+                    : c).ToList();
+
+            m_tables[tableName] = new DefinitionTable
+            {
+                Name = table.Name,
+                Columns = newColumns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
+            };
+            SaveSchema();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -136,38 +160,46 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void AlterColumnType(string tableName, string columnName, WitDataType newType)
     {
-        if (!m_tables.TryGetValue(tableName, out var table))
-            throw new InvalidOperationException($"Table '{tableName}' not found");
-
-        var newColumns = table.Columns.Select(c => 
-            c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase) 
-                ? new DefinitionColumn
-                {
-                    Name = c.Name,
-                    Type = newType,
-                    Nullable = c.Nullable,
-                    IsPrimaryKey = c.IsPrimaryKey,
-                    IsAutoIncrement = c.IsAutoIncrement,
-                    IsUnique = c.IsUnique,
-                    DefaultValue = c.DefaultValue,
-                    Ordinal = c.Ordinal,
-                    CheckExpression = c.CheckExpression,
-                    ForeignKey = c.ForeignKey
-                }
-                : c).ToList();
-
-        m_tables[tableName] = new DefinitionTable
+        m_lock.EnterWriteLock();
+        try
         {
-            Name = table.Name,
-            Columns = newColumns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        SaveSchema();
+            if (!m_tables.TryGetValue(tableName, out var table))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            var newColumns = table.Columns.Select(c =>
+                c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase)
+                    ? new DefinitionColumn
+                    {
+                        Name = c.Name,
+                        Type = newType,
+                        Nullable = c.Nullable,
+                        IsPrimaryKey = c.IsPrimaryKey,
+                        IsAutoIncrement = c.IsAutoIncrement,
+                        IsUnique = c.IsUnique,
+                        DefaultValue = c.DefaultValue,
+                        Ordinal = c.Ordinal,
+                        CheckExpression = c.CheckExpression,
+                        ForeignKey = c.ForeignKey
+                    }
+                    : c).ToList();
+
+            m_tables[tableName] = new DefinitionTable
+            {
+                Name = table.Name,
+                Columns = newColumns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
+            };
+            SaveSchema();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -175,38 +207,46 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void SetColumnDefault(string tableName, string columnName, string? defaultValue)
     {
-        if (!m_tables.TryGetValue(tableName, out var table))
-            throw new InvalidOperationException($"Table '{tableName}' not found");
-
-        var newColumns = table.Columns.Select(c => 
-            c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase) 
-                ? new DefinitionColumn
-                {
-                    Name = c.Name,
-                    Type = c.Type,
-                    Nullable = c.Nullable,
-                    IsPrimaryKey = c.IsPrimaryKey,
-                    IsAutoIncrement = c.IsAutoIncrement,
-                    IsUnique = c.IsUnique,
-                    DefaultValue = defaultValue,
-                    Ordinal = c.Ordinal,
-                    CheckExpression = c.CheckExpression,
-                    ForeignKey = c.ForeignKey
-                }
-                : c).ToList();
-
-        m_tables[tableName] = new DefinitionTable
+        m_lock.EnterWriteLock();
+        try
         {
-            Name = table.Name,
-            Columns = newColumns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        SaveSchema();
+            if (!m_tables.TryGetValue(tableName, out var table))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            var newColumns = table.Columns.Select(c =>
+                c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase)
+                    ? new DefinitionColumn
+                    {
+                        Name = c.Name,
+                        Type = c.Type,
+                        Nullable = c.Nullable,
+                        IsPrimaryKey = c.IsPrimaryKey,
+                        IsAutoIncrement = c.IsAutoIncrement,
+                        IsUnique = c.IsUnique,
+                        DefaultValue = defaultValue,
+                        Ordinal = c.Ordinal,
+                        CheckExpression = c.CheckExpression,
+                        ForeignKey = c.ForeignKey
+                    }
+                    : c).ToList();
+
+            m_tables[tableName] = new DefinitionTable
+            {
+                Name = table.Name,
+                Columns = newColumns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
+            };
+            SaveSchema();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -214,38 +254,46 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void SetColumnNotNull(string tableName, string columnName, bool notNull)
     {
-        if (!m_tables.TryGetValue(tableName, out var table))
-            throw new InvalidOperationException($"Table '{tableName}' not found");
-
-        var newColumns = table.Columns.Select(c => 
-            c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase) 
-                ? new DefinitionColumn
-                {
-                    Name = c.Name,
-                    Type = c.Type,
-                    Nullable = !notNull,
-                    IsPrimaryKey = c.IsPrimaryKey,
-                    IsAutoIncrement = c.IsAutoIncrement,
-                    IsUnique = c.IsUnique,
-                    DefaultValue = c.DefaultValue,
-                    Ordinal = c.Ordinal,
-                    CheckExpression = c.CheckExpression,
-                    ForeignKey = c.ForeignKey
-                }
-                : c).ToList();
-
-        m_tables[tableName] = new DefinitionTable
+        m_lock.EnterWriteLock();
+        try
         {
-            Name = table.Name,
-            Columns = newColumns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        SaveSchema();
+            if (!m_tables.TryGetValue(tableName, out var table))
+                throw new InvalidOperationException($"Table '{tableName}' not found");
+
+            var newColumns = table.Columns.Select(c =>
+                c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase)
+                    ? new DefinitionColumn
+                    {
+                        Name = c.Name,
+                        Type = c.Type,
+                        Nullable = !notNull,
+                        IsPrimaryKey = c.IsPrimaryKey,
+                        IsAutoIncrement = c.IsAutoIncrement,
+                        IsUnique = c.IsUnique,
+                        DefaultValue = c.DefaultValue,
+                        Ordinal = c.Ordinal,
+                        CheckExpression = c.CheckExpression,
+                        ForeignKey = c.ForeignKey
+                    }
+                    : c).ToList();
+
+            m_tables[tableName] = new DefinitionTable
+            {
+                Name = table.Name,
+                Columns = newColumns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
+            };
+            SaveSchema();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     #endregion

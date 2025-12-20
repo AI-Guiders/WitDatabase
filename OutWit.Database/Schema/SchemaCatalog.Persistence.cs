@@ -15,24 +15,25 @@ public sealed partial class SchemaCatalog
     private void LoadSchema()
     {
         // Load tables
-        var tablesData = m_store.Get(Encoding.UTF8.GetBytes(TABLES_KEY).AsSpan());
+        var tablesData = m_store.Get(TABLES_KEY_BYTES.AsSpan());
         if (tablesData != null)
         {
-            var tableList = JsonSerializer.Deserialize<List<DefinitionTable>>(tablesData);
+            var tableList = tablesData.FromJsonBytes<List<DefinitionTable>>();
             if (tableList != null)
             {
                 foreach (var table in tableList)
                 {
                     m_tables[table.Name] = table;
+                    LoadTableRowId(table.Name);
                 }
             }
         }
 
         // Load indexes
-        var indexesData = m_store.Get(Encoding.UTF8.GetBytes(INDEXES_KEY).AsSpan());
+        var indexesData = m_store.Get(INDEXES_KEY_BYTES.AsSpan());
         if (indexesData != null)
         {
-            var indexList = JsonSerializer.Deserialize<List<DefinitionIndex>>(indexesData);
+            var indexList = indexesData.FromJsonBytes<List<DefinitionIndex>>();
             if (indexList != null)
             {
                 foreach (var index in indexList)
@@ -40,13 +41,6 @@ public sealed partial class SchemaCatalog
                     m_indexes[index.Name] = index;
                 }
             }
-        }
-
-        // Load max row ID
-        var rowIdData = m_store.Get(Encoding.UTF8.GetBytes(ROWID_KEY).AsSpan());
-        if (rowIdData != null)
-        {
-            m_nextRowId = System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(rowIdData);
         }
 
         // Load views
@@ -63,16 +57,11 @@ public sealed partial class SchemaCatalog
     {
         // Save tables
         var tableList = m_tables.Values.ToList();
-        m_store.Put(Encoding.UTF8.GetBytes(TABLES_KEY).AsSpan(), tableList.ToJsonBytes());
+        m_store.Put(TABLES_KEY_BYTES.AsSpan(), tableList.ToJsonBytes());
 
         // Save indexes
         var indexList = m_indexes.Values.ToList();
-        m_store.Put(Encoding.UTF8.GetBytes(INDEXES_KEY).AsSpan(), indexList.ToJsonBytes());
-
-        // Save max row ID
-        var rowIdBytes = new byte[8];
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(rowIdBytes, m_nextRowId);
-        m_store.Put(Encoding.UTF8.GetBytes(ROWID_KEY).AsSpan(), rowIdBytes);
+        m_store.Put(INDEXES_KEY_BYTES.AsSpan(), indexList.ToJsonBytes());
     }
 
     #endregion

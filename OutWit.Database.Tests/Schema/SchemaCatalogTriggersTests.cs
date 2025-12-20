@@ -33,6 +33,7 @@ public class SchemaCatalogTriggersTests
     [TearDown]
     public void TearDown()
     {
+        m_catalog?.Dispose();
         m_store?.Dispose();
     }
 

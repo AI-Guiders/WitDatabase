@@ -21,6 +21,7 @@ public class SchemaCatalogTests
     [TearDown]
     public void TearDown()
     {
+        m_catalog?.Dispose();
         m_store?.Dispose();
     }
 
@@ -124,6 +125,40 @@ public class SchemaCatalogTests
 
         Assert.That(m_catalog.GetTable("Users"), Is.Null);
         Assert.That(m_catalog.GetIndex("IX_Users_Name"), Is.Null);
+    }
+
+    [Test]
+    public void DropTableRemovesAssociatedTriggersTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[]
+            {
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 },
+                new DefinitionColumn { Name = "Name", Type = WitDataType.StringVariable, Ordinal = 1 }
+            }
+        };
+
+        m_catalog.CreateTable(table);
+
+        var trigger = new DefinitionTrigger
+        {
+            Name = "trg_users_insert",
+            TableName = "Users",
+            Time = TriggerTime.After,
+            Event = TriggerEvent.Insert,
+            Body = "BEGIN SELECT 1; END"
+        };
+
+        m_catalog.CreateTrigger(trigger);
+
+        Assert.That(m_catalog.GetTrigger("trg_users_insert"), Is.Not.Null);
+
+        m_catalog.DropTable("Users");
+
+        Assert.That(m_catalog.GetTable("Users"), Is.Null);
+        Assert.That(m_catalog.GetTrigger("trg_users_insert"), Is.Null);
     }
 
     [Test]
@@ -572,14 +607,190 @@ public class SchemaCatalogTests
     #region Row ID Tests
 
     [Test]
-    public void GetNextRowIdTest()
+    public void GetNextRowIdPerTableTest()
     {
-        var id1 = m_catalog.GetNextRowId("Users");
-        var id2 = m_catalog.GetNextRowId("Users");
-        var id3 = m_catalog.GetNextRowId("Orders");
+        var usersTable = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
 
-        Assert.That(id2, Is.GreaterThan(id1));
-        Assert.That(id3, Is.GreaterThan(id2));
+        var ordersTable = new DefinitionTable
+        {
+            Name = "Orders",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(usersTable);
+        m_catalog.CreateTable(ordersTable);
+
+        // Each table should have independent row ID sequence
+        var userId1 = m_catalog.GetNextRowId("Users");
+        var userId2 = m_catalog.GetNextRowId("Users");
+        var orderId1 = m_catalog.GetNextRowId("Orders");
+        var userId3 = m_catalog.GetNextRowId("Users");
+        var orderId2 = m_catalog.GetNextRowId("Orders");
+
+        Assert.That(userId1, Is.EqualTo(1));
+        Assert.That(userId2, Is.EqualTo(2));
+        Assert.That(userId3, Is.EqualTo(3));
+        Assert.That(orderId1, Is.EqualTo(1));
+        Assert.That(orderId2, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void GetNextRowIdTableNotFoundThrowsTest()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => m_catalog.GetNextRowId("NonExistent"));
+        Assert.That(ex!.Message, Does.Contain("not found"));
+    }
+
+    [Test]
+    public void GetCurrentRowIdTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+
+        Assert.That(m_catalog.GetCurrentRowId("Users"), Is.EqualTo(0));
+
+        m_catalog.GetNextRowId("Users");
+        m_catalog.GetNextRowId("Users");
+
+        Assert.That(m_catalog.GetCurrentRowId("Users"), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void ResetRowIdTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+
+        m_catalog.GetNextRowId("Users"); // 1
+        m_catalog.GetNextRowId("Users"); // 2
+        m_catalog.GetNextRowId("Users"); // 3
+
+        m_catalog.ResetRowId("Users");
+
+        var nextId = m_catalog.GetNextRowId("Users");
+        Assert.That(nextId, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void ResetRowIdWithStartFromTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+
+        m_catalog.ResetRowId("Users", 100);
+
+        var nextId = m_catalog.GetNextRowId("Users");
+        Assert.That(nextId, Is.EqualTo(101));
+    }
+
+    [Test]
+    public void RowIdPersistedTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+        m_catalog.GetNextRowId("Users"); // 1
+        m_catalog.GetNextRowId("Users"); // 2
+        m_catalog.GetNextRowId("Users"); // 3
+
+        // Create new catalog with same store
+        var catalog2 = new SchemaCatalog(m_store);
+
+        // Row ID should continue from persisted value
+        var nextId = catalog2.GetNextRowId("Users");
+        Assert.That(nextId, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void DropTableRemovesRowIdTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+        m_catalog.GetNextRowId("Users"); // 1
+        m_catalog.GetNextRowId("Users"); // 2
+
+        m_catalog.DropTable("Users");
+
+        // Recreate table - should start from 1 again
+        m_catalog.CreateTable(table);
+        var nextId = m_catalog.GetNextRowId("Users");
+        Assert.That(nextId, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void GetNextRowIdBatchTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+
+        // Reserve batch of 100 IDs
+        var firstId = m_catalog.GetNextRowIdBatch("Users", 100);
+        Assert.That(firstId, Is.EqualTo(1));
+        Assert.That(m_catalog.GetCurrentRowId("Users"), Is.EqualTo(100));
+
+        // Next single ID should be 101
+        var nextId = m_catalog.GetNextRowId("Users");
+        Assert.That(nextId, Is.EqualTo(101));
+
+        // Another batch
+        var secondBatchFirst = m_catalog.GetNextRowIdBatch("Users", 50);
+        Assert.That(secondBatchFirst, Is.EqualTo(102));
+        Assert.That(m_catalog.GetCurrentRowId("Users"), Is.EqualTo(151));
+    }
+
+    [Test]
+    public void GetNextRowIdBatchInvalidCountThrowsTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Users",
+            Columns = new[] { new DefinitionColumn { Name = "Id", Type = WitDataType.Int32, Ordinal = 0 } }
+        };
+
+        m_catalog.CreateTable(table);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => m_catalog.GetNextRowIdBatch("Users", 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => m_catalog.GetNextRowIdBatch("Users", -5));
+    }
+
+    [Test]
+    public void GetNextRowIdBatchTableNotFoundThrowsTest()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => m_catalog.GetNextRowIdBatch("NonExistent", 10));
+        Assert.That(ex!.Message, Does.Contain("not found"));
     }
 
     [Test]

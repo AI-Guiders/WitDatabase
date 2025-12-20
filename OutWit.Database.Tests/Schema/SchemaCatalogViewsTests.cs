@@ -21,6 +21,7 @@ public class SchemaCatalogViewsTests
     [TearDown]
     public void TearDown()
     {
+        m_catalog?.Dispose();
         m_store?.Dispose();
     }
 

@@ -14,8 +14,16 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public DefinitionTable? GetTable(string name)
     {
-        m_tables.TryGetValue(name, out var table);
-        return table;
+        m_lock.EnterReadLock();
+        try
+        {
+            m_tables.TryGetValue(name, out var table);
+            return table;
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -23,11 +31,19 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void CreateTable(DefinitionTable table)
     {
-        if (m_tables.ContainsKey(table.Name))
-            throw new InvalidOperationException($"Table '{table.Name}' already exists");
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (m_tables.ContainsKey(table.Name))
+                throw new InvalidOperationException($"Table '{table.Name}' already exists");
 
-        m_tables[table.Name] = table;
-        SaveSchema();
+            m_tables[table.Name] = table;
+            SaveSchema();
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -35,18 +51,37 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public bool DropTable(string name)
     {
-        if (!m_tables.Remove(name))
-            return false;
-
-        // Also remove associated indexes
-        var tableIndexes = m_indexes.Values.Where(i => i.TableName.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
-        foreach (var index in tableIndexes)
+        m_lock.EnterWriteLock();
+        try
         {
-            m_indexes.Remove(index.Name);
-        }
+            if (!m_tables.Remove(name))
+                return false;
 
-        SaveSchema();
-        return true;
+            // Also remove associated indexes
+            var tableIndexes = m_indexes.Values.Where(i => i.TableName.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var index in tableIndexes)
+            {
+                m_indexes.Remove(index.Name);
+            }
+
+            // Remove associated triggers
+            var tableTriggers = m_triggers.Values.Where(t => t.TableName.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var trigger in tableTriggers)
+            {
+                m_triggers.Remove(trigger.Name);
+            }
+
+            // Remove row ID counter
+            DeleteTableRowId(name);
+
+            SaveSchema();
+            SaveTriggers();
+            return true;
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -54,40 +89,48 @@ public sealed partial class SchemaCatalog
     /// </summary>
     public void RenameTable(string oldName, string newName)
     {
-        if (!m_tables.TryGetValue(oldName, out var table))
-            throw new InvalidOperationException($"Table '{oldName}' not found");
-        
-        if (m_tables.ContainsKey(newName))
-            throw new InvalidOperationException($"Table '{newName}' already exists");
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.TryGetValue(oldName, out var table))
+                throw new InvalidOperationException($"Table '{oldName}' not found");
 
-        m_tables.Remove(oldName);
-        m_tables[newName] = new DefinitionTable
-        {
-            Name = newName,
-            Columns = table.Columns,
-            PrimaryKey = table.PrimaryKey,
-            RowIdColumn = table.RowIdColumn,
-            AutoIncrementRowId = table.AutoIncrementRowId,
-            CheckExpressions = table.CheckExpressions,
-            ForeignKeys = table.ForeignKeys,
-            UniqueConstraints = table.UniqueConstraints
-        };
-        
-        // Update index references
-        var tableIndexes = m_indexes.Values.Where(i => i.TableName.Equals(oldName, StringComparison.OrdinalIgnoreCase)).ToList();
-        foreach (var index in tableIndexes)
-        {
-            m_indexes[index.Name] = new DefinitionIndex
+            if (m_tables.ContainsKey(newName))
+                throw new InvalidOperationException($"Table '{newName}' already exists");
+
+            m_tables.Remove(oldName);
+            m_tables[newName] = new DefinitionTable
             {
-                Name = index.Name,
-                TableName = newName,
-                Columns = index.Columns,
-                IsUnique = index.IsUnique,
-                IsPrimaryKey = index.IsPrimaryKey
+                Name = newName,
+                Columns = table.Columns,
+                PrimaryKey = table.PrimaryKey,
+                RowIdColumn = table.RowIdColumn,
+                AutoIncrementRowId = table.AutoIncrementRowId,
+                CheckExpressions = table.CheckExpressions,
+                ForeignKeys = table.ForeignKeys,
+                UniqueConstraints = table.UniqueConstraints
             };
+
+            // Update index references
+            var tableIndexes = m_indexes.Values.Where(i => i.TableName.Equals(oldName, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var index in tableIndexes)
+            {
+                m_indexes[index.Name] = new DefinitionIndex
+                {
+                    Name = index.Name,
+                    TableName = newName,
+                    Columns = index.Columns,
+                    IsUnique = index.IsUnique,
+                    IsPrimaryKey = index.IsPrimaryKey
+                };
+            }
+
+            SaveSchema();
         }
-        
-        SaveSchema();
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     #endregion

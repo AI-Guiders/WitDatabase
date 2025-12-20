@@ -20,6 +20,7 @@ public class SchemaCatalogSequencesTests
     [TearDown]
     public void TearDown()
     {
+        m_catalog?.Dispose();
         m_store?.Dispose();
     }
 
@@ -262,6 +263,94 @@ public class SchemaCatalogSequencesTests
         var retrieved = m_catalog.GetSequence("seq_test");
         Assert.That(retrieved, Is.Not.Null);
         Assert.That(retrieved.Cycle, Is.True);
+    }
+
+    [Test]
+    public void SequenceExceedsMaxValueThrowsTest()
+    {
+        var sequence = new DefinitionSequence
+        {
+            Name = "seq_test",
+            StartWith = 1,
+            IncrementBy = 1,
+            MaxValue = 3,
+            Cycle = false
+        };
+
+        m_catalog.CreateSequence(sequence);
+
+        m_catalog.NextVal("seq_test"); // 1
+        m_catalog.NextVal("seq_test"); // 2
+        m_catalog.NextVal("seq_test"); // 3
+
+        var ex = Assert.Throws<InvalidOperationException>(() => m_catalog.NextVal("seq_test"));
+        Assert.That(ex!.Message, Does.Contain("exceeded maximum value"));
+    }
+
+    [Test]
+    public void SequenceExceedsMaxValueWithCycleTest()
+    {
+        var sequence = new DefinitionSequence
+        {
+            Name = "seq_test",
+            StartWith = 1,
+            IncrementBy = 1,
+            MinValue = 1,
+            MaxValue = 3,
+            Cycle = true
+        };
+
+        m_catalog.CreateSequence(sequence);
+
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(1));
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(2));
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(3));
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(1)); // Cycles back to MinValue
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void SequenceDescendingExceedsMinValueThrowsTest()
+    {
+        var sequence = new DefinitionSequence
+        {
+            Name = "seq_test",
+            StartWith = 3,
+            IncrementBy = -1,
+            MinValue = 1,
+            Cycle = false
+        };
+
+        m_catalog.CreateSequence(sequence);
+
+        m_catalog.NextVal("seq_test"); // 3
+        m_catalog.NextVal("seq_test"); // 2
+        m_catalog.NextVal("seq_test"); // 1
+
+        var ex = Assert.Throws<InvalidOperationException>(() => m_catalog.NextVal("seq_test"));
+        Assert.That(ex!.Message, Does.Contain("went below minimum value"));
+    }
+
+    [Test]
+    public void SequenceDescendingWithCycleTest()
+    {
+        var sequence = new DefinitionSequence
+        {
+            Name = "seq_test",
+            StartWith = 3,
+            IncrementBy = -1,
+            MinValue = 1,
+            MaxValue = 3,
+            Cycle = true
+        };
+
+        m_catalog.CreateSequence(sequence);
+
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(3));
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(2));
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(1));
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(3)); // Cycles back to MaxValue
+        Assert.That(m_catalog.NextVal("seq_test"), Is.EqualTo(2));
     }
 
     [Test]
