@@ -18,7 +18,7 @@ public class BTreeStressTest
     [Test]
     public void InterleavedInsertDeleteMaintainsConsistencyTest()
     {
-        using var storage = new MemoryStorage(4096, 5000);
+        using var storage = new StorageMemory(4096, 5000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -62,7 +62,7 @@ public class BTreeStressTest
     [Test]
     public void AllSamePrefixHandlesCorrectlyTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -96,7 +96,7 @@ public class BTreeStressTest
     [Test]
     public void AlternatingPatternInsertOddDeleteEvenTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -132,7 +132,7 @@ public class BTreeStressTest
     [Test]
     public void ZigZagInsertFromBothEndsTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -169,7 +169,7 @@ public class BTreeStressTest
     [Test]
     public void MixedInlineAndOverflowRapidlyTest()
     {
-        using var storage = new MemoryStorage(4096, 5000);
+        using var storage = new StorageMemory(4096, 5000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -206,7 +206,7 @@ public class BTreeStressTest
     [Test]
     public void UpdateBetweenInlineAndOverflowTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -250,7 +250,7 @@ public class BTreeStressTest
     [Test]
     public void ForceManyInternalSplitsTest()
     {
-        using var storage = new MemoryStorage(4096, 10000);
+        using var storage = new StorageMemory(4096, 10000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -276,7 +276,7 @@ public class BTreeStressTest
     [Test]
     public void ForceMultipleLevelTreeTest()
     {
-        using var storage = new MemoryStorage(4096, 15000);
+        using var storage = new StorageMemory(4096, 15000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -306,7 +306,7 @@ public class BTreeStressTest
     [Test]
     public void RepeatedUpsertSameKeysCompactionWorksTest()
     {
-        using var storage = new MemoryStorage(4096, 1000);
+        using var storage = new StorageMemory(4096, 1000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -344,7 +344,7 @@ public class BTreeStressTest
     [Test]
     public void DeleteHalfInsertHalfRepeatedCyclesTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -386,7 +386,7 @@ public class BTreeStressTest
     [Test]
     public void RangeScanSpanningMultipleLeavesTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -416,7 +416,7 @@ public class BTreeStressTest
     [Test]
     public void RangeScanWithOverflowValuesTest()
     {
-        using var storage = new MemoryStorage(4096, 3000);
+        using var storage = new StorageMemory(4096, 3000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
 
@@ -458,7 +458,7 @@ public class BTreeStressTest
     [Test]
     public void ReopenAfterHeavyOperationsTest()
     {
-        using var storage = new MemoryStorage(4096, 5000);
+        using var storage = new StorageMemory(4096, 5000);
         using var pageManager = new PageManager(storage);
 
         uint rootPage;

@@ -58,8 +58,8 @@ public abstract class PageManagerTestBase : IDisposable
     {
         return storageType switch
         {
-            StorageType.Memory => new MemoryStorage(initialPageCount: 0),
-            StorageType.File => new FileStorage(Path.Combine(TestDir!, $"test_{Guid.NewGuid():N}.db")),
+            StorageType.Memory => new StorageMemory(initialPageCount: 0),
+            StorageType.File => new StorageFile(Path.Combine(TestDir!, $"test_{Guid.NewGuid():N}.db")),
             _ => throw new ArgumentOutOfRangeException(nameof(storageType))
         };
     }
@@ -68,8 +68,8 @@ public abstract class PageManagerTestBase : IDisposable
     {
         return cacheType switch
         {
-            CacheType.Lru => new LruPageCache(storage, cacheSize),
-            CacheType.ShardedClock => new ShardedClockCache(storage, cacheSize),
+            CacheType.Lru => new PageCacheLru(storage, cacheSize),
+            CacheType.ShardedClock => new PageCacheShardedClock(storage, cacheSize),
             _ => throw new ArgumentOutOfRangeException(nameof(cacheType))
         };
     }
@@ -119,7 +119,7 @@ public class PageManagerTest : PageManagerTestBase
     [Test]
     public void ConstructorNullCacheThrowsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 0);
+        using var storage = new StorageMemory(initialPageCount: 0);
         Assert.Throws<ArgumentNullException>(() => new PageManager(storage, (IPageCache)null!));
     }
 
@@ -450,7 +450,7 @@ public class PageManagerTest : PageManagerTestBase
     {
         var dbPath = Path.Combine(TestDir!, $"reopen_{Guid.NewGuid():N}.db");
         
-        using (var storage1 = new FileStorage(dbPath))
+        using (var storage1 = new StorageFile(dbPath))
         using (var cache1 = CreateCache(storage1, cacheType))
         using (var pm1 = new PageManager(storage1, cache1))
         {
@@ -460,7 +460,7 @@ public class PageManagerTest : PageManagerTestBase
             pm1.IncrementTransactionCounter();
         }
         
-        using var storage2 = new FileStorage(dbPath);
+        using var storage2 = new StorageFile(dbPath);
         using var cache2 = CreateCache(storage2, cacheType);
         using var pm2 = new PageManager(storage2, cache2);
         var header = pm2.GetHeader();

@@ -242,7 +242,7 @@ public class PageManagerStressTest : PageManagerTestBase
         const int pageCount = 100;
         var dbPath = Path.Combine(TestDir!, $"flush_reopen_{Guid.NewGuid():N}.db");
 
-        using (var storage1 = new FileStorage(dbPath))
+        using (var storage1 = new StorageFile(dbPath))
         using (var cache1 = CreateCache(storage1, cacheType))
         using (var pm1 = new PageManager(storage1, cache1))
         {
@@ -255,7 +255,7 @@ public class PageManagerStressTest : PageManagerTestBase
             }
         }
 
-        using var storage2 = new FileStorage(dbPath);
+        using var storage2 = new StorageFile(dbPath);
         using var cache2 = CreateCache(storage2, cacheType);
         using var pm2 = new PageManager(storage2, cache2);
         

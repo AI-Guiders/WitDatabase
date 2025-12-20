@@ -11,13 +11,13 @@ namespace OutWit.Database.Core.Tests.Stores;
 public class BTreeStoreMemoryTest : KeyValueStoreTestBase
 {
 #pragma warning disable NUnit1032 // Disposed in CleanupStore via base class
-    private MemoryStorage? m_storage;
+    private StorageMemory? m_storage;
 #pragma warning restore NUnit1032
 
     protected override IKeyValueStore CreateStore()
     {
-        m_storage = new MemoryStorage(4096, 2000);
-        return new BTreeStore(m_storage, ownsStorage: false);
+        m_storage = new StorageMemory(4096, 2000);
+        return new StoreBTree(m_storage, ownsStorage: false);
     }
 
     protected override void CleanupStore()

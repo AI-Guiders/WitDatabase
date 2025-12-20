@@ -35,9 +35,9 @@ public class StorageStackIntegrationTest
     [Test]
     public void MemoryStorageFullLifecycleTest()
     {
-        using var storage = new MemoryStorage(4096, 1000);
+        using var storage = new StorageMemory(4096, 1000);
         using var pageManager = new PageManager(storage);
-        using var store = new BTreeStore(pageManager);
+        using var store = new StoreBTree(pageManager);
 
         // Write phase
         for (int i = 0; i < 1000; i++)
@@ -63,18 +63,18 @@ public class StorageStackIntegrationTest
     [Test]
     public void MemoryStorageMultipleTreesSharePageManagerTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
 
         // Create two separate trees
-        using var tree1 = new BTreeStore(pageManager);
+        using var tree1 = new StoreBTree(pageManager);
         
         // Store tree1's root page
         tree1.Put("tree1_key"u8.ToArray(), "tree1_value"u8.ToArray());
         uint root1 = tree1.RootPageNumber;
 
         // Create another tree (new root)
-        using var tree2 = new BTreeStore(pageManager);
+        using var tree2 = new StoreBTree(pageManager);
         tree2.Put("tree2_key"u8.ToArray(), "tree2_value"u8.ToArray());
 
         // Both trees should work independently
@@ -95,7 +95,7 @@ public class StorageStackIntegrationTest
         var dbPath = Path.Combine(m_testDir!, "test.db");
 
         // Create and populate
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             for (int i = 0; i < 500; i++)
             {
@@ -104,7 +104,7 @@ public class StorageStackIntegrationTest
         }
 
         // Reopen and verify
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             Assert.That(store.Count(), Is.EqualTo(500));
 
@@ -122,7 +122,7 @@ public class StorageStackIntegrationTest
         var dbPath = Path.Combine(m_testDir!, "modify.db");
 
         // Phase 1: Create
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             for (int i = 0; i < 1000; i++)
             {
@@ -131,7 +131,7 @@ public class StorageStackIntegrationTest
         }
 
         // Phase 2: Modify
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             // Delete half
             for (int i = 0; i < 500; i++)
@@ -153,7 +153,7 @@ public class StorageStackIntegrationTest
         }
 
         // Phase 3: Verify
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             Assert.That(store.Count(), Is.EqualTo(1000)); // 500-999 + 1000-1499
 
@@ -186,7 +186,7 @@ public class StorageStackIntegrationTest
         const int count = 50000;
 
         // Create large dataset
-        using (var store = new BTreeStore(dbPath, pageSize: 4096, cacheSize: 500))
+        using (var store = new StoreBTree(dbPath, pageSize: 4096, cacheSize: 500))
         {
             for (int i = 0; i < count; i++)
             {
@@ -197,7 +197,7 @@ public class StorageStackIntegrationTest
         }
 
         // Verify
-        using (var store = new BTreeStore(dbPath, pageSize: 4096, cacheSize: 500))
+        using (var store = new StoreBTree(dbPath, pageSize: 4096, cacheSize: 500))
         {
             Assert.That(store.Count(), Is.EqualTo(count));
 
@@ -221,9 +221,9 @@ public class StorageStackIntegrationTest
     [Test]
     public void SmallCacheStillWorksTest()
     {
-        using var storage = new MemoryStorage(4096, 10000);
+        using var storage = new StorageMemory(4096, 10000);
         using var pageManager = new PageManager(storage, cacheSize: 10); // Very small cache
-        using var store = new BTreeStore(pageManager);
+        using var store = new StoreBTree(pageManager);
 
         // Insert more data than fits in cache
         const int count = 5000;
@@ -243,12 +243,12 @@ public class StorageStackIntegrationTest
     [Test]
     public void CacheFlushPersistsAllDataTest()
     {
-        using var storage = new MemoryStorage(4096, 1000);
+        using var storage = new StorageMemory(4096, 1000);
         using var pageManager = new PageManager(storage, cacheSize: 100);
 
         uint rootPage;
 
-        using (var store = new BTreeStore(pageManager))
+        using (var store = new StoreBTree(pageManager))
         {
             for (int i = 0; i < 1000; i++)
             {
@@ -260,7 +260,7 @@ public class StorageStackIntegrationTest
         }
 
         // Reopen with same page manager
-        using (var store = new BTreeStore(pageManager, rootPage))
+        using (var store = new StoreBTree(pageManager, rootPage))
         {
             Assert.That(store.Count(), Is.EqualTo(1000));
         }
@@ -278,7 +278,7 @@ public class StorageStackIntegrationTest
         var random = new Random(42);
 
         // Create with overflow values
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             for (int i = 0; i < 100; i++)
             {
@@ -290,7 +290,7 @@ public class StorageStackIntegrationTest
         }
 
         // Reopen and verify
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             Assert.That(store.Count(), Is.EqualTo(100));
 
@@ -307,9 +307,9 @@ public class StorageStackIntegrationTest
     [Test]
     public void OverflowPagesDeletedCorrectlyTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
+        using var storage = new StorageMemory(4096, 2000);
         using var pageManager = new PageManager(storage);
-        using var store = new BTreeStore(pageManager);
+        using var store = new StoreBTree(pageManager);
 
         var random = new Random(42);
 
@@ -347,8 +347,8 @@ public class StorageStackIntegrationTest
     [Test]
     public void DisposedStoreThrowsOnAccessTest()
     {
-        using var storage = new MemoryStorage();
-        var store = new BTreeStore(storage, ownsStorage: false);
+        using var storage = new StorageMemory();
+        var store = new StoreBTree(storage, ownsStorage: false);
         store.Put("key"u8.ToArray(), "value"u8.ToArray());
         store.Dispose();
 
@@ -364,8 +364,8 @@ public class StorageStackIntegrationTest
     [Test]
     public async Task AsyncOperationsFullWorkflowTest()
     {
-        using var storage = new MemoryStorage(4096, 1000);
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory(4096, 1000);
+        using var store = new StoreBTree(storage);
 
         // Async put
         for (int i = 0; i < 100; i++)

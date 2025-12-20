@@ -37,22 +37,22 @@ public class EncryptedStorageIntegrationTests
         }
     }
 
-    private EncryptedStorage CreateEncryptedMemoryStorage(int logicalPageSize = 4096, int pageCount = 1000)
+    private StorageEncrypted CreateEncryptedMemoryStorage(int logicalPageSize = 4096, int pageCount = 1000)
     {
         int physicalPageSize = logicalPageSize + 28;
-        var innerStorage = new MemoryStorage(physicalPageSize, pageCount);
-        var provider = new AesGcmCryptoProvider(m_key);
+        var innerStorage = new StorageMemory(physicalPageSize, pageCount);
+        var provider = new CryptoProviderAesGcm(m_key);
         var encryptor = new PageEncryptor(provider, m_salt);
-        return new EncryptedStorage(innerStorage, encryptor);
+        return new StorageEncrypted(innerStorage, encryptor);
     }
 
-    private EncryptedStorage CreateEncryptedFileStorage(string filename, int logicalPageSize = 4096)
+    private StorageEncrypted CreateEncryptedFileStorage(string filename, int logicalPageSize = 4096)
     {
         int physicalPageSize = logicalPageSize + 28;
-        var innerStorage = new FileStorage(filename, physicalPageSize);
-        var provider = new AesGcmCryptoProvider(m_key);
+        var innerStorage = new StorageFile(filename, physicalPageSize);
+        var provider = new CryptoProviderAesGcm(m_key);
         var encryptor = new PageEncryptor(provider, m_salt);
-        return new EncryptedStorage(innerStorage, encryptor);
+        return new StorageEncrypted(innerStorage, encryptor);
     }
 
     #region Memory Storage Integration
@@ -61,7 +61,7 @@ public class EncryptedStorageIntegrationTests
     public void EncryptedMemoryStorageBasicCRUDTest()
     {
         using var storage = CreateEncryptedMemoryStorage();
-        using var store = new BTreeStore(storage, ownsStorage: false);
+        using var store = new StoreBTree(storage, ownsStorage: false);
 
         // Create
         for (int i = 0; i < 100; i++)
@@ -103,7 +103,7 @@ public class EncryptedStorageIntegrationTests
     public void EncryptedMemoryStorageRangeScanTest()
     {
         using var storage = CreateEncryptedMemoryStorage();
-        using var store = new BTreeStore(storage, ownsStorage: false);
+        using var store = new StoreBTree(storage, ownsStorage: false);
 
         // Insert keys as formatted strings for proper ordering
         for (int i = 0; i < 1000; i++)
@@ -126,7 +126,7 @@ public class EncryptedStorageIntegrationTests
     public void EncryptedMemoryStorageLargeValuesWithOverflowTest()
     {
         using var storage = CreateEncryptedMemoryStorage();
-        using var store = new BTreeStore(storage, ownsStorage: false);
+        using var store = new StoreBTree(storage, ownsStorage: false);
 
         var random = new Random(42);
         var largeValues = new Dictionary<int, byte[]>();
@@ -158,7 +158,7 @@ public class EncryptedStorageIntegrationTests
 
         // Phase 1: Create and populate using storage constructor (saves header)
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, ownsStorage: false))
+        using (var store = new StoreBTree(storage, ownsStorage: false))
         {
             for (int i = 0; i < 500; i++)
             {
@@ -169,7 +169,7 @@ public class EncryptedStorageIntegrationTests
 
         // Phase 2: Reopen with same key and verify
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, ownsStorage: false))
+        using (var store = new StoreBTree(storage, ownsStorage: false))
         {
             Assert.That(store.Count(), Is.EqualTo(500));
 
@@ -188,7 +188,7 @@ public class EncryptedStorageIntegrationTests
         var dbPath = Path.Combine(m_testDir!, "wrong_key.db");
 
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, ownsStorage: false))
+        using (var store = new StoreBTree(storage, ownsStorage: false))
         {
             for (int i = 0; i < 100; i++)
             {
@@ -198,14 +198,14 @@ public class EncryptedStorageIntegrationTests
         }
 
         byte[] wrongKey = RandomNumberGenerator.GetBytes(32);
-        var innerStorage = new FileStorage(dbPath, 4096 + 28);
-        var provider = new AesGcmCryptoProvider(wrongKey);
+        var innerStorage = new StorageFile(dbPath, 4096 + 28);
+        var provider = new CryptoProviderAesGcm(wrongKey);
         var encryptor = new PageEncryptor(provider, m_salt);
-        using var storage2 = new EncryptedStorage(innerStorage, encryptor);
+        using var storage2 = new StorageEncrypted(innerStorage, encryptor);
 
         Assert.Throws<CryptographicException>(() =>
         {
-            using var store = new BTreeStore(storage2, ownsStorage: false);
+            using var store = new StoreBTree(storage2, ownsStorage: false);
         });
     }
 
@@ -216,7 +216,7 @@ public class EncryptedStorageIntegrationTests
 
         // Phase 1: Create
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, ownsStorage: false))
+        using (var store = new StoreBTree(storage, ownsStorage: false))
         {
             for (int i = 0; i < 1000; i++)
             {
@@ -227,7 +227,7 @@ public class EncryptedStorageIntegrationTests
 
         // Phase 2: Modify
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, ownsStorage: false))
+        using (var store = new StoreBTree(storage, ownsStorage: false))
         {
             // Delete half
             for (int i = 0; i < 500; i++)
@@ -251,7 +251,7 @@ public class EncryptedStorageIntegrationTests
 
         // Phase 3: Verify
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, ownsStorage: false))
+        using (var store = new StoreBTree(storage, ownsStorage: false))
         {
             Assert.That(store.Count(), Is.EqualTo(1000));
 
@@ -282,7 +282,7 @@ public class EncryptedStorageIntegrationTests
     public async Task EncryptedStorageAsyncOperationsTest()
     {
         using var storage = CreateEncryptedMemoryStorage();
-        using var store = new BTreeStore(storage, ownsStorage: false);
+        using var store = new StoreBTree(storage, ownsStorage: false);
 
         // Async put
         for (int i = 0; i < 100; i++)
@@ -321,7 +321,7 @@ public class EncryptedStorageIntegrationTests
         const int count = 10000;
 
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, cacheSize: 200, ownsStorage: false))
+        using (var store = new StoreBTree(storage, cacheSize: 200, ownsStorage: false))
         {
             for (int i = 0; i < count; i++)
             {
@@ -333,7 +333,7 @@ public class EncryptedStorageIntegrationTests
         }
 
         using (var storage = CreateEncryptedFileStorage(dbPath))
-        using (var store = new BTreeStore(storage, cacheSize: 200, ownsStorage: false))
+        using (var store = new StoreBTree(storage, cacheSize: 200, ownsStorage: false))
         {
             Assert.That(store.Count(), Is.EqualTo(count));
 
@@ -354,7 +354,7 @@ public class EncryptedStorageIntegrationTests
     public void EncryptedStorageRandomAccessPatternTest()
     {
         using var storage = CreateEncryptedMemoryStorage(pageCount: 2000);
-        using var store = new BTreeStore(storage, cacheSize: 100, ownsStorage: false);
+        using var store = new StoreBTree(storage, cacheSize: 100, ownsStorage: false);
 
         var random = new Random(42);
         var expectedState = new Dictionary<int, byte[]>();

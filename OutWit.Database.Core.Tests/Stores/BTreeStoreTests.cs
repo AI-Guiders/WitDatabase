@@ -6,7 +6,7 @@ using TextEncoding = System.Text.Encoding;
 namespace OutWit.Database.Core.Tests.Stores;
 
 [TestFixture]
-public class BTreeStoreTest
+public class StoreBTreeTest
 {
     private string? m_testDir;
 
@@ -32,8 +32,8 @@ public class BTreeStoreTest
     [Test]
     public void PutAndGetTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         byte[] value = "value"u8.ToArray();
@@ -48,8 +48,8 @@ public class BTreeStoreTest
     [Test]
     public void GetNonExistentKeyReturnsNullTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         var result = store.Get("missing"u8);
         Assert.That(result, Is.Null);
@@ -58,8 +58,8 @@ public class BTreeStoreTest
     [Test]
     public void PutUpdatesExistingKeyTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         store.Put(key, "value1"u8.ToArray());
@@ -73,8 +73,8 @@ public class BTreeStoreTest
     [Test]
     public void DeleteTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         store.Put(key, "value"u8.ToArray());
@@ -87,8 +87,8 @@ public class BTreeStoreTest
     [Test]
     public void DeleteNonExistentReturnsFalseTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         Assert.That(store.Delete("missing"u8), Is.False);
     }
@@ -96,8 +96,8 @@ public class BTreeStoreTest
     [Test]
     public void ContainsKeyTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         store.Put(key, "value"u8.ToArray());
@@ -113,8 +113,8 @@ public class BTreeStoreTest
     [Test]
     public void ScanAllTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         store.Put("c"u8.ToArray(), "3"u8.ToArray());
         store.Put("a"u8.ToArray(), "1"u8.ToArray());
@@ -131,8 +131,8 @@ public class BTreeStoreTest
     [Test]
     public void ScanRangeTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         for (int i = 0; i < 26; i++)
         {
@@ -151,8 +151,8 @@ public class BTreeStoreTest
     [Test]
     public void ScanRangeExclusiveEndTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         for (int i = 0; i < 26; i++)
         {
@@ -175,8 +175,8 @@ public class BTreeStoreTest
     [Test]
     public async Task GetAsyncTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         byte[] value = "value"u8.ToArray();
@@ -190,8 +190,8 @@ public class BTreeStoreTest
     [Test]
     public async Task DeleteAsyncTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         await store.PutAsync(key, "value"u8.ToArray());
@@ -206,8 +206,8 @@ public class BTreeStoreTest
     [Test]
     public async Task ScanAsyncTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         for (int i = 0; i < 10; i++)
         {
@@ -235,7 +235,7 @@ public class BTreeStoreTest
         var dbPath = Path.Combine(m_testDir!, "test.db");
         
         // Create and populate
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             for (int i = 0; i < 100; i++)
             {
@@ -247,7 +247,7 @@ public class BTreeStoreTest
         }
         
         // Reopen and verify
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             Assert.That(store.Count(), Is.EqualTo(100));
             
@@ -265,13 +265,13 @@ public class BTreeStoreTest
     {
         var dbPath = Path.Combine(m_testDir!, "flush.db");
         
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             store.Put("key"u8.ToArray(), "value"u8.ToArray());
             // No explicit flush - disposed should flush
         }
         
-        using (var store = new BTreeStore(dbPath))
+        using (var store = new StoreBTree(dbPath))
         {
             var result = store.Get("key"u8);
             Assert.That(TextEncoding.UTF8.GetString(result!), Is.EqualTo("value"));
@@ -285,8 +285,8 @@ public class BTreeStoreTest
     [Test]
     public void LargeValueTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "large"u8.ToArray();
         byte[] value = new byte[store.MaxInlineValueSize + 1000];
@@ -302,8 +302,8 @@ public class BTreeStoreTest
     [Test]
     public void UpdateFromSmallToLargeValueTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         byte[] key = "key"u8.ToArray();
         byte[] smallValue = "small"u8.ToArray();
@@ -324,8 +324,8 @@ public class BTreeStoreTest
     [Test]
     public void ImplementsIKeyValueStoreTest()
     {
-        using var storage = new MemoryStorage();
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory();
+        using var store = new StoreBTree(storage);
         
         // Should compile - proves it implements the interface
         Interfaces.IKeyValueStore kvStore = store;
@@ -342,9 +342,9 @@ public class BTreeStoreTest
     [Test]
     public void ConstructorWithPageManagerTest()
     {
-        using var storage = new MemoryStorage();
+        using var storage = new StorageMemory();
         using var pageManager = new PageManager(storage);
-        using var store = new BTreeStore(pageManager);
+        using var store = new StoreBTree(pageManager);
         
         store.Put("key"u8.ToArray(), "value"u8.ToArray());
         Assert.That(store.Get("key"u8), Is.Not.Null);
@@ -353,17 +353,17 @@ public class BTreeStoreTest
     [Test]
     public void ConstructorWithExistingRootPageTest()
     {
-        using var storage = new MemoryStorage();
+        using var storage = new StorageMemory();
         using var pageManager = new PageManager(storage);
         
         uint rootPage;
-        using (var store1 = new BTreeStore(pageManager))
+        using (var store1 = new StoreBTree(pageManager))
         {
             store1.Put("key"u8.ToArray(), "value"u8.ToArray());
             rootPage = store1.RootPageNumber;
         }
         
-        using var store2 = new BTreeStore(pageManager, rootPage);
+        using var store2 = new StoreBTree(pageManager, rootPage);
         Assert.That(store2.Get("key"u8), Is.Not.Null);
     }
 
@@ -374,8 +374,8 @@ public class BTreeStoreTest
     [Test]
     public void ManyOperationsTest()
     {
-        using var storage = new MemoryStorage(4096, 2000);
-        using var store = new BTreeStore(storage);
+        using var storage = new StorageMemory(4096, 2000);
+        using var store = new StoreBTree(storage);
         
         const int count = 1000;
         

@@ -29,7 +29,7 @@ public sealed partial class BTree
                 m_pageManager.ReleasePage(leafPage);
                 page = null!; // Mark as released
                 
-                m_overflowManager.FreeOverflow(overflowPage);
+                m_pageManagerOverflowManager.FreeOverflow(overflowPage);
                 
                 page = m_pageManager.GetPage(leafPage);
                 node = new BTreeNode(page.Data, PageSize, leafPage);

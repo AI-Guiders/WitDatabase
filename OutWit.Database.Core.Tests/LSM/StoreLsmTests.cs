@@ -8,7 +8,7 @@ namespace OutWit.Database.Core.Tests.LSM
     /// Integration tests for LsmTreeStore - the main LSM-Tree implementation.
     /// </summary>
     [TestFixture]
-    public class LsmTreeStoreTests : IDisposable
+    public class StoreLsmTests : IDisposable
     {
         private string m_testDir = null!;
 
@@ -43,7 +43,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public void LsmTreePutAndGetTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             tree.Put(ToBytes("key1"), ToBytes("value1"));
         
@@ -55,7 +55,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public void LsmTreeDeleteTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             tree.Put(ToBytes("key1"), ToBytes("value1"));
             tree.Delete(ToBytes("key1"));
@@ -68,7 +68,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public void LsmTreeScanReturnsSortedResultsTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             tree.Put(ToBytes("c"), ToBytes("3"));
             tree.Put(ToBytes("a"), ToBytes("1"));
@@ -86,7 +86,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public void LsmTreeGetNonExistentKeyTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             var result = tree.Get(ToBytes("nonexistent"));
             Assert.That(result, Is.Null);
@@ -96,7 +96,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public void LsmTreeUpdateValueTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             tree.Put(ToBytes("key"), ToBytes("value1"));
             tree.Put(ToBytes("key"), ToBytes("value2"));
@@ -119,7 +119,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 MemTableSizeLimit = 100
             };
         
-            using (var tree = new LsmTreeStore(dir, options))
+            using (var tree = new StoreLsm(dir, options))
             {
                 for (int i = 0; i < 50; i++)
                 {
@@ -131,7 +131,7 @@ namespace OutWit.Database.Core.Tests.LSM
             }
 
             // Reopen and verify
-            using var tree2 = new LsmTreeStore(dir, new LsmOptions { EnableWal = false });
+            using var tree2 = new StoreLsm(dir, new LsmOptions { EnableWal = false });
             var result = tree2.Get(ToBytes("key00000"));
             Assert.That(result, Is.EqualTo(ToBytes("value0")));
         }
@@ -147,7 +147,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 Level0CompactionTrigger = 100 // Disable auto-compaction
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
         
             for (int i = 0; i < 100; i++)
             {
@@ -174,14 +174,14 @@ namespace OutWit.Database.Core.Tests.LSM
             var dir = Path.Combine(m_testDir, "wal");
             var options = new LsmOptions { EnableWal = true, SyncWrites = true };
         
-            using (var tree = new LsmTreeStore(dir, options))
+            using (var tree = new StoreLsm(dir, options))
             {
                 tree.Put(ToBytes("key1"), ToBytes("value1"));
                 tree.Put(ToBytes("key2"), ToBytes("value2"));
             }
 
             // Reopen - should recover from WAL
-            using var tree2 = new LsmTreeStore(dir, options);
+            using var tree2 = new StoreLsm(dir, options);
         
             Assert.That(tree2.Get(ToBytes("key1")), Is.EqualTo(ToBytes("value1")));
             Assert.That(tree2.Get(ToBytes("key2")), Is.EqualTo(ToBytes("value2")));
@@ -193,14 +193,14 @@ namespace OutWit.Database.Core.Tests.LSM
             var dir = Path.Combine(m_testDir, "wal_delete");
             var options = new LsmOptions { EnableWal = true, SyncWrites = true };
         
-            using (var tree = new LsmTreeStore(dir, options))
+            using (var tree = new StoreLsm(dir, options))
             {
                 tree.Put(ToBytes("key1"), ToBytes("value1"));
                 tree.Put(ToBytes("key2"), ToBytes("value2"));
                 tree.Delete(ToBytes("key1"));
             }
 
-            using var tree2 = new LsmTreeStore(dir, options);
+            using var tree2 = new StoreLsm(dir, options);
         
             Assert.That(tree2.Get(ToBytes("key1")), Is.Null);
             Assert.That(tree2.Get(ToBytes("key2")), Is.EqualTo(ToBytes("value2")));
@@ -222,7 +222,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = false
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
         
             for (int i = 0; i < 200; i++)
             {
@@ -252,7 +252,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = false
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
         
             for (int i = 0; i < 100; i++)
             {
@@ -292,7 +292,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = true
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
         
             for (int i = 0; i < 200; i++)
             {
@@ -319,7 +319,7 @@ namespace OutWit.Database.Core.Tests.LSM
         {
             var dir = Path.Combine(m_testDir, "concurrent_read");
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
 
             for (int i = 0; i < 1000; i++)
             {
@@ -361,7 +361,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 MemTableSizeLimit = 1024 * 10,
                 Level0CompactionTrigger = 100
             };
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
 
             for (int i = 0; i < 100; i++)
             {
@@ -432,7 +432,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 Level0CompactionTrigger = 100
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
             
             for (int i = 0; i < 50; i++)
             {
@@ -468,7 +468,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 EnableBlockCache = false
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
             
             Assert.That(tree.BlockCache, Is.Null);
             
@@ -491,7 +491,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 Level0CompactionTrigger = 100
             };
         
-            using var tree = new LsmTreeStore(dir, options);
+            using var tree = new StoreLsm(dir, options);
             var stats = tree.Statistics;
             
             Assert.That(stats.Gets, Is.EqualTo(0));
@@ -531,7 +531,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public void LsmTreePropertiesTest()
         {
             var options = new LsmOptions { EnableWal = false, EnableBlockCache = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             Assert.That(tree.Directory, Is.EqualTo(m_testDir));
             Assert.That(tree.SSTableCount, Is.EqualTo(0));
@@ -548,7 +548,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public async Task LsmTreeAsyncOperationsTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             await tree.PutAsync(ToBytes("key"), ToBytes("value"));
             
@@ -566,7 +566,7 @@ namespace OutWit.Database.Core.Tests.LSM
         public async Task LsmTreeAsyncScanTest()
         {
             var options = new LsmOptions { EnableWal = false };
-            using var tree = new LsmTreeStore(m_testDir, options);
+            using var tree = new StoreLsm(m_testDir, options);
 
             for (int i = 0; i < 10; i++)
             {

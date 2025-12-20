@@ -155,12 +155,12 @@ public sealed class WitDatabaseBuilder
                 lsmOptions.Encryptor = new BlockEncryptor(Options.CryptoProvider, Options.EncryptionSalt);
             }
             
-            return new LsmTreeStore(directory, lsmOptions);
+            return new StoreLsm(directory, lsmOptions);
         }
 
         // Build BTree store - use constructor that owns storage
         var storage = BuildStorage();
-        return new BTreeStore(storage, Options.CacheSize, ownsStorage: true);
+        return new StoreBTree(storage, Options.CacheSize, ownsStorage: true);
     }
 
     private IStorage BuildStorage()
@@ -182,11 +182,11 @@ public sealed class WitDatabaseBuilder
         
         if (Options.UseMemoryStorage)
         {
-            baseStorage = new MemoryStorage(storagePageSize);
+            baseStorage = new StorageMemory(storagePageSize);
         }
         else if (!string.IsNullOrEmpty(Options.FilePath))
         {
-            baseStorage = new FileStorage(Options.FilePath, storagePageSize);
+            baseStorage = new StorageFile(Options.FilePath, storagePageSize);
         }
         else
         {
@@ -197,7 +197,7 @@ public sealed class WitDatabaseBuilder
         if (Options.CryptoProvider != null)
         {
             var encryptor = new PageEncryptor(Options.CryptoProvider, Options.EncryptionSalt);
-            return new EncryptedStorage(baseStorage, encryptor);
+            return new StorageEncrypted(baseStorage, encryptor);
         }
 
         return baseStorage;

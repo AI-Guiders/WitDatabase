@@ -91,11 +91,11 @@ public class BTreeInsertBenchmarks
         if (Storage == StorageType.File)
         {
             m_tempFile = Path.GetTempFileName();
-            m_storage = new FileStorage(m_tempFile, 4096);
+            m_storage = new StorageFile(m_tempFile, 4096);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, Count / 5 + 1000);
+            m_storage = new StorageMemory(4096, Count / 5 + 1000);
         }
         
         m_pageManager = new PageManager(m_storage);
@@ -158,11 +158,11 @@ public class BTreeSearchBenchmarks
         if (Storage == StorageType.File)
         {
             m_tempFile = Path.GetTempFileName();
-            m_storage = new FileStorage(m_tempFile, 4096);
+            m_storage = new StorageFile(m_tempFile, 4096);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, TreeSize / 5 + 1000);
+            m_storage = new StorageMemory(4096, TreeSize / 5 + 1000);
         }
         
         m_pageManager = new PageManager(m_storage);
@@ -232,7 +232,7 @@ public class BTreeSearchBenchmarks
 public class BTreeStoreBenchmarks
 {
     private IStorage m_storage = null!;
-    private BTreeStore m_store = null!;
+    private StoreBTree m_store = null!;
     private byte[][] m_keys = null!;
     private byte[][] m_values = null!;
     private string? m_tempFile;
@@ -264,14 +264,14 @@ public class BTreeStoreBenchmarks
         if (Storage == StorageType.File)
         {
             m_tempFile = Path.GetTempFileName();
-            m_storage = new FileStorage(m_tempFile, 4096);
+            m_storage = new StorageFile(m_tempFile, 4096);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, Count / 3 + 1000);
+            m_storage = new StorageMemory(4096, Count / 3 + 1000);
         }
         
-        m_store = new BTreeStore(m_storage, ownsStorage: false);
+        m_store = new StoreBTree(m_storage, ownsStorage: false);
     }
 
     [IterationCleanup]
@@ -328,7 +328,7 @@ public class BTreeStoreBenchmarks
 public class MixedWorkloadBenchmarks
 {
     private IStorage m_storage = null!;
-    private BTreeStore m_store = null!;
+    private StoreBTree m_store = null!;
     private (int Op, byte[] Key, byte[] Value)[] m_operations = null!;
     private string? m_tempFile;
     
@@ -369,14 +369,14 @@ public class MixedWorkloadBenchmarks
         if (Storage == StorageType.File)
         {
             m_tempFile = Path.GetTempFileName();
-            m_storage = new FileStorage(m_tempFile, 4096);
+            m_storage = new StorageFile(m_tempFile, 4096);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, 3000);
+            m_storage = new StorageMemory(4096, 3000);
         }
         
-        m_store = new BTreeStore(m_storage, ownsStorage: false);
+        m_store = new StoreBTree(m_storage, ownsStorage: false);
         
         // Pre-populate
         for (int i = 0; i < 2500; i++)
@@ -439,7 +439,7 @@ public class MixedWorkloadBenchmarks
 public class RangeScanBenchmarks
 {
     private IStorage m_storage = null!;
-    private BTreeStore m_store = null!;
+    private StoreBTree m_store = null!;
     private string? m_tempFile;
     
     [Params(10000, 50000)]
@@ -454,14 +454,14 @@ public class RangeScanBenchmarks
         if (Storage == StorageType.File)
         {
             m_tempFile = Path.GetTempFileName();
-            m_storage = new FileStorage(m_tempFile, 4096);
+            m_storage = new StorageFile(m_tempFile, 4096);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, TreeSize / 3 + 1000);
+            m_storage = new StorageMemory(4096, TreeSize / 3 + 1000);
         }
         
-        m_store = new BTreeStore(m_storage, ownsStorage: false);
+        m_store = new StoreBTree(m_storage, ownsStorage: false);
         
         for (int i = 0; i < TreeSize; i++)
         {
@@ -518,7 +518,7 @@ public class RangeScanBenchmarks
 public class OverflowBenchmarks
 {
     private IStorage m_storage = null!;
-    private BTreeStore m_store = null!;
+    private StoreBTree m_store = null!;
     private byte[][] m_keys = null!;
     private byte[][] m_smallValues = null!;
     private byte[][] m_largeValues = null!;
@@ -555,14 +555,14 @@ public class OverflowBenchmarks
         if (Storage == StorageType.File)
         {
             m_tempFile = Path.GetTempFileName();
-            m_storage = new FileStorage(m_tempFile, 4096);
+            m_storage = new StorageFile(m_tempFile, 4096);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, Count * 3 + 1000);
+            m_storage = new StorageMemory(4096, Count * 3 + 1000);
         }
         
-        m_store = new BTreeStore(m_storage, ownsStorage: false);
+        m_store = new StoreBTree(m_storage, ownsStorage: false);
     }
 
     [IterationCleanup]
@@ -627,8 +627,8 @@ public class EncryptionBenchmarks
         m_salt = RandomNumberGenerator.GetBytes(16);
         
         // Each encryptor gets its own provider (they dispose it)
-        m_pageEncryptor = new PageEncryptor(new AesGcmCryptoProvider(m_key), m_salt);
-        m_blockEncryptor = new BlockEncryptor(new AesGcmCryptoProvider(m_key), m_salt);
+        m_pageEncryptor = new PageEncryptor(new CryptoProviderAesGcm(m_key), m_salt);
+        m_blockEncryptor = new BlockEncryptor(new CryptoProviderAesGcm(m_key), m_salt);
 
         m_plaintext = new byte[PageSize];
         Random.Shared.NextBytes(m_plaintext);
@@ -685,7 +685,7 @@ public class EncryptedStorageBenchmarks
     private byte[] m_key = null!;
     private byte[] m_salt = null!;
     private IStorage m_storage = null!;
-    private BTreeStore m_store = null!;
+    private StoreBTree m_store = null!;
     private byte[][] m_keys = null!;
     private byte[][] m_values = null!;
 
@@ -718,17 +718,17 @@ public class EncryptedStorageBenchmarks
     {
         if (Encrypted)
         {
-            var innerStorage = new MemoryStorage(4096 + 28, Count / 3 + 1000);
-            var provider = new AesGcmCryptoProvider(m_key);
+            var innerStorage = new StorageMemory(4096 + 28, Count / 3 + 1000);
+            var provider = new CryptoProviderAesGcm(m_key);
             var encryptor = new PageEncryptor(provider, m_salt);
-            m_storage = new EncryptedStorage(innerStorage, encryptor);
+            m_storage = new StorageEncrypted(innerStorage, encryptor);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, Count / 3 + 1000);
+            m_storage = new StorageMemory(4096, Count / 3 + 1000);
         }
         
-        m_store = new BTreeStore(m_storage, ownsStorage: false);
+        m_store = new StoreBTree(m_storage, ownsStorage: false);
     }
 
     [IterationCleanup]
@@ -779,7 +779,7 @@ public class EncryptedMixedWorkloadBenchmarks
     private byte[] m_key = null!;
     private byte[] m_salt = null!;
     private IStorage m_storage = null!;
-    private BTreeStore m_store = null!;
+    private StoreBTree m_store = null!;
     private (int Op, byte[] Key, byte[] Value)[] m_operations = null!;
 
     [Params(10000)]
@@ -820,17 +820,17 @@ public class EncryptedMixedWorkloadBenchmarks
     {
         if (Encrypted)
         {
-            var innerStorage = new MemoryStorage(4096 + 28, 5000);
-            var provider = new AesGcmCryptoProvider(m_key);
+            var innerStorage = new StorageMemory(4096 + 28, 5000);
+            var provider = new CryptoProviderAesGcm(m_key);
             var encryptor = new PageEncryptor(provider, m_salt);
-            m_storage = new EncryptedStorage(innerStorage, encryptor);
+            m_storage = new StorageEncrypted(innerStorage, encryptor);
         }
         else
         {
-            m_storage = new MemoryStorage(4096, 5000);
+            m_storage = new StorageMemory(4096, 5000);
         }
 
-        m_store = new BTreeStore(m_storage, ownsStorage: false);
+        m_store = new StoreBTree(m_storage, ownsStorage: false);
 
         // Pre-populate
         for (int i = 0; i < 2500; i++)

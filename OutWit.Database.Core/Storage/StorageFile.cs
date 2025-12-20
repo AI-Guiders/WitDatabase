@@ -7,7 +7,7 @@ namespace OutWit.Database.Core.Storage
     /// Provides durable storage with support for file locking.
     /// Thread-safe for concurrent access.
     /// </summary>
-    public sealed class FileStorage : IStorage
+    public sealed class StorageFile : IStorage
     {
         #region Fields
 
@@ -33,7 +33,7 @@ namespace OutWit.Database.Core.Storage
         /// <param name="path">Path to the database file</param>
         /// <param name="pageSize">Page size (only used when creating new file)</param>
         /// <param name="readOnly">Whether to open in read-only mode</param>
-        public FileStorage(string path, int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE, bool readOnly = false)
+        public StorageFile(string path, int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE, bool readOnly = false)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
@@ -72,12 +72,12 @@ namespace OutWit.Database.Core.Storage
         /// <summary>
         /// Creates a new database file. Throws if file already exists.
         /// </summary>
-        public static FileStorage Create(string path, int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE)
+        public static StorageFile Create(string path, int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE)
         {
             if (File.Exists(path))
                 throw new IOException($"File already exists: {path}");
         
-            return new FileStorage(path, pageSize, readOnly: false);
+            return new StorageFile(path, pageSize, readOnly: false);
         }
 
         #endregion
@@ -87,12 +87,12 @@ namespace OutWit.Database.Core.Storage
         /// <summary>
         /// Opens an existing database file.
         /// </summary>
-        public static FileStorage Open(string path, bool readOnly = false)
+        public static StorageFile Open(string path, bool readOnly = false)
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException("Database file not found", path);
 
-            return new FileStorage(path, readOnly: readOnly);
+            return new StorageFile(path, readOnly: readOnly);
         }
 
         #endregion

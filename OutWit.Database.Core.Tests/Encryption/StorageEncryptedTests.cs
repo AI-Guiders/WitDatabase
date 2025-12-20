@@ -9,7 +9,7 @@ namespace OutWit.Database.Core.Tests.Encryption;
 /// Tests for EncryptedStorage - transparent encryption wrapper.
 /// </summary>
 [TestFixture]
-public class EncryptedStorageTests
+public class StorageEncryptedTests
 {
     private byte[] m_key = null!;
     private byte[] m_salt = null!;
@@ -34,12 +34,12 @@ public class EncryptedStorageTests
         }
     }
 
-    private EncryptedStorage CreateEncryptedMemoryStorage(int pageSize = 4096, int pageCount = 1000)
+    private StorageEncrypted CreateEncryptedMemoryStorage(int pageSize = 4096, int pageCount = 1000)
     {
-        var innerStorage = new MemoryStorage(pageSize + 28, pageCount);
-        var provider = new AesGcmCryptoProvider(m_key);
+        var innerStorage = new StorageMemory(pageSize + 28, pageCount);
+        var provider = new CryptoProviderAesGcm(m_key);
         var encryptor = new PageEncryptor(provider, m_salt);
-        return new EncryptedStorage(innerStorage, encryptor);
+        return new StorageEncrypted(innerStorage, encryptor);
     }
 
     #region Basic Operations
@@ -158,10 +158,10 @@ public class EncryptedStorageTests
     public void PageSizeReturnsInnerPageSizeMinusOverheadTest()
     {
         int innerPageSize = 4096 + 28;
-        using var innerStorage = new MemoryStorage(innerPageSize, 100);
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var innerStorage = new StorageMemory(innerPageSize, 100);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new PageEncryptor(provider, m_salt);
-        using var storage = new EncryptedStorage(innerStorage, encryptor);
+        using var storage = new StorageEncrypted(innerStorage, encryptor);
 
         Assert.That(storage.PageSize, Is.EqualTo(4096));
     }
@@ -219,10 +219,10 @@ public class EncryptedStorageTests
     public void LargePageEncryptsCorrectlyTest()
     {
         int pageSize = DatabaseConstants.MAX_PAGE_SIZE - 28;
-        using var innerStorage = new MemoryStorage(DatabaseConstants.MAX_PAGE_SIZE, 10);
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var innerStorage = new StorageMemory(DatabaseConstants.MAX_PAGE_SIZE, 10);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new PageEncryptor(provider, m_salt);
-        using var storage = new EncryptedStorage(innerStorage, encryptor);
+        using var storage = new StorageEncrypted(innerStorage, encryptor);
 
         Assert.That(storage.PageSize, Is.EqualTo(pageSize));
 

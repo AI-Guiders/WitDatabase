@@ -3,14 +3,14 @@ using OutWit.Database.Core.Stores;
 namespace OutWit.Database.Core.Tests.Stores;
 
 [TestFixture]
-public class InMemoryStoreTest
+public class StoreInMemoryTest
 {
     #region Basic Operations Tests
 
     [Test]
     public void PutAndGetTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[] key = [1, 2, 3];
         byte[] value = [4, 5, 6];
@@ -24,7 +24,7 @@ public class InMemoryStoreTest
     [Test]
     public void GetNonExistentKeyReturnsNullTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[]? result = store.Get([1, 2, 3]);
         
@@ -34,7 +34,7 @@ public class InMemoryStoreTest
     [Test]
     public void PutOverwritesExistingValueTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[] key = [1, 2, 3];
         byte[] value1 = [4, 5, 6];
@@ -50,7 +50,7 @@ public class InMemoryStoreTest
     [Test]
     public void DeleteExistingKeyTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[] key = [1, 2, 3];
         byte[] value = [4, 5, 6];
@@ -65,7 +65,7 @@ public class InMemoryStoreTest
     [Test]
     public void DeleteNonExistentKeyReturnsFalseTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         bool deleted = store.Delete([1, 2, 3]);
         
@@ -79,7 +79,7 @@ public class InMemoryStoreTest
     [Test]
     public void ScanAllKeysTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -96,7 +96,7 @@ public class InMemoryStoreTest
     [Test]
     public void ScanWithStartKeyTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -112,7 +112,7 @@ public class InMemoryStoreTest
     [Test]
     public void ScanWithEndKeyTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -128,7 +128,7 @@ public class InMemoryStoreTest
     [Test]
     public void ScanWithRangeTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -145,7 +145,7 @@ public class InMemoryStoreTest
     [Test]
     public void ScanEmptyStoreTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         var results = store.Scan(null, null).ToList();
         
@@ -159,7 +159,7 @@ public class InMemoryStoreTest
     [Test]
     public async Task GetAsyncTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[] key = [1, 2, 3];
         byte[] value = [4, 5, 6];
@@ -173,7 +173,7 @@ public class InMemoryStoreTest
     [Test]
     public async Task PutAsyncTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[] key = [1, 2, 3];
         byte[] value = [4, 5, 6];
@@ -187,7 +187,7 @@ public class InMemoryStoreTest
     [Test]
     public async Task DeleteAsyncTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         byte[] key = [1, 2, 3];
         byte[] value = [4, 5, 6];
@@ -202,7 +202,7 @@ public class InMemoryStoreTest
     [Test]
     public async Task ScanAsyncTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -220,7 +220,7 @@ public class InMemoryStoreTest
     [Test]
     public async Task FlushAsyncDoesNotThrowTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         await store.FlushAsync();
         
@@ -235,7 +235,7 @@ public class InMemoryStoreTest
     [Test]
     public void GetAsyncCancellationTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         
@@ -246,7 +246,7 @@ public class InMemoryStoreTest
     [Test]
     public void PutAsyncCancellationTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         
@@ -257,7 +257,7 @@ public class InMemoryStoreTest
     [Test]
     public void DeleteAsyncCancellationTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         
@@ -272,7 +272,7 @@ public class InMemoryStoreTest
     [Test]
     public void DisposeMultipleTimesDoesNotThrowTest()
     {
-        var store = new InMemoryStore();
+        var store = new StoreInMemory();
         
         store.Dispose();
         store.Dispose();
@@ -284,7 +284,7 @@ public class InMemoryStoreTest
     [Test]
     public void OperationsAfterDisposeThrowTest()
     {
-        var store = new InMemoryStore();
+        var store = new StoreInMemory();
         store.Dispose();
         
         Assert.Throws<ObjectDisposedException>(() => store.Get([1]));
@@ -300,7 +300,7 @@ public class InMemoryStoreTest
     [Test]
     public void CountEmptyStoreTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         Assert.That(store.Count, Is.EqualTo(0));
     }
@@ -308,7 +308,7 @@ public class InMemoryStoreTest
     [Test]
     public void CountAfterPutTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -320,7 +320,7 @@ public class InMemoryStoreTest
     [Test]
     public void CountAfterDeleteTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([2], [2]);
@@ -332,7 +332,7 @@ public class InMemoryStoreTest
     [Test]
     public void CountAfterOverwriteTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         store.Put([1], [1]);
         store.Put([1], [2]); // Overwrite, not new entry
@@ -347,7 +347,7 @@ public class InMemoryStoreTest
     [Test]
     public void ConcurrentPutAndGetTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         const int threadCount = 10;
         const int operationsPerThread = 100;
@@ -382,7 +382,7 @@ public class InMemoryStoreTest
     [Test]
     public void ConcurrentScanTest()
     {
-        using var store = new InMemoryStore();
+        using var store = new StoreInMemory();
         
         // Populate store
         for (int i = 0; i < 100; i++)

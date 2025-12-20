@@ -10,7 +10,7 @@ namespace OutWit.Database.Core.Stores
     /// Combines MemTable, WAL, and SSTables for efficient reads and writes.
     /// Thread-safe: concurrent reads allowed, writes are serialized.
     /// </summary>
-    public sealed class LsmTreeStore : IKeyValueStore
+    public sealed class StoreLsm : IKeyValueStore
     {
         #region Fields
 
@@ -40,7 +40,7 @@ namespace OutWit.Database.Core.Stores
         /// </summary>
         /// <param name="directory">Directory for data storage.</param>
         /// <param name="options">Configuration options.</param>
-        public LsmTreeStore(string directory, LsmOptions? options = null)
+        public StoreLsm(string directory, LsmOptions? options = null)
         {
             m_directory = directory;
             m_options = options ?? LsmOptions.Default;

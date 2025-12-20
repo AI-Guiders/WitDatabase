@@ -6,7 +6,7 @@ namespace OutWit.Database.Core.Storage
     /// In-memory storage implementation for temporary databases and testing.
     /// Data is lost when the storage is disposed.
     /// </summary>
-    public sealed class MemoryStorage : IStorage
+    public sealed class StorageMemory : IStorage
     {
         #region Constants
 
@@ -34,7 +34,7 @@ namespace OutWit.Database.Core.Storage
         /// </summary>
         /// <param name="pageSize">Size of each page in bytes</param>
         /// <param name="initialPageCount">Initial number of pages to allocate</param>
-        public MemoryStorage(int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE, int initialPageCount = 1)
+        public StorageMemory(int pageSize = DatabaseConstants.DEFAULT_PAGE_SIZE, int initialPageCount = 1)
         {
             if (pageSize < DatabaseConstants.MIN_PAGE_SIZE || pageSize > DatabaseConstants.MAX_PAGE_SIZE)
                 throw new ArgumentOutOfRangeException(nameof(pageSize));

@@ -72,7 +72,7 @@ public sealed partial class BTree
             if (needsOverflow)
             {
                 m_pageManager.ReleasePage(currentPage);
-                overflowPage = m_overflowManager.StoreOverflow(value);
+                overflowPage = m_pageManagerOverflowManager.StoreOverflow(value);
                 leafPage = m_pageManager.GetPage(currentPage);
                 leafNode = new BTreeNode(leafPage.Data, PageSize, currentPage);
             }
@@ -181,7 +181,7 @@ public sealed partial class BTree
             if (needsOverflow)
             {
                 m_pageManager.ReleasePage(currentPage);
-                overflowPage = m_overflowManager.StoreOverflow(value);
+                overflowPage = m_pageManagerOverflowManager.StoreOverflow(value);
                 leafPage = m_pageManager.GetPage(currentPage);
                 leafNode = new BTreeNode(leafPage.Data, PageSize, currentPage);
             }

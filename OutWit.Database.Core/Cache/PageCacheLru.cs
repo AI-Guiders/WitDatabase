@@ -8,9 +8,9 @@ namespace OutWit.Database.Core.Cache;
 /// </summary>
 /// <remarks>
 /// Simple LRU implementation - good for general workloads with low concurrency.
-/// For high-concurrency scenarios, consider using <see cref="ShardedClockCache"/>.
+/// For high-concurrency scenarios, consider using <see cref="PageCacheShardedClock"/>.
 /// </remarks>
-public sealed class LruPageCache : IPageCache
+public sealed class PageCacheLru : IPageCache
 {
     #region Fields
 
@@ -35,7 +35,7 @@ public sealed class LruPageCache : IPageCache
     /// </summary>
     /// <param name="storage">Underlying storage</param>
     /// <param name="maxPages">Maximum number of pages to cache</param>
-    public LruPageCache(IStorage storage, int maxPages = DatabaseConstants.DEFAULT_CACHE_SIZE)
+    public PageCacheLru(IStorage storage, int maxPages = DatabaseConstants.DEFAULT_CACHE_SIZE)
     {
         ArgumentNullException.ThrowIfNull(storage);
 

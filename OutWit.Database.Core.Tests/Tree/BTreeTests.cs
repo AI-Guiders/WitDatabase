@@ -8,13 +8,13 @@ namespace OutWit.Database.Core.Tests.Tree;
 [TestFixture]
 public class BTreeTest
 {
-    private MemoryStorage m_storage = null!;
+    private StorageMemory m_storage = null!;
     private PageManager m_pageManager = null!;
 
     [SetUp]
     public void SetUp()
     {
-        m_storage = new MemoryStorage(4096, 1000);
+        m_storage = new StorageMemory(4096, 1000);
         m_pageManager = new PageManager(m_storage);
     }
 
@@ -667,7 +667,7 @@ public class BTreeTest
     [Category("Stress")]
     public void HeavyInsertDeleteCycleTest()
     {
-        using var storage = new MemoryStorage(4096, 5000);
+        using var storage = new StorageMemory(4096, 5000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
         
@@ -802,7 +802,7 @@ public class BTreeTest
     [Category("Stress")]
     public void SequentialBulkInsertTest()
     {
-        using var storage = new MemoryStorage(4096, 10000);
+        using var storage = new StorageMemory(4096, 10000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
         
@@ -833,7 +833,7 @@ public class BTreeTest
     [Category("Stress")]
     public void ReverseSequentialBulkInsertTest()
     {
-        using var storage = new MemoryStorage(4096, 10000);
+        using var storage = new StorageMemory(4096, 10000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
         
@@ -860,7 +860,7 @@ public class BTreeTest
     [Category("Stress")]
     public void MixedValueSizesStressTest()
     {
-        using var storage = new MemoryStorage(4096, 5000);
+        using var storage = new StorageMemory(4096, 5000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
         
@@ -905,7 +905,7 @@ public class BTreeTest
     [Category("Stress")]
     public void RangeScanStressTest()
     {
-        using var storage = new MemoryStorage(4096, 5000);
+        using var storage = new StorageMemory(4096, 5000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
         
@@ -1100,7 +1100,7 @@ public class BTreeTest
     [Category("Stress")]
     public void FragmentationStressTest()
     {
-        using var storage = new MemoryStorage(4096, 3000);
+        using var storage = new StorageMemory(4096, 3000);
         using var pageManager = new PageManager(storage);
         using var tree = new BTree(pageManager);
         

@@ -40,15 +40,15 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void ConstructorNullPageManagerThrowsTest()
         {
-            Assert.Throws<ArgumentNullException>(() => new OverflowPageManager(null!));
+            Assert.Throws<ArgumentNullException>(() => new PageManagerOverflow(null!));
         }
 
         [Test]
         public void ConstructorDefaultMaxInlineSizeTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             // Default is PageSize / 4
             Assert.That(overflowManager.MaxInlineSize, Is.EqualTo(pageManager.PageSize / 4));
@@ -58,9 +58,9 @@ namespace OutWit.Database.Core.Tests.Managers
         public void CustomMaxInlineSizeTest()
         {
             var dbPath = Path.Combine(m_testDir, "overflow_custom.db");
-            using var storage = new FileStorage(dbPath);
+            using var storage = new StorageFile(dbPath);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager, maxInlineSize: 512);
+            using var overflowManager = new PageManagerOverflow(pageManager, maxInlineSize: 512);
         
             Assert.That(overflowManager.MaxInlineSize, Is.EqualTo(512));
             Assert.That(overflowManager.NeedsOverflow(500), Is.False);
@@ -75,9 +75,9 @@ namespace OutWit.Database.Core.Tests.Managers
         public void NeedsOverflowTest()
         {
             var dbPath = Path.Combine(m_testDir, "overflow_needs.db");
-            using var storage = new FileStorage(dbPath);
+            using var storage = new StorageFile(dbPath);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
         
             // Small values don't need overflow
             Assert.That(overflowManager.NeedsOverflow(100), Is.False);
@@ -90,9 +90,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void NeedsOverflowZeroLengthTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             Assert.That(overflowManager.NeedsOverflow(0), Is.False);
         }
@@ -105,9 +105,9 @@ namespace OutWit.Database.Core.Tests.Managers
         public void StoreAndReadSmallOverflowTest()
         {
             var dbPath = Path.Combine(m_testDir, "overflow_small.db");
-            using var storage = new FileStorage(dbPath);
+            using var storage = new StorageFile(dbPath);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
         
             // Create data larger than MaxInlineSize but fits in one overflow page
             var data = new byte[overflowManager.MaxInlineSize + 100];
@@ -126,9 +126,9 @@ namespace OutWit.Database.Core.Tests.Managers
         public void StoreAndReadLargeOverflowTest()
         {
             var dbPath = Path.Combine(m_testDir, "overflow_large.db");
-            using var storage = new FileStorage(dbPath);
+            using var storage = new StorageFile(dbPath);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
         
             // Create data that spans multiple overflow pages (100KB)
             var data = new byte[100 * 1024];
@@ -145,9 +145,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void StoreOverflowTooSmallThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var smallData = new byte[100]; // Less than MaxInlineSize
             
@@ -157,9 +157,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void StoreOverflowExactlyMaxInlineSizeThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var exactData = new byte[overflowManager.MaxInlineSize];
             
@@ -169,9 +169,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void StoreMultipleOverflowChainsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var data1 = new byte[overflowManager.MaxInlineSize + 100];
             var data2 = new byte[overflowManager.MaxInlineSize + 200];
@@ -197,9 +197,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void ReadOverflowIntoSpanTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var data = new byte[overflowManager.MaxInlineSize + 100];
             new Random(42).NextBytes(data);
@@ -217,9 +217,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void ReadOverflowIntoSpanTooSmallThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var data = new byte[overflowManager.MaxInlineSize + 100];
             var firstPage = overflowManager.StoreOverflow(data);
@@ -232,9 +232,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void ReadOverflowLargeIntoSpanTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             // Multi-page overflow
             var data = new byte[50 * 1024];
@@ -256,9 +256,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void GetOverflowLengthTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var data = new byte[overflowManager.MaxInlineSize + 500];
             new Random(42).NextBytes(data);
@@ -273,9 +273,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void GetOverflowLengthInvalidPageThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var (pn, _) = pageManager.AllocatePage(PageType.Leaf);
             pageManager.ReleasePage(pn);
@@ -291,9 +291,9 @@ namespace OutWit.Database.Core.Tests.Managers
         public void GetOverflowInfoTest()
         {
             var dbPath = Path.Combine(m_testDir, "overflow_info.db");
-            using var storage = new FileStorage(dbPath);
+            using var storage = new StorageFile(dbPath);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
         
             // Create data
             var data = new byte[50 * 1024]; // 50KB
@@ -312,9 +312,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void GetOverflowInfoSinglePageTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             // Data that fits in single overflow page
             var data = new byte[overflowManager.MaxInlineSize + 1];
@@ -330,9 +330,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void GetOverflowInfoInvalidPageThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             // Allocate a non-overflow page
             var (pn, _) = pageManager.AllocatePage(PageType.Leaf);
@@ -349,9 +349,9 @@ namespace OutWit.Database.Core.Tests.Managers
         public void FreeOverflowTest()
         {
             var dbPath = Path.Combine(m_testDir, "overflow_free.db");
-            using var storage = new FileStorage(dbPath);
+            using var storage = new StorageFile(dbPath);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
         
             var initialFreeCount = pageManager.FreePageCount;
         
@@ -372,9 +372,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void FreeOverflowSinglePageTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var data = new byte[overflowManager.MaxInlineSize + 1];
             var firstPage = overflowManager.StoreOverflow(data);
@@ -389,9 +389,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void FreeAndReallocateOverflowTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             var data1 = new byte[overflowManager.MaxInlineSize + 100];
             new Random(1).NextBytes(data1);
@@ -422,18 +422,18 @@ namespace OutWit.Database.Core.Tests.Managers
             uint firstPage;
         
             // Write and flush
-            using (var storage = new FileStorage(dbPath))
+            using (var storage = new StorageFile(dbPath))
             using (var pageManager = new PageManager(storage))
-            using (var overflowManager = new OverflowPageManager(pageManager))
+            using (var overflowManager = new PageManagerOverflow(pageManager))
             {
                 firstPage = overflowManager.StoreOverflow(data);
                 pageManager.Flush();
             }
         
             // Reopen and read
-            using (var storage = new FileStorage(dbPath))
+            using (var storage = new StorageFile(dbPath))
             using (var pageManager = new PageManager(storage))
-            using (var overflowManager = new OverflowPageManager(pageManager))
+            using (var overflowManager = new PageManagerOverflow(pageManager))
             {
                 var result = overflowManager.ReadOverflow(firstPage);
                 Assert.That(result, Is.EqualTo(data));
@@ -450,17 +450,17 @@ namespace OutWit.Database.Core.Tests.Managers
             new Random(2).NextBytes(data2);
             uint firstPage1, firstPage2;
         
-            using (var storage = new FileStorage(dbPath))
+            using (var storage = new StorageFile(dbPath))
             using (var pageManager = new PageManager(storage))
-            using (var overflowManager = new OverflowPageManager(pageManager))
+            using (var overflowManager = new PageManagerOverflow(pageManager))
             {
                 firstPage1 = overflowManager.StoreOverflow(data1);
                 firstPage2 = overflowManager.StoreOverflow(data2);
             }
         
-            using (var storage = new FileStorage(dbPath))
+            using (var storage = new StorageFile(dbPath))
             using (var pageManager = new PageManager(storage))
-            using (var overflowManager = new OverflowPageManager(pageManager))
+            using (var overflowManager = new PageManagerOverflow(pageManager))
             {
                 Assert.That(overflowManager.ReadOverflow(firstPage1), Is.EqualTo(data1));
                 Assert.That(overflowManager.ReadOverflow(firstPage2), Is.EqualTo(data2));
@@ -474,9 +474,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void DisposeMultipleTimesDoesNotThrowTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            var overflowManager = new OverflowPageManager(pageManager);
+            var overflowManager = new PageManagerOverflow(pageManager);
             
             overflowManager.Dispose();
             overflowManager.Dispose();
@@ -488,9 +488,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void OperationsAfterDisposeThrowTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            var overflowManager = new OverflowPageManager(pageManager);
+            var overflowManager = new PageManagerOverflow(pageManager);
             overflowManager.Dispose();
             
             var data = new byte[2000];
@@ -508,9 +508,9 @@ namespace OutWit.Database.Core.Tests.Managers
         [Test]
         public void DataSizePerPageTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 0);
+            using var storage = new StorageMemory(initialPageCount: 0);
             using var pageManager = new PageManager(storage);
-            using var overflowManager = new OverflowPageManager(pageManager);
+            using var overflowManager = new PageManagerOverflow(pageManager);
             
             // DataSizePerPage = PageSize - OverflowHeaderSize (16)
             Assert.That(overflowManager.DataSizePerPage, Is.EqualTo(pageManager.PageSize - 16));

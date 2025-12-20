@@ -63,8 +63,8 @@ public class StoreInsertBenchmarks : IDisposable
     {
         if (Store == StoreType.BTree)
         {
-            m_btreeStorage = new MemoryStorage(4096, Count / 3 + 1000);
-            m_store = new BTreeStore(m_btreeStorage, ownsStorage: false);
+            m_btreeStorage = new StorageMemory(4096, Count / 3 + 1000);
+            m_store = new StoreBTree(m_btreeStorage, ownsStorage: false);
         }
         else
         {
@@ -79,7 +79,7 @@ public class StoreInsertBenchmarks : IDisposable
                 Level0CompactionTrigger = 100, // Disable auto-compaction during benchmark
                 BackgroundCompaction = false
             };
-            m_store = new LsmTreeStore(m_lsmDir, options);
+            m_store = new StoreLsm(m_lsmDir, options);
         }
     }
 
@@ -143,8 +143,8 @@ public class StoreReadBenchmarks : IDisposable
         
         if (Store == StoreType.BTree)
         {
-            m_btreeStorage = new MemoryStorage(4096, TreeSize / 3 + 1000);
-            m_store = new BTreeStore(m_btreeStorage, ownsStorage: false);
+            m_btreeStorage = new StorageMemory(4096, TreeSize / 3 + 1000);
+            m_store = new StoreBTree(m_btreeStorage, ownsStorage: false);
         }
         else
         {
@@ -159,7 +159,7 @@ public class StoreReadBenchmarks : IDisposable
                 Level0CompactionTrigger = 100,
                 BackgroundCompaction = false
             };
-            m_store = new LsmTreeStore(m_lsmDir, options);
+            m_store = new StoreLsm(m_lsmDir, options);
         }
         
         m_keys = new byte[TreeSize][];
@@ -273,8 +273,8 @@ public class StoreMixedWorkloadBenchmarks : IDisposable
     {
         if (Store == StoreType.BTree)
         {
-            m_btreeStorage = new MemoryStorage(4096, 5000);
-            m_store = new BTreeStore(m_btreeStorage, ownsStorage: false);
+            m_btreeStorage = new StorageMemory(4096, 5000);
+            m_store = new StoreBTree(m_btreeStorage, ownsStorage: false);
         }
         else
         {
@@ -289,7 +289,7 @@ public class StoreMixedWorkloadBenchmarks : IDisposable
                 Level0CompactionTrigger = 100,
                 BackgroundCompaction = false
             };
-            m_store = new LsmTreeStore(m_lsmDir, options);
+            m_store = new StoreLsm(m_lsmDir, options);
         }
         
         // Pre-populate with 2500 entries
@@ -373,8 +373,8 @@ public class StoreScanBenchmarks : IDisposable
     {
         if (Store == StoreType.BTree)
         {
-            m_btreeStorage = new MemoryStorage(4096, TreeSize / 3 + 1000);
-            m_store = new BTreeStore(m_btreeStorage, ownsStorage: false);
+            m_btreeStorage = new StorageMemory(4096, TreeSize / 3 + 1000);
+            m_store = new StoreBTree(m_btreeStorage, ownsStorage: false);
         }
         else
         {
@@ -389,7 +389,7 @@ public class StoreScanBenchmarks : IDisposable
                 Level0CompactionTrigger = 100,
                 BackgroundCompaction = false
             };
-            m_store = new LsmTreeStore(m_lsmDir, options);
+            m_store = new StoreLsm(m_lsmDir, options);
         }
         
         // Insert data
@@ -487,8 +487,8 @@ public class WriteHeavyBenchmarks : IDisposable
     {
         if (Store == StoreType.BTree)
         {
-            m_btreeStorage = new MemoryStorage(4096, Count + 5000);
-            m_store = new BTreeStore(m_btreeStorage, ownsStorage: false);
+            m_btreeStorage = new StorageMemory(4096, Count + 5000);
+            m_store = new StoreBTree(m_btreeStorage, ownsStorage: false);
         }
         else
         {
@@ -502,7 +502,7 @@ public class WriteHeavyBenchmarks : IDisposable
                 Level0CompactionTrigger = 100,
                 BackgroundCompaction = false
             };
-            m_store = new LsmTreeStore(m_lsmDir, options);
+            m_store = new StoreLsm(m_lsmDir, options);
         }
     }
 

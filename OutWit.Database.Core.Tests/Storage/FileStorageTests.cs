@@ -3,7 +3,7 @@ using OutWit.Database.Core.Storage;
 namespace OutWit.Database.Core.Tests.Storage;
 
 [TestFixture]
-public class FileStorageTest
+public class StorageFileTest
 {
     private string m_testDir = null!;
 
@@ -30,7 +30,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "new.wdb");
         
-        using var storage = new FileStorage(path);
+        using var storage = new StorageFile(path);
         
         Assert.That(File.Exists(path), Is.True);
         Assert.That(storage.PageSize, Is.EqualTo(DatabaseConstants.DEFAULT_PAGE_SIZE));
@@ -43,7 +43,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "custom.wdb");
         
-        using var storage = new FileStorage(path, pageSize: 8192);
+        using var storage = new StorageFile(path, pageSize: 8192);
         
         Assert.That(storage.PageSize, Is.EqualTo(8192));
     }
@@ -51,9 +51,9 @@ public class FileStorageTest
     [Test]
     public void ConstructorNullPathThrowsTest()
     {
-        Assert.Throws<ArgumentNullException>(() => new FileStorage(null!));
-        Assert.Throws<ArgumentException>(() => new FileStorage(""));
-        Assert.Throws<ArgumentException>(() => new FileStorage("   "));
+        Assert.Throws<ArgumentNullException>(() => new StorageFile(null!));
+        Assert.Throws<ArgumentException>(() => new StorageFile(""));
+        Assert.Throws<ArgumentException>(() => new StorageFile("   "));
     }
 
     [Test]
@@ -61,8 +61,8 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "invalid.wdb");
         
-        Assert.Throws<ArgumentOutOfRangeException>(() => new FileStorage(path, pageSize: 100));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new FileStorage(path, pageSize: 100000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new StorageFile(path, pageSize: 100));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new StorageFile(path, pageSize: 100000));
     }
 
     #endregion
@@ -74,7 +74,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "create.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         Assert.That(File.Exists(path), Is.True);
         Assert.That(storage.PageCount, Is.EqualTo(1));
@@ -86,7 +86,7 @@ public class FileStorageTest
         string path = Path.Combine(m_testDir, "existing.wdb");
         File.WriteAllText(path, "test");
         
-        Assert.Throws<IOException>(() => FileStorage.Create(path));
+        Assert.Throws<IOException>(() => StorageFile.Create(path));
     }
 
     #endregion
@@ -99,13 +99,13 @@ public class FileStorageTest
         string path = Path.Combine(m_testDir, "open.wdb");
         
         // Create file first
-        using (var storage = FileStorage.Create(path))
+        using (var storage = StorageFile.Create(path))
         {
             storage.SetSize(5);
         }
         
         // Open it
-        using var opened = FileStorage.Open(path);
+        using var opened = StorageFile.Open(path);
         
         Assert.That(opened.PageCount, Is.EqualTo(5));
     }
@@ -115,7 +115,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "nonexistent.wdb");
         
-        Assert.Throws<FileNotFoundException>(() => FileStorage.Open(path));
+        Assert.Throws<FileNotFoundException>(() => StorageFile.Open(path));
     }
 
     [Test]
@@ -123,12 +123,12 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "readonly.wdb");
         
-        using (var storage = FileStorage.Create(path))
+        using (var storage = StorageFile.Create(path))
         {
             storage.SetSize(5);
         }
         
-        using var readOnly = FileStorage.Open(path, readOnly: true);
+        using var readOnly = StorageFile.Open(path, readOnly: true);
         
         Assert.That(readOnly.IsReadOnly, Is.True);
         Assert.That(readOnly.PageCount, Is.EqualTo(5));
@@ -143,7 +143,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "readwrite.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         byte[] writeBuffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         Array.Fill(writeBuffer, (byte)0xAB);
@@ -160,7 +160,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "outofrange.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         
         Assert.Throws<ArgumentOutOfRangeException>(() => storage.ReadPage(-1, buffer));
@@ -172,7 +172,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "negative.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         
         Assert.Throws<ArgumentOutOfRangeException>(() => storage.WritePage(-1, buffer));
@@ -183,7 +183,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "small.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         byte[] smallBuffer = new byte[100];
         
         Assert.Throws<ArgumentException>(() => storage.ReadPage(0, smallBuffer));
@@ -195,9 +195,9 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "writereadonly.wdb");
         
-        using (FileStorage.Create(path)) { }
+        using (StorageFile.Create(path)) { }
         
-        using var readOnly = FileStorage.Open(path, readOnly: true);
+        using var readOnly = StorageFile.Open(path, readOnly: true);
         byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         
         Assert.Throws<InvalidOperationException>(() => readOnly.WritePage(0, buffer));
@@ -212,7 +212,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "async.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         byte[] writeBuffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         Array.Fill(writeBuffer, (byte)0xCD);
@@ -229,7 +229,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "concurrent.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         storage.SetSize(10);
         
         // Write unique data to each page
@@ -266,7 +266,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "extend.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         Assert.That(storage.PageCount, Is.EqualTo(1));
         
@@ -280,7 +280,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "shrink.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         storage.SetSize(10);
         
         Assert.That(storage.PageCount, Is.EqualTo(10));
@@ -295,7 +295,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "negsize.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         Assert.Throws<ArgumentOutOfRangeException>(() => storage.SetSize(-1));
     }
@@ -305,9 +305,9 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "sizereadonly.wdb");
         
-        using (FileStorage.Create(path)) { }
+        using (StorageFile.Create(path)) { }
         
-        using var readOnly = FileStorage.Open(path, readOnly: true);
+        using var readOnly = StorageFile.Open(path, readOnly: true);
         
         Assert.Throws<InvalidOperationException>(() => readOnly.SetSize(10));
     }
@@ -321,7 +321,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "flush.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         storage.WritePage(0, buffer);
@@ -336,7 +336,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "flushasync.wdb");
         
-        using var storage = FileStorage.Create(path);
+        using var storage = StorageFile.Create(path);
         
         byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         await storage.WritePageAsync(0, buffer);
@@ -355,7 +355,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "dispose.wdb");
         
-        var storage = FileStorage.Create(path);
+        var storage = StorageFile.Create(path);
         storage.Dispose();
         
         // File should be unlocked after dispose
@@ -368,7 +368,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "multidispose.wdb");
         
-        var storage = FileStorage.Create(path);
+        var storage = StorageFile.Create(path);
         
         storage.Dispose();
         storage.Dispose();
@@ -383,7 +383,7 @@ public class FileStorageTest
     {
         string path = Path.Combine(m_testDir, "afterdispose.wdb");
         
-        var storage = FileStorage.Create(path);
+        var storage = StorageFile.Create(path);
         storage.Dispose();
         
         byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
@@ -407,14 +407,14 @@ public class FileStorageTest
         new Random(42).NextBytes(originalData);
         
         // Write data
-        using (var storage = FileStorage.Create(path))
+        using (var storage = StorageFile.Create(path))
         {
             storage.WritePage(0, originalData);
             storage.Flush();
         }
         
         // Read data after reopen
-        using (var storage = FileStorage.Open(path))
+        using (var storage = StorageFile.Open(path))
         {
             byte[] readData = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
             storage.ReadPage(0, readData);

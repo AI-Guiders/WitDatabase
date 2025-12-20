@@ -61,7 +61,7 @@ public sealed class PageManager : IDisposable
     /// <param name="storage">Underlying storage</param>
     /// <param name="cacheSize">Number of pages to cache</param>
     public PageManager(IStorage storage, int cacheSize = DatabaseConstants.DEFAULT_CACHE_SIZE)
-        : this(storage, new ShardedClockCache(storage, cacheSize))
+        : this(storage, new PageCacheShardedClock(storage, cacheSize))
     {
     }
 

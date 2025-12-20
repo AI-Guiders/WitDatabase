@@ -26,8 +26,8 @@ public class TransactionalStoreTests : IDisposable
         Directory.CreateDirectory(m_testDir);
 
         var dbPath = Path.Combine(m_testDir, "test.db");
-        var storage = new MemoryStorage();
-        m_underlyingStore = new BTreeStore(storage);
+        var storage = new StorageMemory();
+        m_underlyingStore = new StoreBTree(storage);
         
         var journal = new WalTransactionJournal(Path.Combine(m_testDir, "test.wal"));
         var lockManager = new LockManager(dbPath);
@@ -429,8 +429,8 @@ public class TransactionalStoreTests : IDisposable
         var subDir = Path.Combine(m_testDir, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(subDir);
         
-        var storage = new MemoryStorage();
-        var store = new BTreeStore(storage);
+        var storage = new StorageMemory();
+        var store = new StoreBTree(storage);
         var journal = new WalTransactionJournal(Path.Combine(subDir, "test.wal"));
         var lockManager = new LockManager(Path.Combine(subDir, "test.db"), timeout);
         

@@ -430,7 +430,7 @@ public class WitDatabaseBuilderTests
     [Test]
     public void LsmWithCustomStorageThrowsTest()
     {
-        var storage = new MemoryStorage(4096);
+        var storage = new StorageMemory(4096);
         
         var ex = Assert.Throws<InvalidOperationException>(() =>
         {
@@ -447,7 +447,7 @@ public class WitDatabaseBuilderTests
     [Test]
     public void CustomStoreWithEncryptionThrowsTest()
     {
-        var store = new InMemoryStore();
+        var store = new StoreInMemory();
         var key = new byte[32];
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -465,8 +465,8 @@ public class WitDatabaseBuilderTests
     [Test]
     public void CustomStoreWithStorageThrowsTest()
     {
-        var store = new InMemoryStore();
-        var storage = new MemoryStorage(4096);
+        var store = new StoreInMemory();
+        var storage = new StorageMemory(4096);
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
         {
@@ -659,7 +659,7 @@ public class WitDatabaseBuilderTests
 
     #region Helper class for tests
 
-    private class InMemoryStore : IKeyValueStore
+    private class StoreInMemory : IKeyValueStore
     {
         private readonly Dictionary<string, byte[]> m_data = new();
 

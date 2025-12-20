@@ -10,7 +10,7 @@ namespace OutWit.Database.Core.Stores;
 /// Key-value store implementation backed by B+Tree.
 /// Implements IKeyValueStore for unified storage engine interface.
 /// </summary>
-public sealed class BTreeStore : IKeyValueStore, IAsyncDisposable
+public sealed class StoreBTree : IKeyValueStore, IAsyncDisposable
 {
     #region Fields
 
@@ -31,8 +31,8 @@ public sealed class BTreeStore : IKeyValueStore, IAsyncDisposable
     /// <param name="filePath">Path to the database file.</param>
     /// <param name="pageSize">Page size in bytes (default 4096).</param>
     /// <param name="cacheSize">Number of pages to cache (default 1000).</param>
-    public BTreeStore(string filePath, int pageSize = 4096, int cacheSize = 1000)
-        : this(new FileStorage(filePath, pageSize), cacheSize, ownsStorage: true)
+    public StoreBTree(string filePath, int pageSize = 4096, int cacheSize = 1000)
+        : this(new StorageFile(filePath, pageSize), cacheSize, ownsStorage: true)
     {
     }
 
@@ -42,7 +42,7 @@ public sealed class BTreeStore : IKeyValueStore, IAsyncDisposable
     /// <param name="storage">Storage implementation.</param>
     /// <param name="cacheSize">Number of pages to cache.</param>
     /// <param name="ownsStorage">If true, disposes the storage when this store is disposed.</param>
-    public BTreeStore(IStorage storage, int cacheSize = 1000, bool ownsStorage = true)
+    public StoreBTree(IStorage storage, int cacheSize = 1000, bool ownsStorage = true)
     {
         m_storage = storage ?? throw new ArgumentNullException(nameof(storage));
         m_ownsStorage = ownsStorage;
@@ -61,7 +61,7 @@ public sealed class BTreeStore : IKeyValueStore, IAsyncDisposable
     /// </summary>
     /// <param name="pageManager">The page manager to use.</param>
     /// <param name="rootPageNumber">Root page number (0 to create new tree).</param>
-    public BTreeStore(PageManager pageManager, uint rootPageNumber = 0)
+    public StoreBTree(PageManager pageManager, uint rootPageNumber = 0)
     {
         m_pageManager = pageManager ?? throw new ArgumentNullException(nameof(pageManager));
         m_storage = null;

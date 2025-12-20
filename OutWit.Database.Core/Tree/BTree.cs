@@ -48,7 +48,7 @@ public sealed partial class BTree : IDisposable, IAsyncDisposable
     #region Fields
 
     private readonly PageManager m_pageManager;
-    private readonly OverflowPageManager m_overflowManager;
+    private readonly PageManagerOverflow m_pageManagerOverflowManager;
     private readonly int m_maxInlineValueSize;
     
     private uint m_rootPageNumber;
@@ -72,7 +72,7 @@ public sealed partial class BTree : IDisposable, IAsyncDisposable
         int overheadPerEntry = 4 + 50 + 2; // varints + typical key + dir entry
         m_maxInlineValueSize = Math.Max(64, Math.Min(availablePerEntry - overheadPerEntry, m_pageManager.PageSize / 4));
         
-        m_overflowManager = new OverflowPageManager(pageManager, m_maxInlineValueSize);
+        m_pageManagerOverflowManager = new PageManagerOverflow(pageManager, m_maxInlineValueSize);
 
         if (rootPageNumber == 0)
         {
@@ -224,7 +224,7 @@ public sealed partial class BTree : IDisposable, IAsyncDisposable
         {
             SaveEntryCountIfDirty();
             m_pageManager.Flush();
-            m_overflowManager.Dispose();
+            m_pageManagerOverflowManager.Dispose();
             m_disposed = true;
         }
     }
@@ -235,7 +235,7 @@ public sealed partial class BTree : IDisposable, IAsyncDisposable
         {
             SaveEntryCountIfDirty();
             await m_pageManager.FlushAsync().ConfigureAwait(false);
-            m_overflowManager.Dispose();
+            m_pageManagerOverflowManager.Dispose();
             m_disposed = true;
         }
     }

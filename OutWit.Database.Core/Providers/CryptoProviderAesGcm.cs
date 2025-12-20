@@ -8,7 +8,7 @@ namespace OutWit.Database.Core.Providers;
 /// Fast, hardware-accelerated with AES-NI.
 /// Thread-safe - creates new AesGcm instance per operation.
 /// </summary>
-public sealed class AesGcmCryptoProvider : ICryptoProvider
+public sealed class CryptoProviderAesGcm : ICryptoProvider
 {
     #region Constants
 
@@ -38,7 +38,7 @@ public sealed class AesGcmCryptoProvider : ICryptoProvider
     /// Creates AES-GCM provider with specified key.
     /// </summary>
     /// <param name="key">256-bit (32 bytes) encryption key.</param>
-    public AesGcmCryptoProvider(byte[] key)
+    public CryptoProviderAesGcm(byte[] key)
     {
         if (key.Length != 32)
             throw new ArgumentException("Key must be 256 bits (32 bytes)", nameof(key));
@@ -57,7 +57,7 @@ public sealed class AesGcmCryptoProvider : ICryptoProvider
     /// <param name="password">User password.</param>
     /// <param name="salt">Salt for key derivation (at least 8 bytes, 16 recommended).</param>
     /// <param name="iterations">PBKDF2 iteration count (minimum 10000).</param>
-    public static AesGcmCryptoProvider FromPassword(string password, byte[] salt, int iterations = DEFAULT_ITERATIONS)
+    public static CryptoProviderAesGcm FromPassword(string password, byte[] salt, int iterations = DEFAULT_ITERATIONS)
     {
         if (string.IsNullOrEmpty(password))
             throw new ArgumentException("Password cannot be empty", nameof(password));
@@ -67,7 +67,7 @@ public sealed class AesGcmCryptoProvider : ICryptoProvider
             throw new ArgumentException($"Iterations must be at least {MIN_ITERATIONS}", nameof(iterations));
 
         var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, 32);
-        return new AesGcmCryptoProvider(key);
+        return new CryptoProviderAesGcm(key);
     }
 
     #endregion

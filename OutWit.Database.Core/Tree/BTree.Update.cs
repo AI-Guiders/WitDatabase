@@ -40,7 +40,7 @@ public sealed partial class BTree
         // Free old overflow if needed
         if (wasOverflow)
         {
-            m_overflowManager.FreeOverflow(oldOverflowPage);
+            m_pageManagerOverflowManager.FreeOverflow(oldOverflowPage);
         }
         
         // Determine if new value needs overflow
@@ -50,7 +50,7 @@ public sealed partial class BTree
         
         if (needsOverflow)
         {
-            newOverflowPage = m_overflowManager.StoreOverflow(newValue);
+            newOverflowPage = m_pageManagerOverflowManager.StoreOverflow(newValue);
             overflowRef = new byte[BTreeNode.OVERFLOW_REF_SIZE];
             overflowRef[0] = BTreeNode.OVERFLOW_MARKER;
             BinaryPrimitives.WriteUInt32LittleEndian(overflowRef.AsSpan(1), newOverflowPage);

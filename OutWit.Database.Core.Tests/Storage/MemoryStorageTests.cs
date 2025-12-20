@@ -3,12 +3,12 @@ using OutWit.Database.Core.Storage;
 namespace OutWit.Database.Core.Tests.Storage
 {
     [TestFixture]
-    public class MemoryStorageTest
+    public class StorageMemoryTest
     {
         [Test]
         public void CreateWithDefaultPageSizeTest()
         {
-            using var storage = new MemoryStorage();
+            using var storage = new StorageMemory();
         
             Assert.That(storage.PageSize, Is.EqualTo(DatabaseConstants.DEFAULT_PAGE_SIZE));
             Assert.That(storage.PageCount, Is.EqualTo(1));
@@ -18,7 +18,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void CreateWithCustomPageSizeTest()
         {
-            using var storage = new MemoryStorage(pageSize: 8192, initialPageCount: 5);
+            using var storage = new StorageMemory(pageSize: 8192, initialPageCount: 5);
         
             Assert.That(storage.PageSize, Is.EqualTo(8192));
             Assert.That(storage.PageCount, Is.EqualTo(5));
@@ -27,7 +27,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void WriteAndReadPageTest()
         {
-            using var storage = new MemoryStorage();
+            using var storage = new StorageMemory();
         
             byte[] writeBuffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
             Array.Fill(writeBuffer, (byte)0xAB);
@@ -42,7 +42,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void SetSizeExtendsStorageTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 1);
+            using var storage = new StorageMemory(initialPageCount: 1);
         
             Assert.That(storage.PageCount, Is.EqualTo(1));
         
@@ -54,7 +54,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void SetSizeShrinksStorageTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 10);
+            using var storage = new StorageMemory(initialPageCount: 10);
         
             storage.SetSize(5);
         
@@ -64,7 +64,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void ReadOutOfRangeThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 1);
+            using var storage = new StorageMemory(initialPageCount: 1);
             byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         
             Assert.Throws<ArgumentOutOfRangeException>(() => storage.ReadPage(1, buffer));
@@ -74,7 +74,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void WriteOutOfRangeThrowsTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 1);
+            using var storage = new StorageMemory(initialPageCount: 1);
             byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
         
             Assert.Throws<ArgumentOutOfRangeException>(() => storage.WritePage(1, buffer));
@@ -83,7 +83,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void SmallBufferThrowsTest()
         {
-            using var storage = new MemoryStorage();
+            using var storage = new StorageMemory();
             byte[] smallBuffer = new byte[100];
         
             Assert.Throws<ArgumentException>(() => storage.ReadPage(0, smallBuffer));
@@ -93,7 +93,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void DisposeAndAccessThrowsTest()
         {
-            var storage = new MemoryStorage();
+            var storage = new StorageMemory();
             storage.Dispose();
         
             byte[] buffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
@@ -105,7 +105,7 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public async Task AsyncReadWriteTest()
         {
-            using var storage = new MemoryStorage();
+            using var storage = new StorageMemory();
         
             byte[] writeBuffer = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
             Array.Fill(writeBuffer, (byte)0xCD);
@@ -120,15 +120,15 @@ namespace OutWit.Database.Core.Tests.Storage
         [Test]
         public void InvalidPageSizeThrowsTest()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryStorage(pageSize: 100));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new StorageMemory(pageSize: 100));
             // MaxPageSize is 65536, so anything above that should throw
-            Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryStorage(pageSize: 70000));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new StorageMemory(pageSize: 70000));
         }
 
         [Test]
         public void GetDataReturnsUnderlyingMemoryTest()
         {
-            using var storage = new MemoryStorage(initialPageCount: 2);
+            using var storage = new StorageMemory(initialPageCount: 2);
         
             ReadOnlyMemory<byte> data = storage.Data;
         

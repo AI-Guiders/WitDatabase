@@ -88,7 +88,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = bgCompaction
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
 
             // Write
             for (int i = 0; i < count; i++)
@@ -126,7 +126,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = false
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
             var stats = store.Statistics;
 
             // Write
@@ -168,7 +168,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = bgCompaction
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
             var exceptions = new List<Exception>();
 
             var tasks = Enumerable.Range(0, writerCount)
@@ -227,7 +227,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = bgCompaction
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
             var exceptions = new List<Exception>();
 
             // Pre-populate
@@ -302,7 +302,7 @@ namespace OutWit.Database.Core.Tests.LSM
             };
 
             // Write phase
-            using (var store = new LsmTreeStore(dir, options))
+            using (var store = new StoreLsm(dir, options))
             {
                 for (int i = 0; i < count; i++)
                 {
@@ -312,7 +312,7 @@ namespace OutWit.Database.Core.Tests.LSM
             }
 
             // Reopen and verify
-            using (var store = new LsmTreeStore(dir, options))
+            using (var store = new StoreLsm(dir, options))
             {
                 int recovered = 0;
                 for (int i = 0; i < count; i++)
@@ -354,7 +354,7 @@ namespace OutWit.Database.Core.Tests.LSM
 
             for (int cycle = 0; cycle < cycles; cycle++)
             {
-                using var store = new LsmTreeStore(dir, options);
+                using var store = new StoreLsm(dir, options);
 
                 // Verify previous cycles' data
                 for (int prevCycle = 0; prevCycle < cycle; prevCycle++)
@@ -376,7 +376,7 @@ namespace OutWit.Database.Core.Tests.LSM
             }
 
             // Final verification
-            using (var store = new LsmTreeStore(dir, options))
+            using (var store = new StoreLsm(dir, options))
             {
                 int totalKeys = cycles * keysPerCycle;
                 var scanCount = store.Scan(null, null).Count();
@@ -405,7 +405,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = true
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
             var expected = new Dictionary<int, int>();
             var random = new Random(42);
 
@@ -474,7 +474,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = true
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
 
             const int waves = 20;
             const int keysPerWave = 1_000;
@@ -528,7 +528,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = bgCompaction
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
 
             // Empty value
             store.Put(BitConverter.GetBytes(1), []);
@@ -560,7 +560,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = bgCompaction
             };
 
-            using var store = new LsmTreeStore(dir, options);
+            using var store = new StoreLsm(dir, options);
             var random = new Random(42);
 
             // Values up to 100KB
@@ -593,12 +593,12 @@ namespace OutWit.Database.Core.Tests.LSM
 
             for (int i = 0; i < 20; i++)
             {
-                using var store = new LsmTreeStore(dir, options);
+                using var store = new StoreLsm(dir, options);
                 store.Put(BitConverter.GetBytes(i), BitConverter.GetBytes(i));
             }
 
             // Verify all data survived
-            using (var store = new LsmTreeStore(dir, options))
+            using (var store = new StoreLsm(dir, options))
             {
                 for (int i = 0; i < 20; i++)
                 {

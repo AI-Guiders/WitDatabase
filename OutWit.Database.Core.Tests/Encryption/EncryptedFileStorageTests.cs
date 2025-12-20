@@ -34,12 +34,12 @@ public class EncryptedFileStorageTests
         }
     }
 
-    private EncryptedStorage CreateEncryptedFileStorage(string filename, byte[] key, byte[] salt, int pageSize = 4096)
+    private StorageEncrypted CreateEncryptedFileStorage(string filename, byte[] key, byte[] salt, int pageSize = 4096)
     {
-        var innerStorage = new FileStorage(filename, pageSize + 28);
-        var provider = new AesGcmCryptoProvider(key);
+        var innerStorage = new StorageFile(filename, pageSize + 28);
+        var provider = new CryptoProviderAesGcm(key);
         var encryptor = new PageEncryptor(provider, salt);
-        return new EncryptedStorage(innerStorage, encryptor);
+        return new StorageEncrypted(innerStorage, encryptor);
     }
 
     [Test]
@@ -182,19 +182,19 @@ public class EncryptedFileStorageTests
         byte[] data = new byte[4096];
         Random.Shared.NextBytes(data);
 
-        using (var innerStorage = new FileStorage(filename, 4096 + 28))
-        using (var provider = AesGcmCryptoProvider.FromPassword(password, m_salt, iterations: 10000))
+        using (var innerStorage = new StorageFile(filename, 4096 + 28))
+        using (var provider = CryptoProviderAesGcm.FromPassword(password, m_salt, iterations: 10000))
         using (var encryptor = new PageEncryptor(provider, m_salt))
-        using (var storage = new EncryptedStorage(innerStorage, encryptor))
+        using (var storage = new StorageEncrypted(innerStorage, encryptor))
         {
             storage.WritePage(0, data);
             storage.Flush();
         }
 
-        using (var innerStorage = new FileStorage(filename, 4096 + 28))
-        using (var provider = AesGcmCryptoProvider.FromPassword(password, m_salt, iterations: 10000))
+        using (var innerStorage = new StorageFile(filename, 4096 + 28))
+        using (var provider = CryptoProviderAesGcm.FromPassword(password, m_salt, iterations: 10000))
         using (var encryptor = new PageEncryptor(provider, m_salt))
-        using (var storage = new EncryptedStorage(innerStorage, encryptor))
+        using (var storage = new StorageEncrypted(innerStorage, encryptor))
         {
             byte[] readBuffer = new byte[storage.PageSize];
             storage.ReadPage(0, readBuffer);

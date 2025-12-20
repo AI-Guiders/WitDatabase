@@ -8,7 +8,7 @@ namespace OutWit.Database.Core.Tests.Encryption;
 /// Tests for AesGcmCryptoProvider - key derivation, validation, and basic operations.
 /// </summary>
 [TestFixture]
-public class AesGcmCryptoProviderTests
+public class CryptoProviderAesGcmTests
 {
     private byte[] m_key = null!;
     private byte[] m_salt = null!;
@@ -27,7 +27,7 @@ public class AesGcmCryptoProviderTests
     {
         string password = "MySecurePassword123!";
 
-        using var provider = AesGcmCryptoProvider.FromPassword(password, m_salt, iterations: 10000);
+        using var provider = CryptoProviderAesGcm.FromPassword(password, m_salt, iterations: 10000);
         using var encryptor = new PageEncryptor(provider, m_salt);
         
         byte[] plaintext = new byte[4096];
@@ -48,10 +48,10 @@ public class AesGcmCryptoProviderTests
     {
         string password = "TestPassword";
 
-        using var provider1 = AesGcmCryptoProvider.FromPassword(password, m_salt, iterations: 10000);
+        using var provider1 = CryptoProviderAesGcm.FromPassword(password, m_salt, iterations: 10000);
         using var encryptor1 = new PageEncryptor(provider1, m_salt);
 
-        using var provider2 = AesGcmCryptoProvider.FromPassword(password, m_salt, iterations: 10000);
+        using var provider2 = CryptoProviderAesGcm.FromPassword(password, m_salt, iterations: 10000);
         using var encryptor2 = new PageEncryptor(provider2, m_salt);
         
         byte[] plaintext = new byte[100];
@@ -70,10 +70,10 @@ public class AesGcmCryptoProviderTests
     [Test]
     public void FromPasswordDifferentPasswordsProduceDifferentKeysTest()
     {
-        using var provider1 = AesGcmCryptoProvider.FromPassword("password1", m_salt, iterations: 10000);
+        using var provider1 = CryptoProviderAesGcm.FromPassword("password1", m_salt, iterations: 10000);
         using var encryptor1 = new PageEncryptor(provider1, m_salt);
 
-        using var provider2 = AesGcmCryptoProvider.FromPassword("password2", m_salt, iterations: 10000);
+        using var provider2 = CryptoProviderAesGcm.FromPassword("password2", m_salt, iterations: 10000);
         using var encryptor2 = new PageEncryptor(provider2, m_salt);
         
         byte[] plaintext = new byte[100];
@@ -94,10 +94,10 @@ public class AesGcmCryptoProviderTests
         byte[] salt1 = RandomNumberGenerator.GetBytes(16);
         byte[] salt2 = RandomNumberGenerator.GetBytes(16);
 
-        using var provider1 = AesGcmCryptoProvider.FromPassword("password", salt1, iterations: 10000);
+        using var provider1 = CryptoProviderAesGcm.FromPassword("password", salt1, iterations: 10000);
         using var encryptor1 = new PageEncryptor(provider1, salt1);
 
-        using var provider2 = AesGcmCryptoProvider.FromPassword("password", salt2, iterations: 10000);
+        using var provider2 = CryptoProviderAesGcm.FromPassword("password", salt2, iterations: 10000);
         using var encryptor2 = new PageEncryptor(provider2, salt2);
         
         byte[] plaintext = new byte[100];
@@ -119,39 +119,39 @@ public class AesGcmCryptoProviderTests
     [Test]
     public void ConstructorInvalidKeySizeThrowsTest()
     {
-        Assert.Throws<ArgumentException>(() => new AesGcmCryptoProvider(new byte[16]));
-        Assert.Throws<ArgumentException>(() => new AesGcmCryptoProvider(new byte[24]));
-        Assert.Throws<ArgumentException>(() => new AesGcmCryptoProvider(new byte[64]));
-        Assert.Throws<ArgumentException>(() => new AesGcmCryptoProvider([]));
+        Assert.Throws<ArgumentException>(() => new CryptoProviderAesGcm(new byte[16]));
+        Assert.Throws<ArgumentException>(() => new CryptoProviderAesGcm(new byte[24]));
+        Assert.Throws<ArgumentException>(() => new CryptoProviderAesGcm(new byte[64]));
+        Assert.Throws<ArgumentException>(() => new CryptoProviderAesGcm([]));
     }
 
     [Test]
     public void FromPasswordEmptyPasswordThrowsTest()
     {
         Assert.Throws<ArgumentException>(() => 
-            AesGcmCryptoProvider.FromPassword("", m_salt, iterations: 10000));
+            CryptoProviderAesGcm.FromPassword("", m_salt, iterations: 10000));
         Assert.Throws<ArgumentException>(() => 
-            AesGcmCryptoProvider.FromPassword(null!, m_salt, iterations: 10000));
+            CryptoProviderAesGcm.FromPassword(null!, m_salt, iterations: 10000));
     }
 
     [Test]
     public void FromPasswordSaltTooShortThrowsTest()
     {
         Assert.Throws<ArgumentException>(() => 
-            AesGcmCryptoProvider.FromPassword("password", new byte[4], iterations: 10000));
+            CryptoProviderAesGcm.FromPassword("password", new byte[4], iterations: 10000));
     }
 
     [Test]
     public void FromPasswordIterationsTooLowThrowsTest()
     {
         Assert.Throws<ArgumentException>(() => 
-            AesGcmCryptoProvider.FromPassword("password", m_salt, iterations: 1000));
+            CryptoProviderAesGcm.FromPassword("password", m_salt, iterations: 1000));
     }
 
     [Test]
     public void AfterDisposeThrowsObjectDisposedExceptionTest()
     {
-        var provider = new AesGcmCryptoProvider(m_key);
+        var provider = new CryptoProviderAesGcm(m_key);
         provider.Dispose();
 
         byte[] nonce = new byte[12];
@@ -172,21 +172,21 @@ public class AesGcmCryptoProviderTests
     [Test]
     public void NonceSizeIs12BytesTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         Assert.That(provider.NonceSize, Is.EqualTo(12));
     }
 
     [Test]
     public void TagSizeIs16BytesTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         Assert.That(provider.TagSize, Is.EqualTo(16));
     }
 
     [Test]
     public void OverheadIs28BytesTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         Assert.That(provider.NonceSize + provider.TagSize, Is.EqualTo(28));
     }
 

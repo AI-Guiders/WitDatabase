@@ -52,8 +52,8 @@ public class TransactionalStoreStressTests : IDisposable
         var subDir = Path.Combine(m_testDir, name);
         Directory.CreateDirectory(subDir);
 
-        var storage = new MemoryStorage();
-        var btree = new BTreeStore(storage);
+        var storage = new StorageMemory();
+        var btree = new StoreBTree(storage);
         var journal = new WalTransactionJournal(Path.Combine(subDir, "test.wal"));
         
         // Use in-memory locking only (no file lock) for reliable stress tests
@@ -70,8 +70,8 @@ public class TransactionalStoreStressTests : IDisposable
         var subDir = Path.Combine(m_testDir, name);
         Directory.CreateDirectory(subDir);
 
-        var storage = new MemoryStorage();
-        var btree = new BTreeStore(storage);
+        var storage = new StorageMemory();
+        var btree = new StoreBTree(storage);
         var journal = new WalTransactionJournal(Path.Combine(subDir, "test.wal"));
         var lockManager = new LockManager(Path.Combine(subDir, "test.db"), timeout ?? TimeSpan.FromSeconds(30));
 
@@ -341,8 +341,8 @@ public class TransactionalStoreStressTests : IDisposable
         Directory.CreateDirectory(subDir);
         var walPath = Path.Combine(subDir, "test.wal");
 
-        var storage = new MemoryStorage();
-        var btree = new BTreeStore(storage);
+        var storage = new StorageMemory();
+        var btree = new StoreBTree(storage);
         var journal = new WalTransactionJournal(walPath);
         var lockManager = new LockManager(); // No file lock
 

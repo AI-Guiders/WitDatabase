@@ -10,7 +10,7 @@ namespace OutWit.Database.Core.Stores;
 /// Thread-safe for concurrent reads and exclusive writes.
 /// Does not persist data - suitable for testing or temporary storage.
 /// </summary>
-public sealed class InMemoryStore : IKeyValueStore
+public sealed class StoreInMemory : IKeyValueStore
 {
     #region Fields
 
@@ -27,7 +27,7 @@ public sealed class InMemoryStore : IKeyValueStore
     /// <summary>
     /// Creates a new empty in-memory store.
     /// </summary>
-    public InMemoryStore()
+    public StoreInMemory()
     {
         m_data = new SortedDictionary<byte[], byte[]>(ByteArrayComparer.Default);
     }

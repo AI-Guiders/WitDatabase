@@ -9,7 +9,7 @@ namespace OutWit.Database.Core.Storage
     /// <summary>
     /// Storage wrapper that encrypts/decrypts pages transparently.
     /// </summary>
-    public sealed class EncryptedStorage : IStorage
+    public sealed class StorageEncrypted : IStorage
     {
         #region Constants
 
@@ -39,7 +39,7 @@ namespace OutWit.Database.Core.Storage
         /// </summary>
         /// <param name="innerStorage">The underlying storage.</param>
         /// <param name="encryptor">The page encryptor.</param>
-        public EncryptedStorage(IStorage innerStorage, IPageEncryptor encryptor)
+        public StorageEncrypted(IStorage innerStorage, IPageEncryptor encryptor)
         {
             ArgumentNullException.ThrowIfNull(innerStorage);
             ArgumentNullException.ThrowIfNull(encryptor);

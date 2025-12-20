@@ -30,7 +30,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 Level0CompactionTrigger = 10
             };
 
-            return new LsmTreeStore(m_testDir, options);
+            return new StoreLsm(m_testDir, options);
         }
 
         protected override void CleanupStore()
@@ -95,7 +95,7 @@ namespace OutWit.Database.Core.Tests.LSM
             var options = new LsmOptions { EnableWal = true };
 
             // Write data
-            using (var store = new LsmTreeStore(m_testDir, options))
+            using (var store = new StoreLsm(m_testDir, options))
             {
                 for (int i = 0; i < 100; i++)
                 {
@@ -104,7 +104,7 @@ namespace OutWit.Database.Core.Tests.LSM
             }
 
             // Reopen and verify
-            using (var store = new LsmTreeStore(m_testDir, options))
+            using (var store = new StoreLsm(m_testDir, options))
             {
                 for (int i = 0; i < 100; i++)
                 {
@@ -125,7 +125,7 @@ namespace OutWit.Database.Core.Tests.LSM
             };
 
             // Write and flush data
-            using (var store = new LsmTreeStore(m_testDir, options))
+            using (var store = new StoreLsm(m_testDir, options))
             {
                 for (int i = 0; i < 100; i++)
                 {
@@ -135,7 +135,7 @@ namespace OutWit.Database.Core.Tests.LSM
             }
 
             // Reopen and verify
-            using (var store = new LsmTreeStore(m_testDir, options))
+            using (var store = new StoreLsm(m_testDir, options))
             {
                 for (int i = 0; i < 100; i++)
                 {
@@ -150,7 +150,7 @@ namespace OutWit.Database.Core.Tests.LSM
         {
             var options = new LsmOptions { EnableWal = true };
 
-            using (var store = new LsmTreeStore(m_testDir, options))
+            using (var store = new StoreLsm(m_testDir, options))
             {
                 for (int i = 0; i < 100; i++)
                 {
@@ -164,7 +164,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 }
             }
 
-            using (var store = new LsmTreeStore(m_testDir, options))
+            using (var store = new StoreLsm(m_testDir, options))
             {
                 // Deleted keys should stay deleted
                 for (int i = 0; i < 50; i++)
@@ -195,7 +195,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = false
             };
 
-            using var store = new LsmTreeStore(m_testDir, options);
+            using var store = new StoreLsm(m_testDir, options);
 
             // Insert data in waves to create multiple SSTables
             for (int wave = 0; wave < 10; wave++)
@@ -229,7 +229,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = false
             };
 
-            using var store = new LsmTreeStore(m_testDir, options);
+            using var store = new StoreLsm(m_testDir, options);
 
             // Insert data
             for (int i = 0; i < 100; i++)
@@ -272,7 +272,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BlockCacheSizeBytes = 10 * 1024 * 1024 // 10MB
             };
 
-            using var store = new LsmTreeStore(m_testDir, options);
+            using var store = new StoreLsm(m_testDir, options);
 
             // Insert and flush
             for (int i = 0; i < 1000; i++)
@@ -317,7 +317,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = false
             };
 
-            using var store = new LsmTreeStore(m_testDir, options);
+            using var store = new StoreLsm(m_testDir, options);
 
             // Create multiple SSTables and read to populate cache
             for (int wave = 0; wave < 5; wave++)
@@ -364,7 +364,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 Level0CompactionTrigger = 100
             };
 
-            using var store = new LsmTreeStore(m_testDir, options);
+            using var store = new StoreLsm(m_testDir, options);
             var stats = store.Statistics;
 
             // Verify initial state
@@ -402,7 +402,7 @@ namespace OutWit.Database.Core.Tests.LSM
         [Test]
         public void DisposedStoreThrowsObjectDisposedException()
         {
-            var store = new LsmTreeStore(m_testDir, new LsmOptions { EnableWal = false });
+            var store = new StoreLsm(m_testDir, new LsmOptions { EnableWal = false });
             store.Put("key"u8.ToArray(), "value"u8.ToArray());
             store.Dispose();
 
@@ -431,7 +431,7 @@ namespace OutWit.Database.Core.Tests.LSM
                 BackgroundCompaction = true
             };
 
-            using var store = new LsmTreeStore(m_testDir, options);
+            using var store = new StoreLsm(m_testDir, options);
 
             const int count = 100_000;
             var value = new byte[100];

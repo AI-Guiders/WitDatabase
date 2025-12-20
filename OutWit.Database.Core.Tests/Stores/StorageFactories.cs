@@ -41,7 +41,7 @@ public class MemoryStorageFactory : IStorageFactory
 
     public IStorage CreateStorage()
     {
-        var storage = new MemoryStorage(m_pageSize, m_maxPages);
+        var storage = new StorageMemory(m_pageSize, m_maxPages);
         m_disposables.Add(storage);
         return storage;
     }
@@ -49,7 +49,7 @@ public class MemoryStorageFactory : IStorageFactory
     public IKeyValueStore CreateStore()
     {
         var storage = CreateStorage();
-        var store = new BTreeStore(storage, m_cacheSize, ownsStorage: false);
+        var store = new StoreBTree(storage, m_cacheSize, ownsStorage: false);
         m_disposables.Add(store);
         return store;
     }
@@ -89,7 +89,7 @@ public class FileStorageFactory : IStorageFactory
     {
         var filePath = Path.Combine(m_testDir, $"test_{Guid.NewGuid():N}.db");
         m_filesToDelete.Add(filePath);
-        var storage = new FileStorage(filePath, m_pageSize);
+        var storage = new StorageFile(filePath, m_pageSize);
         m_disposables.Add(storage);
         return storage;
     }
@@ -98,7 +98,7 @@ public class FileStorageFactory : IStorageFactory
     {
         var filePath = Path.Combine(m_testDir, $"test_{Guid.NewGuid():N}.db");
         m_filesToDelete.Add(filePath);
-        var store = new BTreeStore(filePath, m_pageSize, m_cacheSize);
+        var store = new StoreBTree(filePath, m_pageSize, m_cacheSize);
         m_disposables.Add(store);
         return store;
     }
@@ -153,10 +153,10 @@ public class EncryptedMemoryStorageFactory : IStorageFactory
     public IStorage CreateStorage()
     {
         int physicalPageSize = m_pageSize + 28; // +overhead
-        var innerStorage = new MemoryStorage(physicalPageSize, m_maxPages);
-        var provider = new AesGcmCryptoProvider(m_key);
+        var innerStorage = new StorageMemory(physicalPageSize, m_maxPages);
+        var provider = new CryptoProviderAesGcm(m_key);
         var encryptor = new PageEncryptor(provider, m_salt);
-        var storage = new EncryptedStorage(innerStorage, encryptor);
+        var storage = new StorageEncrypted(innerStorage, encryptor);
         m_disposables.Add(storage);
         return storage;
     }
@@ -164,7 +164,7 @@ public class EncryptedMemoryStorageFactory : IStorageFactory
     public IKeyValueStore CreateStore()
     {
         var storage = CreateStorage();
-        var store = new BTreeStore(storage, m_cacheSize, ownsStorage: false);
+        var store = new StoreBTree(storage, m_cacheSize, ownsStorage: false);
         m_disposables.Add(store);
         return store;
     }
@@ -209,10 +209,10 @@ public class EncryptedFileStorageFactory : IStorageFactory
         int physicalPageSize = m_pageSize + 28;
         var filePath = Path.Combine(m_testDir, $"test_{Guid.NewGuid():N}.db");
         m_filesToDelete.Add(filePath);
-        var innerStorage = new FileStorage(filePath, physicalPageSize);
-        var provider = new AesGcmCryptoProvider(m_key);
+        var innerStorage = new StorageFile(filePath, physicalPageSize);
+        var provider = new CryptoProviderAesGcm(m_key);
         var encryptor = new PageEncryptor(provider, m_salt);
-        var storage = new EncryptedStorage(innerStorage, encryptor);
+        var storage = new StorageEncrypted(innerStorage, encryptor);
         m_disposables.Add(storage);
         return storage;
     }
@@ -220,7 +220,7 @@ public class EncryptedFileStorageFactory : IStorageFactory
     public IKeyValueStore CreateStore()
     {
         var storage = CreateStorage();
-        var store = new BTreeStore(storage, m_cacheSize, ownsStorage: false);
+        var store = new StoreBTree(storage, m_cacheSize, ownsStorage: false);
         m_disposables.Add(store);
         return store;
     }
@@ -285,7 +285,7 @@ public class LsmStorageFactory : IStorageFactory
     public IKeyValueStore CreateStore()
     {
         var storeDir = Path.Combine(m_testDir, $"store_{Guid.NewGuid():N}");
-        var store = new LsmTreeStore(storeDir, m_options);
+        var store = new StoreLsm(storeDir, m_options);
         m_disposables.Add(store);
         return store;
     }
@@ -319,7 +319,7 @@ public class EncryptedLsmStorageFactory : IStorageFactory
         
         var key = RandomNumberGenerator.GetBytes(32);
         var salt = RandomNumberGenerator.GetBytes(16);
-        var provider = new AesGcmCryptoProvider(key);
+        var provider = new CryptoProviderAesGcm(key);
         var encryptor = new BlockEncryptor(provider, salt);
         
         m_options = new LsmOptions
@@ -345,7 +345,7 @@ public class EncryptedLsmStorageFactory : IStorageFactory
     public IKeyValueStore CreateStore()
     {
         var storeDir = Path.Combine(m_testDir, $"store_{Guid.NewGuid():N}");
-        var store = new LsmTreeStore(storeDir, m_options);
+        var store = new StoreLsm(storeDir, m_options);
         m_disposables.Add(store);
         return store;
     }

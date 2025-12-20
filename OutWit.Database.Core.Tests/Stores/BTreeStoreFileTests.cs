@@ -33,7 +33,7 @@ public class BTreeStoreFileTest : KeyValueStoreTestBase
     protected override IKeyValueStore CreateStore()
     {
         m_dbPath = Path.Combine(m_testDir!, $"test_{Guid.NewGuid():N}.db");
-        return new BTreeStore(m_dbPath, pageSize: 4096, cacheSize: 1000);
+        return new StoreBTree(m_dbPath, pageSize: 4096, cacheSize: 1000);
     }
 
     protected override void CleanupStore()

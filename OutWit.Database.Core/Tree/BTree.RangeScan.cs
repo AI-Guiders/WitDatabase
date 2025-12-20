@@ -128,7 +128,7 @@ public sealed partial class BTree
                     m_pageManager.ReleasePage(pageNumber);
                     page = null!; // Mark as released
                     
-                    valueBytes = m_overflowManager.ReadOverflow(overflowPage);
+                    valueBytes = m_pageManagerOverflowManager.ReadOverflow(overflowPage);
                     
                     page = m_pageManager.GetPage(pageNumber);
                     node = new BTreeNode(page.Data, PageSize, pageNumber);

@@ -24,7 +24,7 @@ public class EncryptionStressTests
     [Test]
     public void PageEncryptorEncryptManyPagesAllSucceedTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new PageEncryptor(provider, m_salt);
 
         byte[] plaintext = new byte[4096];
@@ -46,7 +46,7 @@ public class EncryptionStressTests
     [Test]
     public void PageEncryptorRandomPageAccessAllSucceedTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new PageEncryptor(provider, m_salt);
 
         var random = new Random(42);
@@ -79,7 +79,7 @@ public class EncryptionStressTests
     [Test]
     public void BlockEncryptorEncryptManyBlocksAllSucceedTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new BlockEncryptor(provider, m_salt);
 
         var random = new Random(42);
@@ -101,7 +101,7 @@ public class EncryptionStressTests
     [Test]
     public void BlockEncryptorRandomBlockAccessAllSucceedTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new BlockEncryptor(provider, m_salt);
 
         var random = new Random(42);
@@ -132,7 +132,7 @@ public class EncryptionStressTests
     [Test]
     public void PageEncryptorLargePagesAllSucceedTest()
     {
-        using var provider = new AesGcmCryptoProvider(m_key);
+        using var provider = new CryptoProviderAesGcm(m_key);
         using var encryptor = new PageEncryptor(provider, m_salt);
 
         int[] pageSizes = [8192, 16384, 32768, 65536];

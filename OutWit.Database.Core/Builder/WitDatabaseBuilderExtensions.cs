@@ -117,7 +117,7 @@ public static class WitDatabaseBuilderExtensions
         var salt = CryptoUtils.DerivePasswordSalt(password);
         var key = CryptoUtils.DeriveKey(password, salt);
         
-        builder.Options.CryptoProvider = new AesGcmCryptoProvider(key);
+        builder.Options.CryptoProvider = new CryptoProviderAesGcm(key);
         builder.Options.EncryptionSalt = salt;
         return builder;
     }
@@ -139,7 +139,7 @@ public static class WitDatabaseBuilderExtensions
         var salt = CryptoUtils.DeriveUserSalt(user);
         var key = CryptoUtils.DeriveKey(password, salt);
         
-        builder.Options.CryptoProvider = new AesGcmCryptoProvider(key);
+        builder.Options.CryptoProvider = new CryptoProviderAesGcm(key);
         builder.Options.EncryptionSalt = salt;
         return builder;
     }
@@ -152,7 +152,7 @@ public static class WitDatabaseBuilderExtensions
         if (key.Length != 32)
             throw new ArgumentException("AES-256 requires a 32-byte key", nameof(key));
         
-        builder.Options.CryptoProvider = new AesGcmCryptoProvider(key);
+        builder.Options.CryptoProvider = new CryptoProviderAesGcm(key);
         return builder;
     }
 
@@ -166,7 +166,7 @@ public static class WitDatabaseBuilderExtensions
         if (salt.Length < 8)
             throw new ArgumentException("Salt must be at least 8 bytes", nameof(salt));
         
-        builder.Options.CryptoProvider = new AesGcmCryptoProvider(key);
+        builder.Options.CryptoProvider = new CryptoProviderAesGcm(key);
         builder.Options.EncryptionSalt = salt;
         return builder;
     }

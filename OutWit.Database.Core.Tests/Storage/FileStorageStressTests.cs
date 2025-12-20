@@ -30,7 +30,7 @@ namespace OutWit.Database.Core.Tests.Storage
             const int pageSize = 4096;
             string filePath = Path.Combine(m_testDir, "large_random.wdb");
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(pageCount);
 
             // Write unique data to each page
@@ -66,7 +66,7 @@ namespace OutWit.Database.Core.Tests.Storage
             const int writeCount = 200;
             string filePath = Path.Combine(m_testDir, "middle_write.wdb");
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(pageCount);
 
             // Initialize all pages with zeros
@@ -108,7 +108,7 @@ namespace OutWit.Database.Core.Tests.Storage
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(pageCount);
 
             byte[] buffer = new byte[pageSize];
@@ -138,7 +138,7 @@ namespace OutWit.Database.Core.Tests.Storage
             const int accessCount = 1000;
             string filePath = Path.Combine(m_testDir, "random_access.wdb");
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(pageCount);
 
             // Initialize with known data
@@ -190,7 +190,7 @@ namespace OutWit.Database.Core.Tests.Storage
             const int pageSize = 4096;
             string filePath = Path.Combine(m_testDir, "extend.wdb");
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(initialPages);
 
             byte[] buffer = new byte[pageSize];
@@ -232,7 +232,7 @@ namespace OutWit.Database.Core.Tests.Storage
             const int pageSize = 4096;
             string filePath = Path.Combine(m_testDir, "shrink.wdb");
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(initialPages);
 
             byte[] buffer = new byte[pageSize];
@@ -272,7 +272,7 @@ namespace OutWit.Database.Core.Tests.Storage
             const int operationsPerTask = 50;
             string filePath = Path.Combine(m_testDir, "async_random.wdb");
 
-            using var storage = FileStorage.Create(filePath, pageSize);
+            using var storage = StorageFile.Create(filePath, pageSize);
             storage.SetSize(pageCount);
 
             // Initialize

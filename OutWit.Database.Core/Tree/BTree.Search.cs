@@ -27,7 +27,7 @@ public sealed partial class BTree
                 uint overflowPage = node.GetOverflowPage(index);
                 m_pageManager.ReleasePage(leafPage);
                 page = null!; // Mark as released to avoid double-release in finally
-                return m_overflowManager.ReadOverflow(overflowPage);
+                return m_pageManagerOverflowManager.ReadOverflow(overflowPage);
             }
             
             return node.GetValue(index).ToArray();

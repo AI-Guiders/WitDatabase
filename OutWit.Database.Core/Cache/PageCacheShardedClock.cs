@@ -9,9 +9,9 @@ namespace OutWit.Database.Core.Cache;
 /// </summary>
 /// <remarks>
 /// Recommended for high-concurrency and scan-heavy workloads.
-/// For simpler workloads with low concurrency, <see cref="LruPageCache"/> may be sufficient.
+/// For simpler workloads with low concurrency, <see cref="PageCacheLru"/> may be sufficient.
 /// </remarks>
-public sealed class ShardedClockCache : IPageCache
+public sealed class PageCacheShardedClock : IPageCache
 {
     #region Constants
 
@@ -364,7 +364,7 @@ public sealed class ShardedClockCache : IPageCache
     /// <param name="storage">Underlying storage</param>
     /// <param name="maxPages">Maximum number of pages to cache</param>
     /// <param name="shardCount">Number of shards (default: 16, must be power of 2)</param>
-    public ShardedClockCache(IStorage storage, int maxPages = DatabaseConstants.DEFAULT_CACHE_SIZE, int? shardCount = null)
+    public PageCacheShardedClock(IStorage storage, int maxPages = DatabaseConstants.DEFAULT_CACHE_SIZE, int? shardCount = null)
     {
         ArgumentNullException.ThrowIfNull(storage);
 

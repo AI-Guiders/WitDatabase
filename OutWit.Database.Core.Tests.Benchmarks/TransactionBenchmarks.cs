@@ -56,20 +56,20 @@ public class TransactionalStoreBenchmarks : IDisposable
     public void IterationSetup()
     {
         // Direct store (no transactions)
-        m_storage = new MemoryStorage(4096, OperationCount + 1000);
-        m_directStore = new BTreeStore(m_storage, ownsStorage: false);
+        m_storage = new StorageMemory(4096, OperationCount + 1000);
+        m_directStore = new StoreBTree(m_storage, ownsStorage: false);
 
         // Transactional store with journal
-        var storage1 = new MemoryStorage(4096, OperationCount + 1000);
-        var btree1 = new BTreeStore(storage1, ownsStorage: true);
+        var storage1 = new StorageMemory(4096, OperationCount + 1000);
+        var btree1 = new StoreBTree(storage1, ownsStorage: true);
         var journalPath = Path.Combine(m_testDir, $"bench_{Guid.NewGuid():N}.wal");
         var journal = new WalTransactionJournal(journalPath);
         var lockManager = new LockManager();
         m_txStore = new TransactionalStore(btree1, journal, lockManager);
 
         // Transactional store without journal (lock only)
-        var storage2 = new MemoryStorage(4096, OperationCount + 1000);
-        var btree2 = new BTreeStore(storage2, ownsStorage: true);
+        var storage2 = new StorageMemory(4096, OperationCount + 1000);
+        var btree2 = new StoreBTree(storage2, ownsStorage: true);
         var lockManager2 = new LockManager();
         m_txStoreNoJournal = new TransactionalStore(btree2, null, lockManager2);
     }
@@ -250,8 +250,8 @@ public class ConcurrentAccessBenchmarks : IDisposable
         m_testDir = Path.Combine(Path.GetTempPath(), $"conc_bench_{Guid.NewGuid():N}");
         Directory.CreateDirectory(m_testDir);
 
-        var storage = new MemoryStorage(4096, 10000);
-        var btree = new BTreeStore(storage, ownsStorage: true);
+        var storage = new StorageMemory(4096, 10000);
+        var btree = new StoreBTree(storage, ownsStorage: true);
         var lockManager = new LockManager();
         m_store = new TransactionalStore(btree, null, lockManager);
 
@@ -356,8 +356,8 @@ public class TransactionCommitBenchmarks : IDisposable
     [IterationSetup]
     public void IterationSetup()
     {
-        var storage = new MemoryStorage(4096, 50000);
-        var btree = new BTreeStore(storage, ownsStorage: true);
+        var storage = new StorageMemory(4096, 50000);
+        var btree = new StoreBTree(storage, ownsStorage: true);
         var journalPath = Path.Combine(m_testDir, $"bench_{Guid.NewGuid():N}.wal");
         var journal = new WalTransactionJournal(journalPath);
         var lockManager = new LockManager();

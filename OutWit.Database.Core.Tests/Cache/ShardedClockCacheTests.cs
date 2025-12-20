@@ -4,15 +4,15 @@ using OutWit.Database.Core.Storage;
 namespace OutWit.Database.Core.Tests.Cache;
 
 [TestFixture]
-public class ShardedClockCacheTest
+public class PageCacheShardedClockTest
 {
     #region Constructor Tests
 
     [Test]
     public void ConstructorWithDefaultsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage);
         
         Assert.That(cache.Count, Is.EqualTo(0));
         Assert.That(cache.ShardCount, Is.GreaterThan(0));
@@ -21,27 +21,27 @@ public class ShardedClockCacheTest
     [Test]
     public void ConstructorNullStorageThrowsTest()
     {
-        Assert.Throws<ArgumentNullException>(() => new ShardedClockCache(null!));
+        Assert.Throws<ArgumentNullException>(() => new PageCacheShardedClock(null!));
     }
 
     [Test]
     public void ConstructorInvalidCacheSizeThrowsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
+        using var storage = new StorageMemory(initialPageCount: 10);
         
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ShardedClockCache(storage, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ShardedClockCache(storage, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PageCacheShardedClock(storage, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PageCacheShardedClock(storage, -1));
     }
 
     [Test]
     public void ConstructorShardCountIsPowerOfTwoTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 100);
+        using var storage = new StorageMemory(initialPageCount: 100);
         
         // Request various shard counts
-        using var cache1 = new ShardedClockCache(storage, 100, shardCount: 3);
-        using var cache2 = new ShardedClockCache(storage, 100, shardCount: 7);
-        using var cache3 = new ShardedClockCache(storage, 100, shardCount: 16);
+        using var cache1 = new PageCacheShardedClock(storage, 100, shardCount: 3);
+        using var cache2 = new PageCacheShardedClock(storage, 100, shardCount: 7);
+        using var cache3 = new PageCacheShardedClock(storage, 100, shardCount: 16);
         
         // Should be rounded to power of 2
         Assert.That(cache1.ShardCount, Is.EqualTo(4)); // 3 -> 4
@@ -56,7 +56,7 @@ public class ShardedClockCacheTest
     [Test]
     public void GetPageLoadsFromStorageTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
+        using var storage = new StorageMemory(initialPageCount: 10);
         
         // Write test data to storage
         byte[] testData = new byte[DatabaseConstants.DEFAULT_PAGE_SIZE];
@@ -64,7 +64,7 @@ public class ShardedClockCacheTest
         testData[100] = 0xCD;
         storage.WritePage(5, testData);
         
-        using var cache = new ShardedClockCache(storage, 100);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page = cache.GetPage(5);
         
@@ -77,8 +77,8 @@ public class ShardedClockCacheTest
     [Test]
     public void GetPageCachesPageTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page1 = cache.GetPage(5);
         page1.Data[0] = 0xFF;
@@ -95,8 +95,8 @@ public class ShardedClockCacheTest
     [Test]
     public void GetPageIncrementsReferenceCountTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page1 = cache.GetPage(5);
         var page2 = cache.GetPage(5);
@@ -118,8 +118,8 @@ public class ShardedClockCacheTest
     [Test]
     public void CreatePageInitializesNewPageTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page = cache.CreatePage(5);
         
@@ -133,8 +133,8 @@ public class ShardedClockCacheTest
     [Test]
     public void CreatePageDuplicateThrowsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         cache.CreatePage(5);
         cache.ReleasePage(5);
@@ -149,9 +149,9 @@ public class ShardedClockCacheTest
     [Test]
     public void ClockEvictionRespectsPinnedPagesTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 100);
+        using var storage = new StorageMemory(initialPageCount: 100);
         // Small cache to force eviction
-        using var cache = new ShardedClockCache(storage, 8, shardCount: 1);
+        using var cache = new PageCacheShardedClock(storage, 8, shardCount: 1);
         
         // Fill cache with pinned pages
         var pinnedPages = new List<CachedPage>();
@@ -181,8 +181,8 @@ public class ShardedClockCacheTest
     [Test]
     public void ClockGivesSecondChanceTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 200);
-        using var cache = new ShardedClockCache(storage, 8, shardCount: 1);
+        using var storage = new StorageMemory(initialPageCount: 200);
+        using var cache = new PageCacheShardedClock(storage, 8, shardCount: 1);
         
         // Add pages
         for (int i = 0; i < 8; i++)
@@ -229,8 +229,8 @@ public class ShardedClockCacheTest
     [Test]
     public void AllPinnedThrowsExceptionTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 100);
-        using var cache = new ShardedClockCache(storage, 4, shardCount: 1);
+        using var storage = new StorageMemory(initialPageCount: 100);
+        using var cache = new PageCacheShardedClock(storage, 4, shardCount: 1);
         
         // Fill cache with pinned pages
         for (int i = 0; i < 4; i++)
@@ -255,8 +255,8 @@ public class ShardedClockCacheTest
     [Test]
     public void PagesDistributeAcrossShardsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 100);
-        using var cache = new ShardedClockCache(storage, 64, shardCount: 4);
+        using var storage = new StorageMemory(initialPageCount: 100);
+        using var cache = new PageCacheShardedClock(storage, 64, shardCount: 4);
         
         // Add pages that should go to different shards
         // Page 0 -> shard 0, Page 1 -> shard 1, Page 2 -> shard 2, Page 3 -> shard 3
@@ -272,8 +272,8 @@ public class ShardedClockCacheTest
     [Test]
     public void ConcurrentAccessDifferentShardsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 1000);
-        using var cache = new ShardedClockCache(storage, 200, shardCount: 8);
+        using var storage = new StorageMemory(initialPageCount: 1000);
+        using var cache = new PageCacheShardedClock(storage, 200, shardCount: 8);
         
         // Pre-create pages
         for (int i = 0; i < 100; i++)
@@ -317,8 +317,8 @@ public class ShardedClockCacheTest
     [Test]
     public void FlushAllWritesDirtyPagesTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page = cache.CreatePage(5);
         page.Data[0] = 0xAB;
@@ -336,8 +336,8 @@ public class ShardedClockCacheTest
     [Test]
     public async Task FlushAllAsyncTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page = cache.CreatePage(5);
         page.Data[0] = 0xCD;
@@ -358,8 +358,8 @@ public class ShardedClockCacheTest
     [Test]
     public void EvictRemovesPageTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         cache.CreatePage(5);
         cache.ReleasePage(5);
@@ -374,8 +374,8 @@ public class ShardedClockCacheTest
     [Test]
     public void EvictPinnedPageThrowsTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         cache.CreatePage(5); // Don't release
         
@@ -387,8 +387,8 @@ public class ShardedClockCacheTest
     [Test]
     public void EvictFlushesDirtyPageTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         var page = cache.CreatePage(5);
         page.Data[0] = 0xEF;
@@ -410,8 +410,8 @@ public class ShardedClockCacheTest
     [Test]
     public void ClearRemovesAllPagesTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 100);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 100);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         for (int i = 0; i < 50; i++)
         {
@@ -433,8 +433,8 @@ public class ShardedClockCacheTest
     [Test]
     public void DisposeMultipleTimesDoesNotThrowTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        var cache = new PageCacheShardedClock(storage, 100);
         
         cache.Dispose();
         cache.Dispose();
@@ -445,8 +445,8 @@ public class ShardedClockCacheTest
     [Test]
     public void OperationsAfterDisposeThrowTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        var cache = new PageCacheShardedClock(storage, 100);
         cache.Dispose();
         
         Assert.Throws<ObjectDisposedException>(() => cache.GetPage(0));
@@ -461,8 +461,8 @@ public class ShardedClockCacheTest
     [Test]
     public void DirtyCountTracksCorrectlyTest()
     {
-        using var storage = new MemoryStorage(initialPageCount: 10);
-        using var cache = new ShardedClockCache(storage, 100);
+        using var storage = new StorageMemory(initialPageCount: 10);
+        using var cache = new PageCacheShardedClock(storage, 100);
         
         Assert.That(cache.DirtyCount, Is.EqualTo(0));
         

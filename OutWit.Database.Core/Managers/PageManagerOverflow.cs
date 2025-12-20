@@ -9,7 +9,7 @@ namespace OutWit.Database.Core.Managers
     /// Manages overflow pages for values larger than a single page.
     /// Overflow pages are chained together to store arbitrarily large BLOBs.
     /// </summary>
-    public sealed class OverflowPageManager : IDisposable
+    public sealed class PageManagerOverflow : IDisposable
     {
         #region Classes
 
@@ -42,7 +42,7 @@ namespace OutWit.Database.Core.Managers
         /// <summary>
         /// Creates an overflow page manager.
         /// </summary>
-        public OverflowPageManager(PageManager pageManager, int? maxInlineSize = null)
+        public PageManagerOverflow(PageManager pageManager, int? maxInlineSize = null)
         {
             m_pageManager = pageManager ?? throw new ArgumentNullException(nameof(pageManager));
             m_pageSize = pageManager.PageSize;
