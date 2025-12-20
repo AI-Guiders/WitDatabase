@@ -611,8 +611,8 @@ public class EncryptionBenchmarks
 {
     private byte[] m_key = null!;
     private byte[] m_salt = null!;
-    private PageEncryptor m_pageEncryptor = null!;
-    private BlockEncryptor m_blockEncryptor = null!;
+    private EncryptorPage m_encryptorPage = null!;
+    private EncryptorBlock m_encryptorBlock = null!;
     private byte[] m_plaintext = null!;
     private byte[] m_ciphertext = null!;
     private byte[] m_decrypted = null!;
@@ -627,46 +627,46 @@ public class EncryptionBenchmarks
         m_salt = RandomNumberGenerator.GetBytes(16);
         
         // Each encryptor gets its own provider (they dispose it)
-        m_pageEncryptor = new PageEncryptor(new CryptoProviderAesGcm(m_key), m_salt);
-        m_blockEncryptor = new BlockEncryptor(new CryptoProviderAesGcm(m_key), m_salt);
+        m_encryptorPage = new EncryptorPage(new EncryptorProviderAesGcm(m_key), m_salt);
+        m_encryptorBlock = new EncryptorBlock(new EncryptorProviderAesGcm(m_key), m_salt);
 
         m_plaintext = new byte[PageSize];
         Random.Shared.NextBytes(m_plaintext);
-        m_ciphertext = new byte[PageSize + m_pageEncryptor.Overhead];
+        m_ciphertext = new byte[PageSize + m_encryptorPage.Overhead];
         m_decrypted = new byte[PageSize];
     }
 
     [GlobalCleanup]
     public void GlobalCleanup()
     {
-        m_blockEncryptor?.Dispose();
-        m_pageEncryptor?.Dispose();
+        m_encryptorBlock?.Dispose();
+        m_encryptorPage?.Dispose();
     }
 
     [Benchmark(Description = "PageEncryptor.Encrypt")]
     public int PageEncrypt()
     {
-        return m_pageEncryptor.Encrypt(m_plaintext, pageNumber: 1, m_ciphertext);
+        return m_encryptorPage.Encrypt(m_plaintext, pageNumber: 1, m_ciphertext);
     }
 
     [Benchmark(Description = "PageEncryptor.Encrypt+Decrypt")]
     public int PageEncryptDecrypt()
     {
-        int encLen = m_pageEncryptor.Encrypt(m_plaintext, pageNumber: 1, m_ciphertext);
-        return m_pageEncryptor.Decrypt(m_ciphertext.AsSpan(0, encLen), pageNumber: 1, m_decrypted);
+        int encLen = m_encryptorPage.Encrypt(m_plaintext, pageNumber: 1, m_ciphertext);
+        return m_encryptorPage.Decrypt(m_ciphertext.AsSpan(0, encLen), pageNumber: 1, m_decrypted);
     }
 
     [Benchmark(Description = "BlockEncryptor.Encrypt")]
     public byte[] BlockEncrypt()
     {
-        return m_blockEncryptor.Encrypt(m_plaintext, blockId: 1);
+        return m_encryptorBlock.Encrypt(m_plaintext, blockId: 1);
     }
 
     [Benchmark(Description = "BlockEncryptor.Encrypt+Decrypt")]
     public byte[]? BlockEncryptDecrypt()
     {
-        var encrypted = m_blockEncryptor.Encrypt(m_plaintext, blockId: 1);
-        return m_blockEncryptor.Decrypt(encrypted, blockId: 1);
+        var encrypted = m_encryptorBlock.Encrypt(m_plaintext, blockId: 1);
+        return m_encryptorBlock.Decrypt(encrypted, blockId: 1);
     }
 }
 
@@ -719,8 +719,8 @@ public class EncryptedStorageBenchmarks
         if (Encrypted)
         {
             var innerStorage = new StorageMemory(4096 + 28, Count / 3 + 1000);
-            var provider = new CryptoProviderAesGcm(m_key);
-            var encryptor = new PageEncryptor(provider, m_salt);
+            var provider = new EncryptorProviderAesGcm(m_key);
+            var encryptor = new EncryptorPage(provider, m_salt);
             m_storage = new StorageEncrypted(innerStorage, encryptor);
         }
         else
@@ -821,8 +821,8 @@ public class EncryptedMixedWorkloadBenchmarks
         if (Encrypted)
         {
             var innerStorage = new StorageMemory(4096 + 28, 5000);
-            var provider = new CryptoProviderAesGcm(m_key);
-            var encryptor = new PageEncryptor(provider, m_salt);
+            var provider = new EncryptorProviderAesGcm(m_key);
+            var encryptor = new EncryptorPage(provider, m_salt);
             m_storage = new StorageEncrypted(innerStorage, encryptor);
         }
         else

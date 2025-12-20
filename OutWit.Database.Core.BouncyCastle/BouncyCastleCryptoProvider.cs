@@ -12,6 +12,15 @@ namespace OutWit.Database.Core.BouncyCastle
     /// </summary>
     public sealed class BouncyCastleCryptoProvider : ICryptoProvider
     {
+        #region Constants
+
+        /// <summary>
+        /// Provider key for ChaCha20-Poly1305 crypto.
+        /// </summary>
+        public const string PROVIDER_KEY = "chacha20-poly1305";
+
+        #endregion
+
         #region Fields
 
         private readonly byte[] m_key;
@@ -136,8 +145,14 @@ namespace OutWit.Database.Core.BouncyCastle
 
         #region Properties
 
+        /// <inheritdoc/>
         public int NonceSize => 12;
+
+        /// <inheritdoc/>
         public int TagSize => 16;
+
+        /// <inheritdoc/>
+        public string ProviderKey => PROVIDER_KEY;
 
         #endregion
     }
