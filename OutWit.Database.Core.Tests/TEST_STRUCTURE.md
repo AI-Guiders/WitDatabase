@@ -2,9 +2,9 @@
 
 ## Executive Summary
 
-The test project has **good overall coverage** but needs cleanup for consistency and maintainability.
+The test project has **good overall coverage** with consistent naming and organization.
 
-**Current Status**: 920 tests passing ?
+**Current Status**: ~1050 tests passing ?
 
 ---
 
@@ -13,23 +13,28 @@ The test project has **good overall coverage** but needs cleanup for consistency
 ```
 OutWit.Database.Core.Tests/
 ??? Cache/                    # Cache implementations tests
-?   ??? CachedPageTest.cs          (302 lines)
-?   ??? LruPageCacheTest.cs        (643 lines) ?? Large
-?   ??? ShardedClockCacheTest.cs   (438 lines)
+?   ??? CachedPageTests.cs         (302 lines)
+?   ??? LruPageCacheTests.cs       (643 lines)
+?   ??? ShardedClockCacheTests.cs  (438 lines)
 ??? Comparers/                # Comparer tests
-?   ??? ByteArrayComparerTest.cs   (218 lines)
+?   ??? ByteArrayComparerTests.cs  (218 lines)
+??? Concurrency/              # Lock and concurrency tests
+?   ??? DatabaseLockTests.cs
+?   ??? FileLockTests.cs
+?   ??? LockManagerTests.cs
 ??? Encoding/                 # Encoding tests
-?   ??? VarIntTest.cs              (273 lines)
+?   ??? VarIntTests.cs             (273 lines)
 ??? Encryption/               # Encryption tests ? Well organized
 ?   ??? AesGcmCryptoProviderTests.cs
 ?   ??? BlockEncryptorTests.cs
 ?   ??? EncryptedFileStorageTests.cs
 ?   ??? EncryptedStorageTests.cs
 ?   ??? EncryptionStressTests.cs
+?   ??? PageEncryptorAuthenticationTests.cs
 ?   ??? PageEncryptorTests.cs
 ??? Integration/              # Integration tests ? Good
 ?   ??? EncryptedStorageIntegrationTests.cs
-?   ??? StorageStackIntegrationTest.cs
+?   ??? StorageStackIntegrationTests.cs
 ??? LSM/                      # LSM-Tree tests ? Well organized
 ?   ??? BloomFilterTests.cs
 ?   ??? BlockCacheTests.cs
@@ -41,29 +46,47 @@ OutWit.Database.Core.Tests/
 ?   ??? SSTableTests.cs
 ?   ??? WriteAheadLogTests.cs
 ??? Managers/                 # Page/Overflow manager tests
-?   ??? OverflowPageTest.cs        (471 lines)
-?   ??? PageManagerStressTest.cs   (336 lines)
-?   ??? PageManagerTest.cs         (639 lines) ?? Large
+?   ??? OverflowPageTests.cs       (471 lines)
+?   ??? PageManagerStressTests.cs  (336 lines)
+?   ??? PageManagerTests.cs        (639 lines)
 ??? Pages/                    # Page structure tests
-?   ??? PageHeaderTest.cs
-?   ??? PageTest.cs                (633 lines) ?? Large
+?   ??? PageHeaderTests.cs
+?   ??? PageTests.cs               (633 lines)
 ??? Storage/                  # Storage layer tests
-?   ??? FileStorageStressTest.cs
-?   ??? FileStorageTest.cs
-?   ??? MemoryStorageTest.cs
+?   ??? FileStorageStressTests.cs
+?   ??? FileStorageTests.cs
+?   ??? MemoryStorageTests.cs
 ??? Stores/                   # Key-value store tests ? Cleaned
-?   ??? BTreeStoreFileTest.cs      # BTree + FileStorage conformance
-?   ??? BTreeStoreMemoryTest.cs    # BTree + MemoryStorage conformance
-?   ??? BTreeStoreTest.cs          # BTree-specific tests
-?   ??? InMemoryStoreTest.cs       # InMemoryStore tests
+?   ??? BTreeStoreFileTests.cs     # BTree + FileStorage conformance
+?   ??? BTreeStoreMemoryTests.cs   # BTree + MemoryStorage conformance
+?   ??? BTreeStoreTests.cs         # BTree-specific tests
+?   ??? InMemoryStoreTests.cs      # InMemoryStore tests
 ?   ??? KeyValueStoreParameterizedTests.cs  # All stores × all scenarios
 ?   ??? KeyValueStoreTestBase.cs   # Base class for conformance
 ?   ??? StorageFactories.cs        # Factory infrastructure
+??? Transactions/             # Transaction tests
+?   ??? TransactionalStoreStressTests.cs
+?   ??? TransactionalStoreTests.cs
 ??? Tree/                     # B-Tree tests
-?   ??? BTreeStressTest.cs         (417 lines)
-?   ??? BTreeTest.cs               (1111 lines) ?? TOO LARGE - SPLIT
-??? DatabaseHeaderTest.cs     # Root level test
+?   ??? BTreeStressTests.cs        (417 lines)
+?   ??? BTreeTests.cs              (1111 lines)
+??? Wal/                      # Write-ahead log tests
+?   ??? WriteAheadLogTests.cs
+??? DatabaseHeaderTests.cs    # Root level test
 ```
+
+---
+
+## Naming Conventions
+
+### File Naming
+- ? All test files end with `Tests.cs` (not `Test.cs`)
+- ? Pattern: `{ComponentName}Tests.cs`
+
+### Method Naming
+- ? All test methods end with `Test`
+- ? No underscores in method names
+- ? Pattern: `{MethodName}{Scenario}Test` (e.g., `GetNonExistentKeyReturnsNullTest`)
 
 ---
 
@@ -73,37 +96,13 @@ OutWit.Database.Core.Tests/
 |-----------|------------|-------------|--------|---------------|-------|
 | **BTree** | ~50 | 10 | 15 | 68 | ~143 |
 | **LSM-Tree** | ~60 | 35 | 41 | 28 | ~164 |
+| **Transactions** | ~30 | - | 20 | - | ~50 |
+| **Concurrency** | ~40 | - | 15 | - | ~55 |
 | **Cache** | ~45 | - | 10 | - | ~55 |
 | **Encryption** | ~30 | 15 | 10 | 28 | ~83 |
 | **Storage** | ~25 | 15 | 8 | - | ~48 |
 | **Other** | ~50 | - | - | - | ~50 |
-| **Total** | | | | | **920** |
-
----
-
-## Issues Found & Fixed
-
-### ? Fixed
-- ~~`LSM/LsmTreeTest.cs` - Empty file~~ ? Deleted
-- ~~`Stores/KeyValueStoreParameterizedTest.cs` - Empty file~~ ? Deleted
-- ~~LSM not in parameterized tests~~ ? Added `LsmStorageFactory` and `EncryptedLsmStorageFactory`
-
-### ?? Remaining Issues
-
-#### 1. Large Files (Consider Splitting)
-| File | Lines | Recommendation |
-|------|-------|----------------|
-| `BTreeTest.cs` | 1111 | Split into: `BTreeBasicTests`, `BTreeRangeTests`, `BTreeStressTests` |
-| `LruPageCacheTest.cs` | 643 | Split by test category |
-| `PageManagerTest.cs` | 639 | Split into: `PageManagerBasicTests`, `PageManagerAllocationTests` |
-| `PageTest.cs` | 633 | Split into: `PageDataTests`, `PageLifecycleTests` |
-
-#### 2. Naming Inconsistencies
-| Issue | Examples |
-|-------|----------|
-| `Test` vs `Tests` suffix | `BTreeTest.cs` vs `BloomFilterTests.cs` |
-
-**Recommendation**: Use `Tests` suffix consistently for files with multiple tests.
+| **Total** | | | | | **~1050** |
 
 ---
 
@@ -155,7 +154,7 @@ public class MyNewStoreConformanceTests : KeyValueStoreTestBase
     }
     
     // Override if behavior differs from standard
-    public override void Delete_NonExistentKey_ReturnsFalse()
+    public override void DeleteNonExistentKeyReturnsFalseTest()
     {
         // Custom assertion for this implementation
     }
@@ -217,6 +216,9 @@ dotnet test --filter "Category!=Stress"
 
 # Run LSM tests only
 dotnet test --filter "FullyQualifiedName~LSM"
+
+# Run Transactions tests only
+dotnet test --filter "FullyQualifiedName~Transactions"
 ```
 
 ---
@@ -224,10 +226,25 @@ dotnet test --filter "FullyQualifiedName~LSM"
 ## Test Statistics
 
 ```
-Total Tests:     920
-Passing:         920 (100%)
-Duration:        ~60 seconds (full run)
+Total Tests:     ~1050
+Passing:         ~1050 (100%)
+Duration:        ~90 seconds (full run)
 
 By Framework:
-- net9.0:        920 tests
-- net10.0:       920 tests
+- net9.0:        ~1050 tests
+- net10.0:       ~1050 tests
+```
+
+---
+
+## Audit History
+
+### 2024-12-21
+- ? Renamed all test files: `*Test.cs` ? `*Tests.cs` (21 files)
+- ? Renamed all test methods to remove underscores and add `Test` suffix
+- ? Updated documentation to reflect new structure
+- ? Added Transactions and Concurrency sections
+
+### Previous
+- ? Deleted empty files: `LSM/LsmTreeTest.cs`, `Stores/KeyValueStoreParameterizedTest.cs`
+- ? Added LSM to parameterized tests (`LsmStorageFactory`, `EncryptedLsmStorageFactory`)
