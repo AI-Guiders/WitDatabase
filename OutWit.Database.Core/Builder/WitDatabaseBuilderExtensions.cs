@@ -1,6 +1,7 @@
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.LSM;
 using OutWit.Database.Core.Providers;
+using OutWit.Database.Core.Utils;
 
 namespace OutWit.Database.Core.Builder;
 
@@ -101,6 +102,47 @@ public static class WitDatabaseBuilderExtensions
     #endregion
 
     #region Encryption
+
+    /// <summary>
+    /// Enable AES-GCM encryption with password-based key derivation.
+    /// Uses PBKDF2 with SHA-256 for key derivation.
+    /// </summary>
+    /// <param name="builder">The database builder.</param>
+    /// <param name="password">Password to derive encryption key from.</param>
+    public static WitDatabaseBuilder WithEncryption(this WitDatabaseBuilder builder, string password)
+    {
+        if (string.IsNullOrEmpty(password))
+            throw new ArgumentException("Password cannot be empty", nameof(password));
+
+        var salt = CryptoUtils.DerivePasswordSalt(password);
+        var key = CryptoUtils.DeriveKey(password, salt);
+        
+        builder.Options.CryptoProvider = new AesGcmCryptoProvider(key);
+        builder.Options.EncryptionSalt = salt;
+        return builder;
+    }
+
+    /// <summary>
+    /// Enable AES-GCM encryption with user and password-based key derivation.
+    /// Uses user as salt basis and password for key derivation via PBKDF2.
+    /// </summary>
+    /// <param name="builder">The database builder.</param>
+    /// <param name="user">Username (used as salt basis).</param>
+    /// <param name="password">Password to derive encryption key from.</param>
+    public static WitDatabaseBuilder WithEncryption(this WitDatabaseBuilder builder, string user, string password)
+    {
+        if (string.IsNullOrEmpty(user))
+            throw new ArgumentException("User cannot be empty", nameof(user));
+        if (string.IsNullOrEmpty(password))
+            throw new ArgumentException("Password cannot be empty", nameof(password));
+
+        var salt = CryptoUtils.DeriveUserSalt(user);
+        var key = CryptoUtils.DeriveKey(password, salt);
+        
+        builder.Options.CryptoProvider = new AesGcmCryptoProvider(key);
+        builder.Options.EncryptionSalt = salt;
+        return builder;
+    }
 
     /// <summary>
     /// Enable AES-GCM encryption with the specified 256-bit key.

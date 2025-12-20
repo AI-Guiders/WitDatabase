@@ -58,6 +58,38 @@ public class WitDatabaseBuilderBouncyCastleTests
     }
 
     [Test]
+    public void MemoryBTreeWithBouncyCastlePasswordEncryptionTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithBouncyCastleEncryption("my-secret-password")
+            .WithoutTransactions()
+            .Build();
+
+        db.Put("secret"u8, "classified"u8);
+        var value = db.Get("secret"u8);
+
+        Assert.That(value, Is.EqualTo("classified"u8.ToArray()));
+    }
+
+    [Test]
+    public void MemoryBTreeWithBouncyCastleUserPasswordEncryptionTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithBouncyCastleEncryption("admin", "my-secret-password")
+            .WithoutTransactions()
+            .Build();
+
+        db.Put("secret"u8, "classified"u8);
+        var value = db.Get("secret"u8);
+
+        Assert.That(value, Is.EqualTo("classified"u8.ToArray()));
+    }
+
+    [Test]
     public void MemoryBTreeWithBouncyCastleEncryptionAndTransactionsTest()
     {
         var key = new byte[32];
@@ -93,23 +125,6 @@ public class WitDatabaseBuilderBouncyCastleTests
             .WithMemoryStorage()
             .WithBTree()
             .WithBouncyCastleEncryption(key, salt)
-            .WithoutTransactions()
-            .Build();
-
-        db.Put("secret"u8, "classified"u8);
-        Assert.That(db.Get("secret"u8), Is.EqualTo("classified"u8.ToArray()));
-    }
-
-    [Test]
-    public void MemoryBTreeWithBouncyCastlePasswordEncryptionTest()
-    {
-        var salt = new byte[16];
-        new Random(123).NextBytes(salt);
-
-        using var db = new WitDatabaseBuilder()
-            .WithMemoryStorage()
-            .WithBTree()
-            .WithBouncyCastleEncryption("my-secure-password", salt)
             .WithoutTransactions()
             .Build();
 
@@ -236,24 +251,30 @@ public class WitDatabaseBuilderBouncyCastleTests
     [Test]
     public void WithBouncyCastleEncryption_EmptyPassword_ThrowsTest()
     {
-        var salt = new byte[16];
-        
         Assert.Throws<ArgumentException>(() =>
         {
             new WitDatabaseBuilder()
-                .WithBouncyCastleEncryption("", salt);
+                .WithBouncyCastleEncryption(""); // Empty password
         });
     }
 
     [Test]
-    public void WithBouncyCastleEncryption_TooFewIterations_ThrowsTest()
+    public void WithBouncyCastleEncryption_EmptyUser_ThrowsTest()
     {
-        var salt = new byte[16];
-        
         Assert.Throws<ArgumentException>(() =>
         {
             new WitDatabaseBuilder()
-                .WithBouncyCastleEncryption("password", salt, 100); // Too few
+                .WithBouncyCastleEncryption("", "password"); // Empty user
+        });
+    }
+
+    [Test]
+    public void WithBouncyCastleEncryption_EmptyPasswordWithUser_ThrowsTest()
+    {
+        Assert.Throws<ArgumentException>(() =>
+        {
+            new WitDatabaseBuilder()
+                .WithBouncyCastleEncryption("admin", ""); // Empty password
         });
     }
 
