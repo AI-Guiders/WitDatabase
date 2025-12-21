@@ -1,0 +1,48 @@
+using OutWit.Database.Parser.Expressions;
+using OutWit.Database.Parser.Statements;
+
+namespace OutWit.Database.Parser.Interfaces
+{
+    public interface IWitSqlVisitor<out T>
+    {
+        #region Statements
+
+        T VisitStatementSelect(WitSqlStatementSelect node);
+        T VisitStatementInsert(WitSqlStatementInsert node);
+        T VisitStatementUpdate(WitSqlStatementUpdate node);
+        T VisitStatementDelete(WitSqlStatementDelete node);
+        T VisitStatementCreateTable(WitSqlStatementCreateTable node);
+        T VisitStatementDropTable(WitSqlStatementDropTable node);
+        T VisitStatementAlterTable(WitSqlStatementAlterTable node);
+        T VisitStatementCreateIndex(WitSqlStatementCreateIndex node);
+        T VisitStatementDropIndex(WitSqlStatementDropIndex node);
+        T VisitStatementCreateView(WitSqlStatementCreateView node);
+        T VisitStatementDropView(WitSqlStatementDropView node);
+        T VisitStatementCreateTrigger(WitSqlStatementCreateTrigger node);
+        T VisitStatementDropTrigger(WitSqlStatementDropTrigger node);
+        T VisitStatementCreateSequence(WitSqlStatementCreateSequence node);
+        T VisitStatementDropSequence(WitSqlStatementDropSequence node);
+        T VisitStatementAlterSequence(WitSqlStatementAlterSequence node);
+
+        #endregion
+
+        #region Expressions
+
+        T VisitExpressionLiteral(WitSqlExpressionLiteral node);
+        T VisitExpressionColumnRef(WitSqlExpressionColumnRef node);
+        T VisitExpressionBinary(WitSqlExpressionBinary node);
+        T VisitExpressionUnary(WitSqlExpressionUnary node);
+        T VisitExpressionFunctionCall(WitSqlExpressionFunctionCall node);
+        T VisitExpressionCase(WitSqlExpressionCase node);
+        T VisitExpressionCast(WitSqlExpressionCast node);
+        T VisitExpressionBetween(WitSqlExpressionBetween node);
+        T VisitExpressionIn(WitSqlExpressionIn node);
+        T VisitExpressionLike(WitSqlExpressionLike node);
+        T VisitExpressionIsNull(WitSqlExpressionIsNull node);
+        T VisitExpressionSubquery(WitSqlExpressionSubquery node);
+        T VisitExpressionGlob(WitSqlExpressionGlob node);
+        T VisitExpressionIif(WitSqlExpressionIif node);
+
+        #endregion
+    }
+}

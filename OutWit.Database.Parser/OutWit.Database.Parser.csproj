@@ -4,11 +4,13 @@
 	<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<AntlrScriptPath>$(MSBuildProjectDirectory)\MakeInternal.ps1</AntlrScriptPath>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
     <PackageReference Include="Antlr4BuildTasks" Version="12.11.0" />
+    <PackageReference Include="OutWit.Common" Version="1.3.1" />
   </ItemGroup>
 
 	<ItemGroup>
@@ -17,5 +19,18 @@
 			<Package>OutWit.Database.Parser.Generated</Package>
 		</Antlr4>
 	</ItemGroup>
+
+	<Target Name="MakeAntlrGeneratedCodeInternal" AfterTargets="Antlr4Compile">
+		<PropertyGroup>
+			<PowerShellCmd Condition=" '$(OS)' != 'Windows_NT' ">pwsh</PowerShellCmd>
+			<PowerShellCmd Condition=" '$(OS)' == 'Windows_NT' ">powershell</PowerShellCmd>
+
+			<AntlrGenDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath.TrimEnd('\'))</AntlrGenDir>
+		</PropertyGroup>
+
+		<Message Text="[ANTLR Internalizer] Target Dir: $(AntlrGenDir)" Importance="high" />
+
+		<Exec Command="$(PowerShellCmd) -NoProfile -ExecutionPolicy Bypass -File &quot;$(AntlrScriptPath)&quot; &quot;$(AntlrGenDir)&quot;" />
+	</Target>
 
 </Project>
