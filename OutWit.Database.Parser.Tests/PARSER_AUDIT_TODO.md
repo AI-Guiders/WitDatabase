@@ -77,16 +77,33 @@
 
 ---
 
-## ?? Final Statistics
+## ? Phase 3: EF Core Critical Features (14 items) - COMPLETED
 
-| Metric | Value |
-|--------|-------|
-| **Total Tests** | 203 |
-| **Phase 1 Items** | 86 / 86 ? |
-| **Phase 2 Items** | 27 / 27 ? |
-| **Coverage** | 100% |
+### RETURNING Clause
+- [x] Add RETURNING keyword to grammar
+- [x] Add returningClause parser rule
+- [x] Update INSERT statement with RETURNING
+- [x] Update UPDATE statement with RETURNING
+- [x] Update DELETE statement with RETURNING
+- [x] Add ReturningClause to statement classes
+- [x] Update visitor for RETURNING
+- [x] Add tests for RETURNING
 
-### New Classes Created:
+### Date Functions
+- [x] Add YEAR, MONTH, DAY keywords
+- [x] Add HOUR, MINUTE, SECOND keywords
+- [x] Add date functions to functionName rule
+- [x] Add tests for date extraction functions
+
+### System Functions
+- [x] Add LAST_INSERT_ROWID keyword/function
+- [x] Add IFNULL, TYPEOF functions
+
+---
+
+## ?? Files Created/Modified
+
+### New Classes:
 - `WitSqlExpressionExists`
 - `WitSqlExpressionParameter`
 - `ClauseCteDefinition`
@@ -97,23 +114,39 @@
 - `WitSqlStatementSavepoint`
 - `WitSqlStatementReleaseSavepoint`
 
-### New Enums Created:
+### New Enums:
 - `ParameterType`
 - `SetOperationType`
 
-### Grammar Extensions:
-- Added `existsExpr` rule for EXISTS/NOT EXISTS
-- Added `parameter` rule for @, :, ?, $n parameters
-- Parameters now fully supported in expressions
-
-### Features Implemented:
-- ? EXISTS / NOT EXISTS expressions
-- ? Parameter placeholders (named, colon, positional, numbered)
-- ? CTE (WITH clause, WITH RECURSIVE)
-- ? Set operations (UNION, UNION ALL, INTERSECT, EXCEPT)
-- ? Transaction statements (BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE)
+### Modified Files:
+- `WitSql.g4` - Added RETURNING, date functions, system functions
+- `WitSqlStatementInsert.cs` - Added ReturningClause
+- `WitSqlStatementUpdate.cs` - Added ReturningClause
+- `WitSqlStatementDelete.cs` - Added ReturningClause
+- `WitSqlStatementSelect.cs` - Added CTE and set operations
+- `WitSqlVisitor.DML.cs` - Updated for new features
+- `IWitSqlVisitor.cs` - Added new visitor methods
 
 ---
 
+## ?? Future Enhancements (Optional)
+
+### Lower Priority Functions
+- [ ] String: LEFT, RIGHT, CONCAT, LTRIM, RTRIM, INSTR
+- [ ] Math: POWER, SQRT, LOG, RANDOM
+- [ ] Date: DATEADD, DATEDIFF, STRFTIME
+- [ ] Aggregate: GROUP_CONCAT
+
+### Window Function Enhancements
+- [ ] NTILE, FIRST_VALUE, LAST_VALUE
+- [ ] Frame clause (ROWS BETWEEN...)
+
+### Advanced Features
+- [ ] INSERT ... ON CONFLICT (UPSERT)
+- [ ] JSON functions
+- [ ] REGEXP support
+
+---
+
+**Status:** ? ALL CRITICAL ITEMS COMPLETED  
 **Last Updated:** 2024-12-19
-**Status:** ? ALL ITEMS COMPLETED

@@ -1,8 +1,10 @@
 using OutWit.Common.Abstract;
 using OutWit.Common.Attributes;
+using OutWit.Common.Collections;
 using OutWit.Common.Values;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Interfaces;
+using OutWit.Database.Parser.Schema.Clauses;
 
 namespace OutWit.Database.Parser.Statements
 {
@@ -26,7 +28,8 @@ namespace OutWit.Database.Parser.Statements
 
             return base.Is(delete, tolerance)
                    && TableName.Is(delete.TableName)
-                   && WhereClause.Check(delete.WhereClause);
+                   && WhereClause.Check(delete.WhereClause)
+                   && ReturningClause.Is(delete.ReturningClause);
         }
 
         public override WitSqlStatementDelete Clone()
@@ -36,7 +39,8 @@ namespace OutWit.Database.Parser.Statements
                 Line = Line,
                 Column = Column,
                 TableName = TableName,
-                WhereClause = (WitSqlExpression?)WhereClause?.Clone()
+                WhereClause = (WitSqlExpression?)WhereClause?.Clone(),
+                ReturningClause = ReturningClause?.Select(x => x.Clone()).ToList()
             };
         }
 
@@ -48,6 +52,11 @@ namespace OutWit.Database.Parser.Statements
         public required string TableName { get; init; }
 
         public WitSqlExpression? WhereClause { get; init; }
+
+        /// <summary>
+        /// RETURNING clause for retrieving deleted values.
+        /// </summary>
+        public IReadOnlyList<ClauseSelectItem>? ReturningClause { get; init; }
 
         #endregion
     }

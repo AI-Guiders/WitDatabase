@@ -208,7 +208,7 @@ public class DmlParserTests
     public void ParseSelectGroupByMultipleColumnsTest()
     {
         var stmt = WitSql.ParseStatement(
-            "SELECT Year, Month, SUM(Amount) FROM Sales GROUP BY Year, Month");
+            "SELECT SaleYear, SaleMonth, SUM(Amount) FROM Sales GROUP BY SaleYear, SaleMonth");
         var select = (WitSqlStatementSelect)stmt;
         Assert.That(select.GroupByClause, Has.Count.EqualTo(2));
     }

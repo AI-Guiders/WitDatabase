@@ -4,6 +4,7 @@ using OutWit.Common.Collections;
 using OutWit.Common.Values;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Interfaces;
+using OutWit.Database.Parser.Schema.Clauses;
 
 namespace OutWit.Database.Parser.Statements
 {
@@ -29,6 +30,7 @@ namespace OutWit.Database.Parser.Statements
                    && TableName.Is(insert.TableName)
                    && ColumnNames.Is(insert.ColumnNames)
                    && SelectSource.Check(insert.SelectSource)
+                   && ReturningClause.Is(insert.ReturningClause)
                    && Values?
                        .SelectMany(expressions => expressions)
                        .ToList()
@@ -47,7 +49,8 @@ namespace OutWit.Database.Parser.Statements
                 TableName = TableName,
                 ColumnNames = ColumnNames?.ToList(),
                 Values = Values?.Select(row => (IReadOnlyList<WitSqlExpression>)row.Select(x => (WitSqlExpression)x.Clone()).ToList()).ToList(),
-                SelectSource = SelectSource?.Clone()
+                SelectSource = SelectSource?.Clone(),
+                ReturningClause = ReturningClause?.Select(x => x.Clone()).ToList()
             };
         }
 
@@ -57,9 +60,17 @@ namespace OutWit.Database.Parser.Statements
 
         [ToString]
         public required string TableName { get; init; }
+
         public IReadOnlyList<string>? ColumnNames { get; init; }
+
         public IReadOnlyList<IReadOnlyList<WitSqlExpression>>? Values { get; init; }
+
         public WitSqlStatementSelect? SelectSource { get; init; }
+
+        /// <summary>
+        /// RETURNING clause for retrieving generated values.
+        /// </summary>
+        public IReadOnlyList<ClauseSelectItem>? ReturningClause { get; init; }
 
         #endregion
     }

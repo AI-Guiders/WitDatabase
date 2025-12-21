@@ -69,8 +69,6 @@ savepointStatement
 releaseStatement
     : RELEASE SAVEPOINT? IDENTIFIER
     ;
-
-
 // ----------------------------------------------------------------------------
 // Query Expressions (with set operations and CTE)
 // ----------------------------------------------------------------------------
@@ -172,6 +170,7 @@ insertStatement
       ( VALUES valuesList
       | selectStatement
       )
+      returningClause?
     ;
 
 valuesList
@@ -190,6 +189,7 @@ updateStatement
     : UPDATE tableName
       SET setClause (COMMA setClause)*
       whereClause?
+      returningClause?
     ;
 
 setClause
@@ -201,8 +201,16 @@ setClause
 // ----------------------------------------------------------------------------
 
 deleteStatement
-    : DELETE FROM tableName whereClause?
-   ;
+    : DELETE FROM tableName whereClause? returningClause?
+    ;
+
+// ----------------------------------------------------------------------------
+// RETURNING Clause (for INSERT/UPDATE/DELETE)
+// ----------------------------------------------------------------------------
+
+returningClause
+    : RETURNING selectList
+    ;
 
 // ----------------------------------------------------------------------------
 // CREATE TABLE Statement
@@ -227,31 +235,24 @@ dataType
     ;
 
 typeName
-    // Integer types
     : TINYINT | INT8 | UTINYINT | UINT8
     | SMALLINT | INT16 | USMALLINT | UINT16
     | INT | INT32 | INTEGER | UINT | UINT32
     | BIGINT | INT64 | LONG | UBIGINT | UINT64 | ULONG
-    // Float types
     | FLOAT16 | HALF
     | FLOAT | FLOAT32 | REAL
     | DOUBLE | FLOAT64
     | DECIMAL | MONEY | NUMERIC
-    // Boolean
     | BOOLEAN | BOOL
-    // Date/Time
     | DATE | DATEONLY
     | TIME | TIMEONLY
     | DATETIME | TIMESTAMP
     | DATETIMEOFFSET
     | INTERVAL | TIMESPAN
-    // GUID
     | GUID | UUID | UNIQUEIDENTIFIER
-    // String
     | CHAR | NCHAR
     | VARCHAR | NVARCHAR
     | TEXT | NTEXT
-    // Binary
     | BINARY
     | VARBINARY
     | BLOB
@@ -286,19 +287,15 @@ referenceAction
     ;
 
 tableConstraint
-    : PRIMARY KEY LPAREN columnName (COMMA columnName)* RPAREN
-        # tablePrimaryKey
-    | UNIQUE LPAREN columnName (COMMA columnName)* RPAREN
-        # tableUnique
+    : PRIMARY KEY LPAREN columnName (COMMA columnName)* RPAREN   # tablePrimaryKey
+    | UNIQUE LPAREN columnName (COMMA columnName)* RPAREN        # tableUnique
     | FOREIGN KEY LPAREN columnName (COMMA columnName)* RPAREN
         REFERENCES tableName (LPAREN columnName (COMMA columnName)* RPAREN)?
-        referenceOption*
-        # tableForeignKey
-    | CHECK LPAREN expression RPAREN
-        # tableCheck
+        referenceOption*                                          # tableForeignKey
+    | CHECK LPAREN expression RPAREN                              # tableCheck
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // DROP TABLE Statement
 // ----------------------------------------------------------------------------
 
@@ -306,7 +303,7 @@ dropTableStatement
     : DROP TABLE (IF EXISTS)? tableName
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // ALTER TABLE Statement
 // ----------------------------------------------------------------------------
 
@@ -330,7 +327,7 @@ alterColumnAction
     | DROP NOT NULL                                         # alterColumnDropNotNull
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // CREATE INDEX Statement
 // ----------------------------------------------------------------------------
 
@@ -347,7 +344,7 @@ indexName
     : IDENTIFIER
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // DROP INDEX Statement
 // ----------------------------------------------------------------------------
 
@@ -355,7 +352,7 @@ dropIndexStatement
     : DROP INDEX (IF EXISTS)? indexName
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // CREATE/DROP VIEW Statements
 // ----------------------------------------------------------------------------
 
@@ -372,7 +369,7 @@ viewName
     : IDENTIFIER
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // CREATE/DROP TRIGGER Statements
 // ----------------------------------------------------------------------------
 
@@ -404,7 +401,7 @@ triggerName
     : IDENTIFIER
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // SEQUENCE Statements
 // ----------------------------------------------------------------------------
 
@@ -425,7 +422,7 @@ sequenceName
     : IDENTIFIER
     ;
 
-    // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Expressions
 // ----------------------------------------------------------------------------
 
@@ -487,7 +484,6 @@ functionCall
 
 functionName
     : IDENTIFIER
-    // Built-in functions that might conflict with keywords
     | COUNT | SUM | AVG | MIN | MAX
     | UPPER | LOWER | LENGTH | SUBSTR | TRIM | REPLACE
     | ABS | ROUND | FLOOR | CEIL
@@ -495,6 +491,10 @@ functionName
     | COALESCE | NULLIF | CAST
     | NOW | NEWGUID | INCREMENT
     | ROW_NUMBER | RANK | DENSE_RANK | LAG | LEAD
+    // Extended functions for EF Core support
+    | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND
+    | IFNULL | TYPEOF
+    | LAST_INSERT_ROWID
     ;
 
 windowSpec
@@ -504,7 +504,6 @@ windowSpec
       RPAREN
     ;
 
-// Identifiers and names
 tableName
     : IDENTIFIER
     ;
@@ -521,7 +520,7 @@ alias
 // Lexer Rules
 // ============================================================================
 
-// Keywords (alphabetical order)
+// Keywords
 ADD: A D D;
 ALL: A L L;
 ALTER: A L T E R;
@@ -600,7 +599,7 @@ ACTION: A C T I O N;
 NO: N O;
 OF: O F;
 
-// Additional keywords for full WitSQL coverage
+// Additional keywords
 VIEW: V I E W;
 TRIGGER: T R I G G E R;
 BEGIN: B E G I N;
@@ -626,6 +625,7 @@ SEQUENCE: S E Q U E N C E;
 START: S T A R T;
 RESTART: R E S T A R T;
 TYPE: T Y P E;
+RETURNING: R E T U R N I N G;
 
 // Data type keywords
 TINYINT: T I N Y I N T;
@@ -681,7 +681,7 @@ BINARY: B I N A R Y;
 VARBINARY: V A R B I N A R Y;
 BLOB: B L O B;
 
-// Time functions
+// Time functions/literals
 CURRENT_TIMESTAMP: C U R R E N T '_' T I M E S T A M P;
 CURRENT_DATE: C U R R E N T '_' D A T E;
 CURRENT_TIME: C U R R E N T '_' T I M E;
@@ -708,6 +708,19 @@ ABS: A B S;
 ROUND: R O U N D;
 FLOOR: F L O O R;
 CEIL: C E I L;
+
+// Date functions
+YEAR: Y E A R;
+MONTH: M O N T H;
+DAY: D A Y;
+HOUR: H O U R;
+MINUTE: M I N U T E;
+SECOND: S E C O N D;
+
+// Null handling
+IFNULL: I F N U L L;
+TYPEOF: T Y P E O F;
+LAST_INSERT_ROWID: L A S T '_' I N S E R T '_' R O W I D;
 
 // Window functions
 ROW_NUMBER: R O W '_' N U M B E R;
@@ -744,23 +757,10 @@ SEMI: ';';
 DOT: '.';
 
 // Literals
-INTEGER_LITERAL
-    : DIGIT+
-    ;
-
-REAL_LITERAL
-    : DIGIT+ DOT DIGIT*
-    | DOT DIGIT+
-    | DIGIT+ DOT? DIGIT* [Ee] [+-]? DIGIT+
-    ;
-
-STRING_LITERAL
-    : '\'' ( ~'\'' | '\'\'' )* '\''
-    ;
-
-BLOB_LITERAL
-    : [Xx] '\'' [0-9A-Fa-f]* '\''
-   ;
+INTEGER_LITERAL: DIGIT+;
+REAL_LITERAL: DIGIT+ DOT DIGIT* | DOT DIGIT+ | DIGIT+ DOT? DIGIT* [Ee] [+-]? DIGIT+;
+STRING_LITERAL: '\'' ( ~'\'' | '\'\'' )* '\'';
+BLOB_LITERAL: [Xx] '\'' [0-9A-Fa-f]* '\'';
 
 // Identifier
 IDENTIFIER
@@ -770,7 +770,7 @@ IDENTIFIER
     | '`' ~'`'* '`'
     ;
 
-    // Parameter placeholders
+// Parameters
 PARAM_NAMED: '@' [a-zA-Z_] [a-zA-Z0-9_]*;
 PARAM_COLON: ':' [a-zA-Z_] [a-zA-Z0-9_]*;
 PARAM_POSITIONAL: '?';
@@ -781,7 +781,7 @@ WS: [ \t\r\n]+ -> skip;
 LINE_COMMENT: '--' ~[\r\n]* -> skip;
 BLOCK_COMMENT: '/*' .*? '*/' -> skip;
 
-// Fragment rules for case-insensitive keywords
+// Fragments for case-insensitive keywords
 fragment A: [Aa];
 fragment B: [Bb];
 fragment C: [Cc];

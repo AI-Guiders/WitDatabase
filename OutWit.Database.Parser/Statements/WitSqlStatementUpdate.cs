@@ -29,7 +29,8 @@ namespace OutWit.Database.Parser.Statements
             return base.Is(update, tolerance) 
                    && TableName.Is(update.TableName)
                    && SetClauses.Is(update.SetClauses)
-                   && WhereClause.Check(update.WhereClause);
+                   && WhereClause.Check(update.WhereClause)
+                   && ReturningClause.Is(update.ReturningClause);
         }
 
         public override WitSqlStatementUpdate Clone()
@@ -40,7 +41,8 @@ namespace OutWit.Database.Parser.Statements
                 Column = Column,
                 TableName = TableName,
                 SetClauses = SetClauses.Select(set => set.Clone()).ToList(),
-                WhereClause = (WitSqlExpression?)WhereClause?.Clone()
+                WhereClause = (WitSqlExpression?)WhereClause?.Clone(),
+                ReturningClause = ReturningClause?.Select(x => x.Clone()).ToList()
             };
         }
 
@@ -50,8 +52,15 @@ namespace OutWit.Database.Parser.Statements
 
         [ToString]
         public required string TableName { get; init; }
+
         public required IReadOnlyList<ClauseSet> SetClauses { get; init; }
+
         public WitSqlExpression? WhereClause { get; init; }
+
+        /// <summary>
+        /// RETURNING clause for retrieving updated values.
+        /// </summary>
+        public IReadOnlyList<ClauseSelectItem>? ReturningClause { get; init; }
 
         #endregion
     }

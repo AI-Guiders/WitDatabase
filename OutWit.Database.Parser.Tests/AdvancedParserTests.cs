@@ -1,4 +1,5 @@
 using OutWit.Database.Parser.Exceptions;
+using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Statements;
 
@@ -358,6 +359,136 @@ public class AdvancedParserTests
             SELECT * FROM T;
             DROP TABLE T");
         Assert.That(statements, Has.Count.EqualTo(4));
+    }
+
+    #endregion
+
+    #region RETURNING Clause
+
+    [Test]
+    public void ParseInsertWithReturningTest()
+    {
+        var stmt = WitSql.ParseStatement("INSERT INTO Users (Name) VALUES ('John') RETURNING Id");
+        var insert = (WitSqlStatementInsert)stmt;
+        Assert.That(insert.ReturningClause, Is.Not.Null);
+        Assert.That(insert.ReturningClause, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void ParseInsertWithReturningStarTest()
+    {
+        var stmt = WitSql.ParseStatement("INSERT INTO Users (Name) VALUES ('John') RETURNING *");
+        var insert = (WitSqlStatementInsert)stmt;
+        Assert.That(insert.ReturningClause, Is.Not.Null);
+        Assert.That(insert.ReturningClause![0].IsStar, Is.True);
+    }
+
+    [Test]
+    public void ParseInsertWithReturningMultipleColumnsTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "INSERT INTO Users (Name, Email) VALUES ('John', 'john@example.com') RETURNING Id, CreatedAt");
+        var insert = (WitSqlStatementInsert)stmt;
+        Assert.That(insert.ReturningClause, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void ParseUpdateWithReturningTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "UPDATE Users SET Name = 'Jane' WHERE Id = 1 RETURNING Id, Name, UpdatedAt");
+        var update = (WitSqlStatementUpdate)stmt;
+        Assert.That(update.ReturningClause, Is.Not.Null);
+        Assert.That(update.ReturningClause, Has.Count.EqualTo(3));
+    }
+
+    [Test]
+    public void ParseDeleteWithReturningTest()
+    {
+        var stmt = WitSql.ParseStatement("DELETE FROM Users WHERE Id = 1 RETURNING Id, Name");
+        var delete = (WitSqlStatementDelete)stmt;
+        Assert.That(delete.ReturningClause, Is.Not.Null);
+        Assert.That(delete.ReturningClause, Has.Count.EqualTo(2));
+    }
+
+    #endregion
+
+    #region Date Extraction Functions
+
+    [Test]
+    public void ParseYearFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("YEAR(CreatedAt)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("YEAR"));
+    }
+
+    [Test]
+    public void ParseMonthFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("MONTH(CreatedAt)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("MONTH"));
+    }
+
+    [Test]
+    public void ParseDayFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("DAY(CreatedAt)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("DAY"));
+    }
+
+    [Test]
+    public void ParseHourFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("HOUR(CreatedAt)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("HOUR"));
+    }
+
+    [Test]
+    public void ParseMinuteFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("MINUTE(CreatedAt)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("MINUTE"));
+    }
+
+    [Test]
+    public void ParseSecondFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("SECOND(CreatedAt)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("SECOND"));
+    }
+
+    #endregion
+
+    #region System Functions
+
+    [Test]
+    public void ParseLastInsertRowIdFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("LAST_INSERT_ROWID()");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("LAST_INSERT_ROWID"));
+    }
+
+    [Test]
+    public void ParseTypeOfFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TYPEOF(Value)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TYPEOF"));
+    }
+
+    [Test]
+    public void ParseIfNullFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("IFNULL(Name, 'Unknown')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("IFNULL"));
     }
 
     #endregion

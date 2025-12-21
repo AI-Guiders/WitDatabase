@@ -237,7 +237,10 @@ internal sealed partial class WitSqlVisitor
             TableName = context.tableName().GetText(),
             ColumnNames = columns,
             Values = values,
-            SelectSource = context.selectStatement() is { } select ? VisitSelectStatement(select) : null
+            SelectSource = context.selectStatement() is { } select ? VisitSelectStatement(select) : null,
+            ReturningClause = context.returningClause() is { } returning
+                ? VisitSelectList(returning.selectList())
+                : null
         };
     }
 
@@ -257,7 +260,10 @@ internal sealed partial class WitSqlVisitor
                 ColumnName = s.columnName().GetText(),
                 Value = VisitExpression(s.expression())
             }).ToList(),
-            WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null
+            WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null,
+            ReturningClause = context.returningClause() is { } returning
+                ? VisitSelectList(returning.selectList())
+                : null
         };
     }
 
@@ -272,7 +278,10 @@ internal sealed partial class WitSqlVisitor
             Line = context.Start.Line,
             Column = context.Start.Column,
             TableName = context.tableName().GetText(),
-            WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null
+            WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null,
+            ReturningClause = context.returningClause() is { } returning
+                ? VisitSelectList(returning.selectList())
+                : null
         };
     }
 
