@@ -1,0 +1,279 @@
+# OutWit.Database.Core - Roadmap
+
+**Version:** 1.0  
+**Based on:** OutWit.Database.Core.TODO.md  
+**Last Updated:** 2024-12-21
+
+---
+
+## Legend
+
+| Symbol | Meaning |
+|--------|---------|
+| [x] | Implemented |
+| [ ] | Not implemented |
+
+**Priority Legend:**
+- **P0** = Critical (required for ADO.NET/EF Core)
+- **P1** = Important (production ready)
+- **P2** = Optional (nice-to-have)
+
+---
+
+## Progress Summary
+
+| Category | Implemented | Missing | Progress |
+|----------|-------------|---------|----------|
+| Key-Value Store | 3 | 0 | 100% |
+| Storage Engines | 3 | 0 | 100% |
+| Storage Backends | 3 | 0 | 100% |
+| Encryption | 3 | 0 | 100% |
+| Crash Recovery | 3 | 0 | 100% |
+| Basic Concurrency | 4 | 0 | 100% |
+| Isolation Levels | 0 | 4 | 0% |
+| Row-level Locks | 0 | 4 | 0% |
+| Savepoints | 0 | 4 | 0% |
+| Multiple Result Sets | 0 | 3 | 0% |
+| Cursor Support | 0 | 4 | 0% |
+| Query Context | 0 | 5 | 0% |
+| Secondary Indexes | 0 | 5 | 0% |
+| Bulk Operations | 0 | 3 | 0% |
+| Statistics | 0 | 4 | 0% |
+| VACUUM/Compaction | 0 | 3 | 0% |
+| Concurrent Transactions | 0 | 3 | 0% |
+| ROWVERSION | 0 | 3 | 0% |
+| **TOTAL** | **19** | **45** | **30%** |
+
+---
+
+## 1. Existing Components [x]
+
+### 1.1 Key-Value Store Interfaces
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IKeyValueStore` | [x] | Get, Put, Delete, Scan, Flush |
+| `ITransactionalStore` | [x] | BeginTransaction, ACID support |
+| `ITransaction` | [x] | Get, Put, Delete, Commit, Rollback |
+
+### 1.2 Storage Engines
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `StoreBTree` | [x] | B+Tree storage, read-optimized |
+| `StoreLsm` | [x] | LSM-Tree storage, write-optimized |
+| `StoreInMemory` | [x] | In-memory storage for testing |
+
+### 1.3 Storage Backends
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `StorageFile` | [x] | File-based persistent storage |
+| `StorageMemory` | [x] | Memory-based storage for testing |
+| `StorageEncrypted` | [x] | Encrypted storage wrapper |
+
+### 1.4 Encryption
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| AES-256-GCM | [x] | Hardware accelerated encryption |
+| ChaCha20-Poly1305 | [x] | BouncyCastle, Blazor WASM compatible |
+| PBKDF2 | [x] | Password-based key derivation |
+
+### 1.5 Crash Recovery
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Write-Ahead Log (WAL) | [x] | Durability guarantee |
+| Rollback Journal | [x] | Alternative to WAL |
+| Crash recovery | [x] | Automatic recovery on database open |
+
+### 1.6 Concurrency
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Reader-writer locking | [x] | Multiple concurrent readers |
+| Writer priority | [x] | Prevents writer starvation |
+| File locking | [x] | Multi-process safety |
+| Reentrancy detection | [x] | Throws LockRecursionException |
+
+---
+
+## 2. Missing Components [ ]
+
+### 2.1 Transaction Isolation Levels
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `IsolationLevel` enum | [ ] | P0 | SS1.1 |
+| MVCC (Multi-Version Concurrency Control) | [ ] | P0 | SS1.2 |
+| Extend `ITransaction` for isolation level | [ ] | P0 | SS1.3 |
+| Record versioning (timestamp/row version) | [ ] | P0 | SS1.4 |
+
+**Notes:** Required for Snapshot isolation and concurrent reads. Without MVCC, EF Core cannot work in multi-user scenarios.
+
+### 2.2 Row-level Locks
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `RowLockManager` class | [ ] | P0 | SS2.1 |
+| `FOR UPDATE` / `FOR SHARE` support | [ ] | P0 | SS2.2 |
+| `NOWAIT` / `SKIP LOCKED` modes | [ ] | P1 | SS2.3 |
+| Deadlock detection | [ ] | P0 | SS2.4 |
+
+**Notes:** Currently only database-level locks exist. Row-level locks are essential for pessimistic concurrency in EF Core.
+
+### 2.3 Savepoints
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `CreateSavepoint(name)` | [ ] | P1 | SS3.1 |
+| `RollbackToSavepoint(name)` | [ ] | P1 | SS3.2 |
+| `ReleaseSavepoint(name)` | [ ] | P1 | SS3.3 |
+| Nested savepoints (stack) | [ ] | P1 | SS3.4 |
+
+**Notes:** Used by EF Core for nested transactions and SaveChanges with retry.
+
+### 2.4 Multiple Result Sets
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `IMultiResultReader` interface | [ ] | P1 | SS4.1 |
+| `NextResult()` method | [ ] | P1 | SS4.2 |
+| Batch execution support | [ ] | P1 | SS4.3 |
+
+### 2.5 Cursor Support (Optional)
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `ICursor` interface | [ ] | P2 | SS5.1 |
+| Forward-only mode | [ ] | P2 | SS5.2 |
+| Scrollable mode | [ ] | P2 | SS5.2 |
+| Fetch size (batching) | [ ] | P2 | SS5.3 |
+
+### 2.6 Query Execution Context
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `IQueryContext` interface | [ ] | P0 | SS6.1 |
+| `AffectedRows` property | [ ] | P0 | SS6.2 |
+| `LastInsertId` property | [ ] | P0 | SS6.3 |
+| Query timeout support | [ ] | P0 | SS6.4 |
+| `CancellationToken` propagation | [ ] | P0 | SS6.5 |
+
+**Notes:** ADO.NET requires information about affected rows count and last insert id.
+
+### 2.7 Secondary Indexes
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `ISecondaryIndex` interface | [ ] | P0 | SS7.1 |
+| B+Tree based secondary indexes | [ ] | P0 | SS7.2 |
+| Unique index support | [ ] | P0 | SS7.3 |
+| Composite index support | [ ] | P0 | SS7.4 |
+| Index maintenance (auto-update) | [ ] | P0 | SS7.5 |
+
+**Notes:** Critical for any SQL engine. Without secondary indexes, efficient filtering and JOIN operations are impossible.
+
+### 2.8 Bulk Operations
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| `BulkPut(IEnumerable<(key, value)>)` | [ ] | P1 | SS8.1 |
+| `BulkDelete(IEnumerable<key>)` | [ ] | P1 | SS8.2 |
+| Streaming insert support | [ ] | P1 | SS8.3 |
+
+### 2.9 Statistics and Metadata
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| Table row count (approximate/exact) | [ ] | P1 | SS9.1 |
+| Index statistics for query optimizer | [ ] | P1 | SS9.2 |
+| `ANALYZE` command support | [ ] | P2 | SS9.3 |
+| Column cardinality estimation | [ ] | P2 | SS9.4 |
+
+### 2.10 VACUUM / Compaction API
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| Explicit `Vacuum()` method for BTree | [ ] | P2 | SS10.1 |
+| Incremental vacuum support | [ ] | P2 | SS10.2 |
+| Compaction progress/status API | [ ] | P2 | SS10.3 |
+
+### 2.11 Concurrent Transactions
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| Multiple concurrent read transactions | [ ] | P0 | SS11.1 |
+| Read transactions during write (MVCC) | [ ] | P0 | SS11.2 |
+| Transaction wait queue with priorities | [ ] | P0 | SS11.3 |
+
+### 2.12 ROWVERSION / Concurrency Tokens
+
+| Feature | Status | Priority | TODO Ref |
+|---------|--------|----------|----------|
+| Auto-incrementing row version support | [ ] | P1 | SS12.1 |
+| Optimistic concurrency check at kernel | [ ] | P1 | SS12.2 |
+| Conditional Put/Delete (version check) | [ ] | P1 | SS12.3 |
+
+---
+
+## 3. Implementation Priorities
+
+### 3.1 Phase 1: MVP for ADO.NET
+
+| Feature | Priority |
+|---------|----------|
+| `IQueryContext` interface | P0 |
+| `AffectedRows` property | P0 |
+| `LastInsertId` property | P0 |
+| Query timeout | P0 |
+| `CancellationToken` support | P0 |
+| `ISecondaryIndex` interface | P0 |
+| B+Tree secondary indexes | P0 |
+| Unique index support | P0 |
+| Composite index support | P0 |
+| Savepoints | P1 |
+
+### 3.2 Phase 2: EF Core Compatibility
+
+| Feature | Priority |
+|---------|----------|
+| `IsolationLevel` enum | P0 |
+| MVCC implementation | P0 |
+| `RowLockManager` | P0 |
+| Deadlock detection | P0 |
+| Multiple concurrent transactions | P0 |
+| ROWVERSION support | P1 |
+
+### 3.3 Phase 3: Production Ready
+
+| Feature | Priority |
+|---------|----------|
+| `IMultiResultReader` | P1 |
+| Bulk operations | P1 |
+| Statistics | P1 |
+| `NOWAIT` / `SKIP LOCKED` | P1 |
+
+### 3.4 Phase 4: Nice to Have
+
+| Feature | Priority |
+|---------|----------|
+| `ICursor` interface | P2 |
+| VACUUM API | P2 |
+| `ANALYZE` support | P2 |
+| Cardinality estimation | P2 |
+
+---
+
+## 4. Priority Summary
+
+| Priority | Count | Description |
+|----------|-------|-------------|
+| P0 | 21 | Required for ADO.NET/EF Core |
+| P1 | 17 | Production ready features |
+| P2 | 7 | Nice-to-have features |
+
+---
+
+**Last Updated:** 2024-12-21
