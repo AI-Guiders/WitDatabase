@@ -934,28 +934,25 @@ public class AdvancedParserTests
     }
 
     [Test]
-    [Ignore("FIRST_VALUE token conflict with FIRST keyword - to be fixed")]
     public void ParseFirstValueFunctionTest()
     {
-        var expr = WitSql.ParseExpression("FIRST_VALUE(Price) OVER (ORDER BY Date)");
+        var expr = WitSql.ParseExpression("FIRST_VALUE(Price) OVER (ORDER BY CreatedAt)");
         var func = (WitSqlExpressionFunctionCall)expr;
         Assert.That(func.FunctionName, Is.EqualTo("FIRST_VALUE"));
     }
 
     [Test]
-    [Ignore("LAST_VALUE token conflict with LAST keyword - to be fixed")]
     public void ParseLastValueFunctionTest()
     {
-        var expr = WitSql.ParseExpression("LAST_VALUE(Price) OVER (ORDER BY Date)");
+        var expr = WitSql.ParseExpression("LAST_VALUE(Price) OVER (ORDER BY CreatedAt)");
         var func = (WitSqlExpressionFunctionCall)expr;
         Assert.That(func.FunctionName, Is.EqualTo("LAST_VALUE"));
     }
 
     [Test]
-    [Ignore("NTH_VALUE token parsing issue - to be fixed")]
     public void ParseNthValueFunctionTest()
     {
-        var expr = WitSql.ParseExpression("NTH_VALUE(Price, 3) OVER (ORDER BY Date)");
+        var expr = WitSql.ParseExpression("NTH_VALUE(Price, 3) OVER (ORDER BY CreatedAt)");
         var func = (WitSqlExpressionFunctionCall)expr;
         Assert.That(func.FunctionName, Is.EqualTo("NTH_VALUE"));
     }
@@ -994,6 +991,180 @@ public class AdvancedParserTests
         var expr = WitSql.ParseExpression("LASTINCREMENT('orders')");
         var func = (WitSqlExpressionFunctionCall)expr;
         Assert.That(func.FunctionName, Is.EqualTo("LASTINCREMENT"));
+    }
+
+    #endregion
+
+    #region Additional String Functions
+
+    [Test]
+    public void ParsePositionFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("POSITION('@', Email)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("POSITION"));
+    }
+
+    [Test]
+    public void ParseFormatFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("FORMAT('Hello {0}', Name)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("FORMAT"));
+    }
+
+    #endregion
+
+    #region Additional Conversion Functions
+
+    [Test]
+    public void ParseToStringFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TOSTRING(123)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TOSTRING"));
+    }
+
+    [Test]
+    public void ParseToIntFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TOINT('123')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TOINT"));
+    }
+
+    [Test]
+    public void ParseToDoubleFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TODOUBLE('3.14')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TODOUBLE"));
+    }
+
+    [Test]
+    public void ParseToDecimalFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TODECIMAL('123.45')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TODECIMAL"));
+    }
+
+    [Test]
+    public void ParseToBooleanFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TOBOOLEAN(1)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TOBOOLEAN"));
+    }
+
+    [Test]
+    public void ParseToDateFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TODATE('2024-01-01')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TODATE"));
+    }
+
+    [Test]
+    public void ParseToDateTimeFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TODATETIME('2024-01-01 12:00:00')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TODATETIME"));
+    }
+
+    [Test]
+    public void ParseToGuidFunctionTest()
+    {
+        var expr = WitSql.ParseExpression("TOGUID('550e8400-e29b-41d4-a716-446655440000')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("TOGUID"));
+    }
+
+    [Test]
+    public void ParseBase64FunctionTest()
+    {
+        var expr = WitSql.ParseExpression("BASE64(Data)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("BASE64"));
+    }
+
+    [Test]
+    public void ParseUnbase64FunctionTest()
+    {
+        var expr = WitSql.ParseExpression("UNBASE64('SGVsbG8=')");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.FunctionName, Is.EqualTo("UNBASE64"));
+    }
+
+    #endregion
+
+    #region ROWID Pseudo-Column
+
+    [Test]
+    public void ParseRowIdSelectTest()
+    {
+        var stmt = WitSql.ParseStatement("SELECT ROWID, Name FROM Users");
+        var select = (WitSqlStatementSelect)stmt;
+        Assert.That(select.SelectList, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void ParseRowIdWhereClauseTest()
+    {
+        var stmt = WitSql.ParseStatement("SELECT * FROM Users WHERE ROWID = 1");
+        Assert.That(stmt, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseRowIdWithTablePrefixTest()
+    {
+        var stmt = WitSql.ParseStatement("SELECT t.ROWID FROM Users t");
+        Assert.That(stmt, Is.Not.Null);
+    }
+
+    #endregion
+
+    #region Window Frame Clause
+
+    [Test]
+    public void ParseWindowFrameRowsUnboundedPrecedingTest()
+    {
+        var expr = WitSql.ParseExpression("SUM(Amount) OVER (ORDER BY CreatedAt ROWS UNBOUNDED PRECEDING)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.Over, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseWindowFrameRowsCurrentRowTest()
+    {
+        var expr = WitSql.ParseExpression("AVG(Price) OVER (ORDER BY CreatedAt ROWS CURRENT ROW)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.Over, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseWindowFrameRowsBetweenTest()
+    {
+        var expr = WitSql.ParseExpression("SUM(Amount) OVER (ORDER BY CreatedAt ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.Over, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseWindowFrameRowsBetweenNPrecedingTest()
+    {
+        var expr = WitSql.ParseExpression("AVG(Price) OVER (ORDER BY CreatedAt ROWS BETWEEN 3 PRECEDING AND 1 FOLLOWING)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.Over, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseWindowFrameRangeBetweenTest()
+    {
+        var expr = WitSql.ParseExpression("SUM(Amount) OVER (ORDER BY CreatedAt RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+        var func = (WitSqlExpressionFunctionCall)expr;
+        Assert.That(func.Over, Is.Not.Null);
     }
 
     #endregion

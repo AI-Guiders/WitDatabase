@@ -422,6 +422,7 @@ functionName
     | UPPER | LOWER | LENGTH | SUBSTR | SUBSTRING | TRIM | REPLACE
     | LTRIM | RTRIM | INSTR | REVERSE | CONCAT_FUNC | CONCAT_WS
     | CHAR_LENGTH | OCTET_LENGTH | LPAD | RPAD | REPEAT | SPACE_FUNC
+    | POSITION | FORMAT
     | ABS | ROUND | FLOOR | CEIL | CEILING | SIGN | TRUNC | MOD
     | POWER | SQRT | EXP | LOG | LOG10 | LOG2 | PI | RANDOM
     | SIN | COS | TAN | ASIN | ACOS | ATAN | ATAN2
@@ -432,6 +433,9 @@ functionName
     | DATEADD | DATEDIFF | STRFTIME | MAKEDATE | MAKETIME
     | COALESCE | NULLIF | CAST | IFNULL | NVL
     | CONVERT | HEX | UNHEX | TYPEOF
+    | TOSTRING | TOINT | TODOUBLE | TODECIMAL | TOBOOLEAN
+    | TODATE | TODATETIME | TOGUID
+    | BASE64 | UNBASE64
     | NEWGUID | NEWUUID | INCREMENT | LASTINCREMENT
     | LAST_INSERT_ROWID | DATABASE_FUNC | VERSION_FUNC | CHANGES
     | ROW_NUMBER | RANK | DENSE_RANK | NTILE
@@ -443,7 +447,21 @@ windowSpec
     : LPAREN
         (PARTITION BY expression (COMMA expression)*)?
         orderByClause?
+        frameClause?
       RPAREN
+    ;
+
+frameClause
+    : (ROWS | RANGE) frameBound
+    | (ROWS | RANGE) BETWEEN frameBound AND frameBound
+    ;
+
+frameBound
+    : UNBOUNDED PRECEDING
+    | INTEGER_LITERAL PRECEDING
+    | CURRENT ROW
+    | INTEGER_LITERAL FOLLOWING
+    | UNBOUNDED FOLLOWING
     ;
 
 tableName
@@ -452,15 +470,16 @@ tableName
 
 columnName
     : IDENTIFIER
+    | ROWID
     ;
 
 alias
     : IDENTIFIER
     ;
 
-// ============================================================================
-// Lexer Rules
-// ============================================================================
+    // ============================================================================
+    // Lexer Rules
+    // ============================================================================
 
 // Window function tokens (must be before FIRST/LAST keywords)
 FIRST_VALUE: F I R S T '_' V A L U E;
@@ -566,6 +585,12 @@ BEFORE: B E F O R E;
 FOR: F O R;
 EACH: E A C H;
 ROW: R O W;
+ROWS: R O W S;
+RANGE: R A N G E;
+UNBOUNDED: U N B O U N D E D;
+PRECEDING: P R E C E D I N G;
+FOLLOWING: F O L L O W I N G;
+CURRENT: C U R R E N T;
 SEQUENCE: S E Q U E N C E;
 START: S T A R T;
 RESTART: R E S T A R T;
@@ -659,6 +684,8 @@ LPAD: L P A D;
 RPAD: R P A D;
 REPEAT: R E P E A T;
 SPACE_FUNC: S P A C E;
+POSITION: P O S I T I O N;
+FORMAT: F O R M A T;
 
 ABS: A B S;
 ROUND: R O U N D;
@@ -709,7 +736,20 @@ CONVERT: C O N V E R T;
 HEX: H E X;
 UNHEX: U N H E X;
 
+// Conversion functions
+TOSTRING: T O S T R I N G;
+TOINT: T O I N T;
+TODOUBLE: T O D O U B L E;
+TODECIMAL: T O D E C I M A L;
+TOBOOLEAN: T O B O O L E A N;
+TODATE: T O D A T E;
+TODATETIME: T O D A T E T I M E;
+TOGUID: T O G U I D;
+BASE64: B A S E '6' '4';
+UNBASE64: U N B A S E '6' '4';
+
 LAST_INSERT_ROWID: L A S T '_' I N S E R T '_' R O W I D;
+ROWID: R O W I D;
 DATABASE_FUNC: D A T A B A S E;
 VERSION_FUNC: V E R S I O N;
 CHANGES: C H A N G E S;
