@@ -5,6 +5,7 @@ using OutWit.Common.Values;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Interfaces;
 using OutWit.Database.Parser.Schema.Clauses;
+using OutWit.Database.Parser.Schema.TableSources;
 
 namespace OutWit.Database.Parser.Statements
 {
@@ -28,6 +29,8 @@ namespace OutWit.Database.Parser.Statements
 
             return base.Is(delete, tolerance)
                    && TableName.Is(delete.TableName)
+                   && TableAlias.Is(delete.TableAlias)
+                   && UsingClause.Is(delete.UsingClause)
                    && WhereClause.Check(delete.WhereClause)
                    && ReturningClause.Is(delete.ReturningClause);
         }
@@ -39,6 +42,8 @@ namespace OutWit.Database.Parser.Statements
                 Line = Line,
                 Column = Column,
                 TableName = TableName,
+                TableAlias = TableAlias,
+                UsingClause = UsingClause?.Select(x => (TableSource)x.Clone()).ToList(),
                 WhereClause = (WitSqlExpression?)WhereClause?.Clone(),
                 ReturningClause = ReturningClause?.Select(x => x.Clone()).ToList()
             };
@@ -50,6 +55,16 @@ namespace OutWit.Database.Parser.Statements
 
         [ToString]
         public required string TableName { get; init; }
+
+        /// <summary>
+        /// Optional alias for the target table.
+        /// </summary>
+        public string? TableAlias { get; init; }
+
+        /// <summary>
+        /// Optional USING clause for join-based deletes.
+        /// </summary>
+        public IReadOnlyList<TableSource>? UsingClause { get; init; }
 
         public WitSqlExpression? WhereClause { get; init; }
 

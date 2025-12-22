@@ -218,8 +218,9 @@ valueRow
     ;
 
 updateStatement
-    : UPDATE tableName
+    : UPDATE tableName (AS? alias)?
       SET setClause (COMMA setClause)*
+      (FROM tableSource (COMMA tableSource)*)?
       whereClause?
       returningClause?
     ;
@@ -229,7 +230,10 @@ setClause
     ;
 
 deleteStatement
-    : DELETE FROM tableName whereClause? returningClause?
+    : DELETE FROM tableName (AS? alias)?
+      (USING tableSource (COMMA tableSource)*)?
+      whereClause? 
+      returningClause?
  ;
 
 // ============================================================================
@@ -511,7 +515,8 @@ literal
     ;
 
 columnRef
-    : (tableName DOT)? columnName
+    : (tableName DOT)? columnName                   # simpleColumnRef
+    | EXCLUDED DOT columnName                       # excludedColumnRef
    ;
 
 functionCall

@@ -338,6 +338,8 @@ REPEAT: R E P E A T;
 CONFLICT: C O N F L I C T;
 DO: D O;
 NOTHING: N O T H I N G;
+EXCLUDED: E X C L U D E D;
+USING: U S I N G;
 
 // ============================================================================
 // Transaction Isolation Level

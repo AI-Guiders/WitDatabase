@@ -333,14 +333,27 @@ internal sealed partial class WitSqlVisitor
         };
     }
 
-    public override WitSqlExpressionColumnRef VisitColumnRef(WitSqlParser.ColumnRefContext context)
+    public WitSqlExpressionColumnRef VisitColumnRef(WitSqlParser.ColumnRefContext context)
     {
-        return new WitSqlExpressionColumnRef
+        return context switch
         {
-            Line = context.Start.Line,
-            Column = context.Start.Column,
-            TableName = context.tableName()?.GetText(),
-            ColumnName = context.columnName().GetText()
+            WitSqlParser.SimpleColumnRefContext simple => new WitSqlExpressionColumnRef
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                TableName = simple.tableName()?.GetText(),
+                ColumnName = simple.columnName().GetText(),
+                IsExcluded = false
+            },
+            WitSqlParser.ExcludedColumnRefContext excluded => new WitSqlExpressionColumnRef
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                TableName = null,
+                ColumnName = excluded.columnName().GetText(),
+                IsExcluded = true
+            },
+            _ => throw new InvalidOperationException($"Unknown column ref type: {context.GetType()}")
         };
     }
 

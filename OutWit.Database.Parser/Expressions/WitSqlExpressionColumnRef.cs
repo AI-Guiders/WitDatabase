@@ -25,7 +25,8 @@ public class WitSqlExpressionColumnRef : WitSqlExpression
 
         return base.Is(column, tolerance)
                && TableName.Is(column.TableName)
-               && ColumnName.Is(column.ColumnName);
+               && ColumnName.Is(column.ColumnName)
+               && IsExcluded.Is(column.IsExcluded);
     }
 
     public override WitSqlExpressionColumnRef Clone()
@@ -35,7 +36,8 @@ public class WitSqlExpressionColumnRef : WitSqlExpression
             Line = Line,
             Column = Column,
             TableName = TableName,
-            ColumnName = ColumnName
+            ColumnName = ColumnName,
+            IsExcluded = IsExcluded
         };
     }
 
@@ -48,6 +50,11 @@ public class WitSqlExpressionColumnRef : WitSqlExpression
 
     [ToString]
     public required string ColumnName { get; init; }
+
+    /// <summary>
+    /// Indicates if this is an EXCLUDED.column reference (used in ON CONFLICT DO UPDATE).
+    /// </summary>
+    public bool IsExcluded { get; init; }
 
     #endregion
 }

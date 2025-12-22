@@ -32,9 +32,9 @@
 | DDL - TRIGGER | 9 | 1 | 90% |
 | DDL - SEQUENCE | 5 | 0 | 100% |
 | DML - SELECT | 15 | 0 | 100% |
-| DML - INSERT | 7 | 1 | 88% |
-| DML - UPDATE | 3 | 1 | 75% |
-| DML - DELETE | 3 | 1 | 75% |
+| DML - INSERT | 8 | 0 | 100% |
+| DML - UPDATE | 5 | 0 | 100% |
+| DML - DELETE | 5 | 0 | 100% |
 | DML - TRUNCATE/MERGE | 1 | 3 | 25% |
 | CTE / Set Operations | 6 | 0 | 100% |
 | Subqueries | 7 | 0 | 100% |
@@ -56,7 +56,7 @@
 | EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
 | Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL (v1)** | **279** | **3** | **99%** |
+| **TOTAL (v1)** | **286** | **1** | **100%** |
 
 ---
 
@@ -214,7 +214,7 @@
 
 ---
 
-## 9. DML - INSERT (88%)
+## 9. DML - INSERT (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
@@ -225,29 +225,31 @@
 | `INSERT OR REPLACE` | [x] | SS16.1 |
 | `INSERT ... ON CONFLICT DO UPDATE` | [x] | SS16.2 |
 | `INSERT ... ON CONFLICT DO NOTHING` | [x] | SS16.2 |
-| `EXCLUDED.column` reference | [ ] | SS16 |
+| `EXCLUDED.column` reference | [x] | SS16 |
 
 ---
 
-## 10. DML - UPDATE (75%)
+## 10. DML - UPDATE (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
 | `UPDATE table SET col = expr` | [x] | SS3.3 |
 | `UPDATE ... WHERE condition` | [x] | SS3.3 |
 | `UPDATE ... RETURNING` | [x] | SS3.3 |
-| `UPDATE ... FROM other_table` | [ ] | SS17.2 |
+| `UPDATE ... FROM other_table` | [x] | SS17.2 |
+| `UPDATE table AS alias` | [x] | SS3.3 |
 
 ---
 
-## 11. DML - DELETE (75%)
+## 11. DML - DELETE (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
 | `DELETE FROM table` | [x] | SS3.4 |
 | `DELETE FROM ... WHERE` | [x] | SS3.4 |
 | `DELETE FROM ... RETURNING` | [x] | SS3.4 |
-| `DELETE ... USING other_table` | [ ] | SS17.3 |
+| `DELETE ... USING other_table` | [x] | SS17.3 |
+| `DELETE FROM table AS alias` | [x] | SS3.4 |
 
 ---
 

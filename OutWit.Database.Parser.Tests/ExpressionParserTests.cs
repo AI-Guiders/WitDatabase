@@ -846,7 +846,7 @@ public class ExpressionParserTests
     [Test]
     public void ParseAllWithNotEqualTest()
     {
-        var expr = WitSql.ParseExpression("Status <> ALL (SELECT Status FROM Excluded)");
+        var expr = WitSql.ParseExpression("Status <> ALL (SELECT Status FROM BlockedItems)");
         var quantified = (WitSqlExpressionQuantified)expr;
         Assert.That(quantified.Operator, Is.EqualTo(BinaryOperatorType.NotEqual));
         Assert.That(quantified.QuantifierType, Is.EqualTo(QuantifierType.All));

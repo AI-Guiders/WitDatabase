@@ -86,8 +86,9 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 - [x] **4.1** `INSERT OR REPLACE` statement
 - [x] **4.2** `INSERT ... ON CONFLICT (columns) DO UPDATE` statement
 - [x] **4.3** `INSERT ... ON CONFLICT (columns) DO NOTHING` statement
-- [ ] **4.4** `MERGE INTO ... USING ... WHEN MATCHED/NOT MATCHED` statement
-- [x] **4.5** AST nodes: `WitSqlStatementMerge`, extend `WitSqlStatementInsert`
+- [x] **4.4** `EXCLUDED.column` reference in ON CONFLICT
+- [ ] **4.5** `MERGE INTO ... USING ... WHEN MATCHED/NOT MATCHED` statement
+- [x] **4.6** AST nodes: `WitSqlStatementMerge`, extend `WitSqlStatementInsert`
  
 ### Category 5: TRUNCATE TABLE
 
@@ -167,9 +168,9 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 
 ### Category 15: UPDATE/DELETE with FROM
 
-- [ ] **15.1** `UPDATE ... FROM other_table WHERE` syntax
-- [ ] **15.2** `DELETE FROM ... USING other_table WHERE` syntax
-- [ ] **15.3** Extend `WitSqlStatementUpdate`, `WitSqlStatementDelete`
+- [x] **15.1** `UPDATE ... FROM other_table WHERE` syntax
+- [x] **15.2** `DELETE FROM ... USING other_table WHERE` syntax
+- [x] **15.3** Extend `WitSqlStatementUpdate`, `WitSqlStatementDelete`
 
 ### Category 16: ANY / SOME / ALL Operators
 

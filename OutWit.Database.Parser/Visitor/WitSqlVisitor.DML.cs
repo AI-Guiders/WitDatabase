@@ -329,11 +329,13 @@ internal sealed partial class WitSqlVisitor
             Line = context.Start.Line,
             Column = context.Start.Column,
             TableName = context.tableName().GetText(),
+            TableAlias = context.alias()?.GetText(),
             SetClauses = context.setClause().Select(s => new ClauseSet
             {
                 ColumnName = s.columnName().GetText(),
                 Value = VisitExpression(s.expression())
             }).ToList(),
+            FromClause = context.tableSource()?.Select(VisitTableSource).ToList(),
             WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null,
             ReturningClause = context.returningClause() is { } returning
                 ? VisitSelectList(returning.selectList())
@@ -352,6 +354,8 @@ internal sealed partial class WitSqlVisitor
             Line = context.Start.Line,
             Column = context.Start.Column,
             TableName = context.tableName().GetText(),
+            TableAlias = context.alias()?.GetText(),
+            UsingClause = context.tableSource()?.Select(VisitTableSource).ToList(),
             WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null,
             ReturningClause = context.returningClause() is { } returning
                 ? VisitSelectList(returning.selectList())

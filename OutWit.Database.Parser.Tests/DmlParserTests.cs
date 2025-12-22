@@ -520,4 +520,149 @@ public class DmlParserTests
     }
 
     #endregion
+
+    #region EXCLUDED Column Reference
+
+    [Test]
+    public void ParseInsertOnConflictWithExcludedTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "INSERT INTO Users (Id, Name) VALUES (1, 'John') " +
+            "ON CONFLICT (Id) DO UPDATE SET Name = EXCLUDED.Name");
+        var insert = (WitSqlStatementInsert)stmt;
+        Assert.That(insert.OnConflict, Is.Not.Null);
+        Assert.That(insert.OnConflict!.ActionType, Is.EqualTo(ConflictActionType.Update));
+        
+        var setValue = insert.OnConflict.UpdateClauses![0].Value as WitSqlExpressionColumnRef;
+        Assert.That(setValue, Is.Not.Null);
+        Assert.That(setValue!.IsExcluded, Is.True);
+        Assert.That(setValue.ColumnName, Is.EqualTo("Name"));
+    }
+
+    [Test]
+    public void ParseInsertOnConflictWithMultipleExcludedTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "INSERT INTO Users (Id, Name, Email) VALUES (1, 'John', 'john@test.com') " +
+            "ON CONFLICT (Id) DO UPDATE SET Name = EXCLUDED.Name, Email = EXCLUDED.Email");
+        var insert = (WitSqlStatementInsert)stmt;
+        
+        var nameValue = insert.OnConflict!.UpdateClauses![0].Value as WitSqlExpressionColumnRef;
+        var emailValue = insert.OnConflict.UpdateClauses[1].Value as WitSqlExpressionColumnRef;
+        
+        Assert.That(nameValue!.IsExcluded, Is.True);
+        Assert.That(nameValue.ColumnName, Is.EqualTo("Name"));
+        Assert.That(emailValue!.IsExcluded, Is.True);
+        Assert.That(emailValue.ColumnName, Is.EqualTo("Email"));
+    }
+
+    #endregion
+
+    #region UPDATE FROM
+
+    [Test]
+    public void ParseUpdateWithFromTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "UPDATE Users SET LastOrderDate = Orders.OrderDate " +
+            "FROM Orders WHERE Users.Id = Orders.UserId");
+        var update = (WitSqlStatementUpdate)stmt;
+        Assert.That(update.FromClause, Is.Not.Null);
+        Assert.That(update.FromClause, Has.Count.EqualTo(1));
+        
+        var tableSource = update.FromClause![0] as TableSourceSimple;
+        Assert.That(tableSource, Is.Not.Null);
+        Assert.That(tableSource!.TableName, Is.EqualTo("Orders"));
+    }
+
+    [Test]
+    public void ParseUpdateWithFromJoinTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "UPDATE Users u SET TotalAmount = SUM(o.Amount) " +
+            "FROM Orders o INNER JOIN Products p ON o.ProductId = p.Id " +
+            "WHERE u.Id = o.UserId");
+        var update = (WitSqlStatementUpdate)stmt;
+        Assert.That(update.FromClause, Is.Not.Null);
+        Assert.That(update.FromClause![0], Is.InstanceOf<TableSourceJoin>());
+    }
+
+    [Test]
+    public void ParseUpdateWithAliasTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "UPDATE Users AS u SET Name = 'Updated' WHERE u.Id = 1");
+        var update = (WitSqlStatementUpdate)stmt;
+        Assert.That(update.TableAlias, Is.EqualTo("u"));
+    }
+
+    [Test]
+    public void ParseUpdateWithAliasNoAsTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "UPDATE Users u SET Name = 'Updated' WHERE u.Id = 1");
+        var update = (WitSqlStatementUpdate)stmt;
+        Assert.That(update.TableAlias, Is.EqualTo("u"));
+    }
+
+    #endregion
+
+    #region DELETE USING
+
+    [Test]
+    public void ParseDeleteUsingTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "DELETE FROM Orders USING Users WHERE Orders.UserId = Users.Id AND Users.IsDeleted = TRUE");
+        var delete = (WitSqlStatementDelete)stmt;
+        Assert.That(delete.UsingClause, Is.Not.Null);
+        Assert.That(delete.UsingClause, Has.Count.EqualTo(1));
+        
+        var tableSource = delete.UsingClause![0] as TableSourceSimple;
+        Assert.That(tableSource, Is.Not.Null);
+        Assert.That(tableSource!.TableName, Is.EqualTo("Users"));
+    }
+
+    [Test]
+    public void ParseDeleteUsingWithJoinTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "DELETE FROM OrderItems " +
+            "USING Orders INNER JOIN Users ON Orders.UserId = Users.Id " +
+            "WHERE OrderItems.OrderId = Orders.Id AND Users.IsInactive = TRUE");
+        var delete = (WitSqlStatementDelete)stmt;
+        Assert.That(delete.UsingClause, Is.Not.Null);
+        Assert.That(delete.UsingClause![0], Is.InstanceOf<TableSourceJoin>());
+    }
+
+    [Test]
+    public void ParseDeleteWithAliasTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "DELETE FROM Orders AS o WHERE o.Status = 'cancelled'");
+        var delete = (WitSqlStatementDelete)stmt;
+        Assert.That(delete.TableAlias, Is.EqualTo("o"));
+    }
+
+    [Test]
+    public void ParseDeleteWithAliasNoAsTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "DELETE FROM Orders o WHERE o.Status = 'cancelled'");
+        var delete = (WitSqlStatementDelete)stmt;
+        Assert.That(delete.TableAlias, Is.EqualTo("o"));
+    }
+
+    [Test]
+    public void ParseDeleteUsingMultipleTablesTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "DELETE FROM OrderItems " +
+            "USING Orders, Users " +
+            "WHERE OrderItems.OrderId = Orders.Id AND Orders.UserId = Users.Id");
+        var delete = (WitSqlStatementDelete)stmt;
+        Assert.That(delete.UsingClause, Has.Count.EqualTo(2));
+    }
+
+    #endregion
 }
