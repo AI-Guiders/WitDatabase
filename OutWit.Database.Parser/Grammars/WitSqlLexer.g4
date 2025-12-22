@@ -340,6 +340,8 @@ DO: D O;
 NOTHING: N O T H I N G;
 EXCLUDED: E X C L U D E D;
 USING: U S I N G;
+MERGE: M E R G E;
+MATCHED: M A T C H E D;
 
 // ============================================================================
 // Transaction Isolation Level

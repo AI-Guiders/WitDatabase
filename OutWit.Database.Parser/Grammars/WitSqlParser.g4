@@ -27,6 +27,7 @@ dmlStatement
     | insertStatement
     | updateStatement
     | deleteStatement
+    | mergeStatement
     ;
 
 ddlStatement
@@ -234,9 +235,43 @@ deleteStatement
       (USING tableSource (COMMA tableSource)*)?
       whereClause? 
       returningClause?
- ;
+    ;
 
 // ============================================================================
+// MERGE Statement
+// ============================================================================
+
+mergeStatement
+    : MERGE INTO tableName (AS? alias)?
+      USING mergeSource (AS? alias)? ON expression
+      mergeClause+
+    ;
+
+mergeSource
+    : tableName
+    | LPAREN selectStatement RPAREN
+    ;
+
+mergeClause
+    : WHEN MATCHED (AND expression)? THEN mergeUpdateClause    # mergeMatchedClause
+    | WHEN NOT MATCHED (AND expression)? THEN mergeInsertClause # mergeNotMatchedClause
+    ;
+
+mergeUpdateClause
+    : UPDATE SET mergeSetClause (COMMA mergeSetClause)*
+    | DELETE
+    ;
+
+mergeSetClause
+    : columnRef EQ expression
+    ;
+
+mergeInsertClause
+    : INSERT (LPAREN columnName (COMMA columnName)* RPAREN)?
+      VALUES LPAREN expression (COMMA expression)* RPAREN
+    ;
+
+    // ============================================================================
 // RETURNING Clause
 // ============================================================================
 

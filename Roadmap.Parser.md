@@ -35,7 +35,7 @@
 | DML - INSERT | 8 | 0 | 100% |
 | DML - UPDATE | 5 | 0 | 100% |
 | DML - DELETE | 5 | 0 | 100% |
-| DML - TRUNCATE/MERGE | 1 | 3 | 25% |
+| DML - TRUNCATE/MERGE | 4 | 0 | 100% |
 | CTE / Set Operations | 6 | 0 | 100% |
 | Subqueries | 7 | 0 | 100% |
 | Operators | 20 | 0 | 100% |
@@ -56,7 +56,7 @@
 | EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
 | Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL (v1)** | **286** | **1** | **100%** |
+| **TOTAL (v1)** | **289** | **1** | **100%** |
 
 ---
 
@@ -253,14 +253,14 @@
 
 ---
 
-## 12. DML - TRUNCATE/MERGE (25%)
+## 12. DML - TRUNCATE/MERGE (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
 | `TRUNCATE TABLE table_name` | [x] | SS17.1 |
-| `MERGE INTO target USING source ON` | [ ] | SS16.3 |
-| `WHEN MATCHED THEN UPDATE` | [ ] | SS16.3 |
-| `WHEN NOT MATCHED THEN INSERT` | [ ] | SS16.3 |
+| `MERGE INTO target USING source ON` | [x] | SS16.3 |
+| `WHEN MATCHED THEN UPDATE` | [x] | SS16.3 |
+| `WHEN NOT MATCHED THEN INSERT` | [x] | SS16.3 |
 
 ---
 
@@ -523,14 +523,14 @@
 
 | Feature | Priority |
 |---------|----------|
-| `SET TRANSACTION ISOLATION LEVEL` | P0 |
-| `FOR UPDATE` / `FOR SHARE` | P0 |
-| `NOWAIT` / `SKIP LOCKED` | P0 |
-| `CONSTRAINT name ...` | P0 |
-| `ALTER TABLE ... DROP CONSTRAINT` | P0 |
-| `MERGE INTO ... USING ...` | P0 |
-| `UPDATE ... FROM` | P1 |
-| `DELETE ... USING` | P1 |
+| `SET TRANSACTION ISOLATION LEVEL` | P0 ? |
+| `FOR UPDATE` / `FOR SHARE` | P0 ? |
+| `NOWAIT` / `SKIP LOCKED` | P0 ? |
+| `CONSTRAINT name ...` | P0 ? |
+| `ALTER TABLE ... DROP CONSTRAINT` | P0 ? |
+| `MERGE INTO ... USING ...` | P0 ? |
+| `UPDATE ... FROM` | P1 ? |
+| `DELETE ... USING` | P1 ? |
 
 ### Phase 3: Production Ready (P1)
 

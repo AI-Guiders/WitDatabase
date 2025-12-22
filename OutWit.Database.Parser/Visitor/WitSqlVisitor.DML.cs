@@ -1,6 +1,7 @@
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Generated;
 using OutWit.Database.Parser.Schema.Clauses;
+using OutWit.Database.Parser.Schema.MergeClauses;
 using OutWit.Database.Parser.Schema.TableSources;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Statements;
@@ -360,6 +361,111 @@ internal sealed partial class WitSqlVisitor
             ReturningClause = context.returningClause() is { } returning
                 ? VisitSelectList(returning.selectList())
                 : null
+        };
+    }
+
+    #endregion
+
+    #region MERGE Statement
+
+    public override WitSqlStatementMerge VisitMergeStatement(WitSqlParser.MergeStatementContext context)
+    {
+        var aliases = context.alias();
+        var targetAlias = aliases.Length > 0 ? aliases[0]?.GetText() : null;
+        var sourceAlias = aliases.Length > 1 ? aliases[1]?.GetText() : null;
+
+        var mergeSource = context.mergeSource();
+        string? sourceTable = null;
+        WitSqlStatementSelect? sourceSelect = null;
+
+        if (mergeSource.tableName() is { } sourceTableCtx)
+        {
+            sourceTable = sourceTableCtx.GetText();
+        }
+        else if (mergeSource.selectStatement() is { } selectCtx)
+        {
+            sourceSelect = VisitSelectStatement(selectCtx);
+        }
+
+        var whenClauses = context.mergeClause().Select(VisitMergeClause).ToList();
+
+        return new WitSqlStatementMerge
+        {
+            Line = context.Start.Line,
+            Column = context.Start.Column,
+            TargetTable = context.tableName().GetText(),
+            TargetAlias = targetAlias,
+            SourceTable = sourceTable,
+            SourceSelect = sourceSelect,
+            SourceAlias = sourceAlias,
+            OnCondition = VisitExpression(context.expression()),
+            WhenClauses = whenClauses
+        };
+    }
+
+    private ClauseMergeWhen VisitMergeClause(WitSqlParser.MergeClauseContext context)
+    {
+        return context switch
+        {
+            WitSqlParser.MergeMatchedClauseContext matched => VisitMergeMatchedClause(matched),
+            WitSqlParser.MergeNotMatchedClauseContext notMatched => VisitMergeNotMatchedClause(notMatched),
+            _ => throw new InvalidOperationException($"Unknown merge clause type: {context.GetType()}")
+        };
+    }
+
+    private ClauseMergeWhen VisitMergeMatchedClause(WitSqlParser.MergeMatchedClauseContext context)
+    {
+        var updateClause = context.mergeUpdateClause();
+        var isDelete = updateClause.DELETE() != null;
+
+        List<ClauseSet>? setClauses = null;
+        if (!isDelete)
+        {
+            setClauses = updateClause.mergeSetClause()
+                .Select(s =>
+                {
+                    var colRef = s.columnRef();
+                    var colName = colRef switch
+                    {
+                        WitSqlParser.SimpleColumnRefContext simple => simple.columnName().GetText(),
+                        WitSqlParser.ExcludedColumnRefContext excluded => excluded.columnName().GetText(),
+                        _ => colRef.GetText()
+                    };
+                    var tableName = colRef is WitSqlParser.SimpleColumnRefContext simpleRef
+                        ? simpleRef.tableName()?.GetText()
+                        : null;
+
+                    return new ClauseSet
+                    {
+                        ColumnName = tableName != null ? $"{tableName}.{colName}" : colName,
+                        Value = VisitExpression(s.expression())
+                    };
+                })
+                .ToList();
+        }
+
+        return new ClauseMergeWhen
+        {
+            IsMatched = true,
+            Condition = context.expression() is { } condExpr ? VisitExpression(condExpr) : null,
+            ActionType = isDelete ? MergeActionType.Delete : MergeActionType.Update,
+            SetClauses = setClauses
+        };
+    }
+
+    private ClauseMergeWhen VisitMergeNotMatchedClause(WitSqlParser.MergeNotMatchedClauseContext context)
+    {
+        var insertClause = context.mergeInsertClause();
+        var columns = insertClause.columnName()?.Select(c => c.GetText()).ToList();
+        var values = insertClause.expression().Select(VisitExpression).ToList<WitSqlExpression>();
+
+        return new ClauseMergeWhen
+        {
+            IsMatched = false,
+            Condition = context.expression() is { } condExpr ? VisitExpression(condExpr) : null,
+            ActionType = MergeActionType.Insert,
+            InsertColumns = columns,
+            InsertValues = values
         };
     }
 

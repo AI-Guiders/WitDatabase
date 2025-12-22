@@ -11,6 +11,7 @@ namespace OutWit.Database.Parser.Interfaces
         T VisitStatementInsert(WitSqlStatementInsert node);
         T VisitStatementUpdate(WitSqlStatementUpdate node);
         T VisitStatementDelete(WitSqlStatementDelete node);
+        T VisitStatementMerge(WitSqlStatementMerge node);
 
         #endregion
 

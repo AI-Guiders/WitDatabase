@@ -51,6 +51,8 @@ internal sealed partial class WitSqlVisitor : WitSqlParserBaseVisitor<object?>
             return VisitUpdateStatement(update);
         if (context.deleteStatement() is { } delete)
             return VisitDeleteStatement(delete);
+        if (context.mergeStatement() is { } merge)
+            return VisitMergeStatement(merge);
         return null;
     }
 

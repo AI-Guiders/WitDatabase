@@ -109,6 +109,9 @@ public sealed class WitSqlExpressionSerializer : IWitSqlVisitor<string>
     public string VisitStatementSetTransaction(WitSqlStatementSetTransaction node) =>
         throw new NotSupportedException("SET TRANSACTION statement serialization not supported");
 
+    public string VisitStatementMerge(WitSqlStatementMerge node) =>
+        throw new NotSupportedException("MERGE statement serialization not supported");
+
     #endregion
 
     #region IWitSqlVisitor - Expressions
