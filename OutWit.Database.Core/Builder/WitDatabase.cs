@@ -112,8 +112,8 @@ public sealed class WitDatabase : IDisposable
     /// <exception cref="IOException">Thrown if the file already exists.</exception>
     public static WitDatabase Create(string path)
     {
-        if (File.Exists(path))
-            throw new IOException($"Database file already exists: {path}");
+        if (File.Exists(path) || Directory.Exists(path))
+            throw new IOException($"Database already exists: {path}");
 
         return new WitDatabaseBuilder()
             .WithFilePath(path)
@@ -131,8 +131,8 @@ public sealed class WitDatabase : IDisposable
     /// <exception cref="IOException">Thrown if the file already exists.</exception>
     public static WitDatabase Create(string path, string password)
     {
-        if (File.Exists(path))
-            throw new IOException($"Database file already exists: {path}");
+        if (File.Exists(path) || Directory.Exists(path))
+            throw new IOException($"Database already exists: {path}");
 
         return new WitDatabaseBuilder()
             .WithFilePath(path)
@@ -143,83 +143,97 @@ public sealed class WitDatabase : IDisposable
     }
 
     /// <summary>
-    /// Opens an existing database file with auto-detection of settings.
+    /// Opens an existing database with auto-detection of settings.
+    /// Works with both BTree (file) and LSM (directory) databases.
     /// </summary>
-    /// <param name="path">Path to the database file.</param>
+    /// <param name="path">Path to the database file or directory.</param>
     /// <returns>A WitDatabase instance.</returns>
-    /// <exception cref="FileNotFoundException">Thrown if the file does not exist.</exception>
+    /// <exception cref="FileNotFoundException">Thrown if the database does not exist.</exception>
     /// <exception cref="InvalidDataException">Thrown if the database is encrypted (use overload with password).</exception>
-    /// <remarks>
-    /// This method reads the database header to auto-detect settings like store type and features.
-    /// For encrypted databases, use the overload with password.
-    /// </remarks>
     public static WitDatabase Open(string path)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundException("Database file not found", path);
-
-        // Try to read metadata from header
-        var hints = TryGetOpeningHints(path);
+        var detection = StorageDetector.Detect(path);
         
-        if (hints?.RequiresEncryption == true)
+        if (!detection.Exists)
+            throw new FileNotFoundException("Database not found", path);
+
+        if (detection.RequiresPassword)
         {
             throw new InvalidDataException(
-                $"Database is encrypted with '{hints.EncryptionProvider}' provider. " +
+                $"Database is encrypted with '{detection.EncryptionProvider}' provider. " +
                 "Use WitDatabase.Open(path, password) or configure encryption in WitDatabaseBuilder.");
         }
 
-        var builder = new WitDatabaseBuilder()
-            .WithFilePath(path);
+        var builder = new WitDatabaseBuilder();
 
-        // Configure based on hints
-        if (hints != null)
+        // Configure based on detected store type
+        if (detection.StoreType == "lsm" || detection.IsDirectory)
         {
-            ConfigureBuilderFromHints(builder, hints);
+            builder.WithLsmTree(path);
         }
         else
         {
-            // Fallback to defaults
-            builder.WithBTree().WithTransactions();
+            builder.WithFilePath(path).WithBTree();
         }
+
+        // Configure features from detection
+        if (detection.HasTransactions)
+            builder.WithTransactions();
+        else
+            builder.WithoutTransactions();
+
+        if (detection.HasFileLocking)
+            builder.WithFileLocking();
+        else
+            builder.WithoutFileLocking();
 
         return builder.Build();
     }
 
     /// <summary>
-    /// Opens an existing encrypted database file.
+    /// Opens an existing encrypted database.
+    /// Works with both BTree (file) and LSM (directory) databases.
     /// </summary>
-    /// <param name="path">Path to the database file.</param>
+    /// <param name="path">Path to the database file or directory.</param>
     /// <param name="password">Encryption password.</param>
     /// <returns>A WitDatabase instance.</returns>
-    /// <exception cref="FileNotFoundException">Thrown if the file does not exist.</exception>
-    /// <remarks>
-    /// For encrypted databases, we cannot read settings from the header before decryption.
-    /// The database is opened with default settings (BTree, Transactions enabled).
-    /// After opening, the actual stored settings will be validated.
-    /// </remarks>
+    /// <exception cref="FileNotFoundException">Thrown if the database does not exist.</exception>
     public static WitDatabase Open(string path, string password)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundException("Database file not found", path);
+        var detection = StorageDetector.Detect(path);
+        
+        if (!detection.Exists)
+            throw new FileNotFoundException("Database not found", path);
 
-        // For encrypted DBs, we can't read hints without the password.
-        // Open with defaults - the stored metadata will be validated after decryption.
-        return new WitDatabaseBuilder()
-            .WithFilePath(path)
-            .WithBTree()
-            .WithEncryption(password)
-            .WithTransactions()
-            .Build();
+        var builder = new WitDatabaseBuilder();
+
+        // Configure based on detected store type
+        if (detection.StoreType == "lsm" || detection.IsDirectory)
+        {
+            builder.WithLsmTree(path).WithEncryption(password);
+        }
+        else
+        {
+            builder.WithFilePath(path).WithBTree().WithEncryption(password);
+        }
+
+        // Default to transactions enabled for encrypted DBs (we can't read header)
+        builder.WithTransactions();
+
+        return builder.Build();
     }
 
     /// <summary>
     /// Creates a new database or opens an existing one.
+    /// Auto-detects BTree vs LSM for existing databases.
     /// </summary>
-    /// <param name="path">Path to the database file.</param>
+    /// <param name="path">Path to the database file or directory.</param>
     /// <returns>A WitDatabase instance.</returns>
     public static WitDatabase CreateOrOpen(string path)
     {
-        if (File.Exists(path))
+        var detection = StorageDetector.Detect(path);
+        
+        if (detection.Exists)
         {
             return Open(path);
         }
@@ -229,13 +243,16 @@ public sealed class WitDatabase : IDisposable
 
     /// <summary>
     /// Creates a new encrypted database or opens an existing one.
+    /// Auto-detects BTree vs LSM for existing databases.
     /// </summary>
-    /// <param name="path">Path to the database file.</param>
+    /// <param name="path">Path to the database file or directory.</param>
     /// <param name="password">Encryption password.</param>
     /// <returns>A WitDatabase instance.</returns>
     public static WitDatabase CreateOrOpen(string path, string password)
     {
-        if (File.Exists(path))
+        var detection = StorageDetector.Detect(path);
+        
+        if (detection.Exists)
         {
             return Open(path, password);
         }
@@ -272,86 +289,14 @@ public sealed class WitDatabase : IDisposable
     }
 
     /// <summary>
-    /// Gets information about a database file without opening it.
+    /// Gets information about a database without opening it.
+    /// Works with both BTree (file) and LSM (directory) databases.
     /// </summary>
-    /// <param name="path">Path to the database file.</param>
-    /// <returns>Opening hints, or null if the file cannot be read.</returns>
-    public static OpeningHints? GetDatabaseInfo(string path)
+    /// <param name="path">Path to the database file or directory.</param>
+    /// <returns>Detection result with database info.</returns>
+    public static StorageDetectionResult GetDatabaseInfo(string path)
     {
-        return TryGetOpeningHints(path);
-    }
-
-    #endregion
-
-    #region Private Helpers
-
-    private static OpeningHints? TryGetOpeningHints(string path)
-    {
-        try
-        {
-            // Read just the header page to get metadata
-            var buffer = new byte[DatabaseConstants.DATABASE_HEADER_SIZE];
-            
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (stream.Length < DatabaseConstants.DATABASE_HEADER_SIZE)
-                return null;
-
-            stream.ReadExactly(buffer);
-
-            // Check magic bytes
-            if (!buffer.AsSpan(0, 16).SequenceEqual(DatabaseConstants.MAGIC_BYTES))
-            {
-                // File might be encrypted or corrupted
-                return new OpeningHints
-                {
-                    RequiresEncryption = true,
-                    EncryptionProvider = "unknown"
-                };
-            }
-
-            // Read header
-            var header = DatabaseHeader.ReadFrom(buffer);
-            return ConfigurationValidator.GetOpeningHints(header.Providers);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static void ConfigureBuilderFromHints(WitDatabaseBuilder builder, OpeningHints hints)
-    {
-        // Configure store type
-        if (string.Equals(hints.StoreProvider, "lsm", StringComparison.OrdinalIgnoreCase))
-        {
-            // LSM requires directory, but Open() is for file path
-            // Fall back to BTree for file-based opening
-            builder.WithBTree();
-        }
-        else
-        {
-            builder.WithBTree();
-        }
-
-        // Configure transactions
-        if (hints.HasTransactions)
-        {
-            builder.WithTransactions();
-        }
-        else
-        {
-            builder.WithoutTransactions();
-        }
-
-        // Configure file locking
-        if (hints.HasFileLocking)
-        {
-            builder.WithFileLocking();
-        }
-        else
-        {
-            builder.WithoutFileLocking();
-        }
+        return StorageDetector.Detect(path);
     }
 
     #endregion

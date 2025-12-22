@@ -254,10 +254,11 @@ public class DatabaseConfigurationPersistenceTests
         var info = WitDatabase.GetDatabaseInfo(path);
         
         Assert.That(info, Is.Not.Null);
-        Assert.That(info!.StoreProvider, Is.EqualTo("btree"));
+        Assert.That(info!.Exists, Is.True);
+        Assert.That(info.StoreType, Is.EqualTo("btree"));
         Assert.That(info.HasTransactions, Is.True);
         Assert.That(info.HasFileLocking, Is.True);
-        Assert.That(info.RequiresEncryption, Is.False);
+        Assert.That(info.RequiresPassword, Is.False);
     }
 
     [Test]
@@ -273,17 +274,18 @@ public class DatabaseConfigurationPersistenceTests
         var info = WitDatabase.GetDatabaseInfo(path);
         
         Assert.That(info, Is.Not.Null);
-        Assert.That(info!.RequiresEncryption, Is.True);
+        Assert.That(info!.RequiresPassword, Is.True);
     }
 
     [Test]
-    public void GetDatabaseInfoReturnsNullForNonExistentFileTest()
+    public void GetDatabaseInfoReturnsNotExistsForNonExistentFileTest()
     {
         var path = Path.Combine(m_testDir, "nonexistent.db");
         
         var info = WitDatabase.GetDatabaseInfo(path);
         
-        Assert.That(info, Is.Null);
+        Assert.That(info, Is.Not.Null);
+        Assert.That(info!.Exists, Is.False);
     }
 
     #endregion

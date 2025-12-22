@@ -1,6 +1,6 @@
 # OutWit.Database.Core - Roadmap
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Based on:** OutWit.Database.Core.TODO.md  
 **Last Updated:** 2025-01-15
 
@@ -37,12 +37,52 @@
 | Cursor Support | 0 | 4 | 0% - v2 |
 | Query Context | 5 | 0 | 100% |
 | Secondary Indexes | 8 | 0 | 100% |
+| Storage Detection | 2 | 0 | 100% |
 | Bulk Operations | 0 | 3 | 0% |
 | Statistics | 0 | 2 | 0% |
 | VACUUM/Compaction | 0 | 3 | 0% - v2 |
 | Concurrent Transactions | 0 | 3 | 0% |
 | ROWVERSION | 0 | 3 | 0% |
-| **TOTAL** | **36** | **29** | **55%** |
+| **TOTAL** | **38** | **29** | **57%** |
+
+---
+
+## Recent Changes (v1.1)
+
+### Storage Auto-Detection ?
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `StorageDetector` | [x] | Auto-detects BTree vs LSM databases |
+| `WitDatabase.Open()` auto-detect | [x] | Opens both BTree (file) and LSM (directory) |
+
+```csharp
+// Now works automatically for both BTree and LSM!
+using var db = WitDatabase.Open(path);          // Auto-detects
+using var db = WitDatabase.Open(path, password); // Encrypted, auto-detects
+using var db = WitDatabase.CreateOrOpen(path);   // Creates or opens, auto-detects
+```
+
+### Index Metadata Persistence ?
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IndexMetadataStore` | [x] | Persists index definitions to store |
+| Auto-restore on open | [x] | Indexes recreated automatically |
+
+```csharp
+// Create index
+using (var db = WitDatabase.Create("data.db"))
+{
+    db.CreateIndex("idx_email", isUnique: true);
+}
+
+// Reopen - index restored automatically!
+using (var db = WitDatabase.Open("data.db"))
+{
+    Assert.That(db.HasIndex("idx_email"), Is.True);
+}
+```
 
 ---
 
@@ -97,6 +137,51 @@
 | File locking | [x] | Multi-process safety |
 | Reentrancy detection | [x] | Throws LockRecursionException |
 
+### 1.7 Savepoints
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `CreateSavepoint(name)` | [x] | Create named savepoint |
+| `RollbackToSavepoint(name)` | [x] | Rollback to savepoint |
+| `ReleaseSavepoint(name)` | [x] | Release savepoint |
+| Nested savepoints | [x] | Stack-based savepoint management |
+
+**Usage:**
+```csharp
+var tx = db.BeginTransaction();
+if (tx is ITransactionWithSavepoints txSp)
+{
+    txSp.CreateSavepoint("sp1");
+    tx.Put("key", "value");
+    txSp.RollbackToSavepoint("sp1"); // Undo changes
+}
+```
+
+### 1.8 Query Context
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IQueryContext` interface | [x] | Query execution metadata |
+| `AffectedRows` property | [x] | Rows affected by DML |
+| `LastInsertId` property | [x] | Auto-generated ID |
+| Query timeout support | [x] | Configurable timeout |
+| `CancellationToken` propagation | [x] | Async cancellation |
+
+**Note:** Used by SQL layer (`OutWit.Database`), not key-value layer.
+
+### 1.9 Secondary Indexes
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `ISecondaryIndex` interface | [x] | Secondary index operations |
+| `SecondaryIndexKeyValueStore` | [x] | Uses any IKeyValueStore |
+| Unique index support | [x] | Enforces uniqueness |
+| Non-unique index support | [x] | Multiple PKs per index key |
+| Index auto-update | [x] | Via IndexManager |
+| Storage-agnostic factory | [x] | Works with any store type |
+| WitDatabase integration | [x] | CreateIndex, DropIndex, etc. |
+| Index metadata persistence | [x] | Auto-restored on reopen |
+
 ---
 
 ## 2. Missing Components [ ]
@@ -110,8 +195,6 @@
 | Extend `ITransaction` for isolation level | [ ] | P0 | SS1.3 |
 | Record versioning (timestamp/row version) | [ ] | P0 | SS1.4 |
 
-**Notes:** Required for Snapshot isolation and concurrent reads. Without MVCC, EF Core cannot work in multi-user scenarios.
-
 ### 2.2 Row-level Locks
 
 | Feature | Status | Priority | TODO Ref |
@@ -121,20 +204,7 @@
 | `NOWAIT` / `SKIP LOCKED` modes | [ ] | P1 | SS2.3 |
 | Deadlock detection | [ ] | P0 | SS2.4 |
 
-**Notes:** Currently only database-level locks exist. Row-level locks are essential for pessimistic concurrency in EF Core.
-
-### 2.3 Savepoints
-
-| Feature | Status | Priority | TODO Ref |
-|---------|--------|----------|----------|
-| `CreateSavepoint(name)` | [x] | P1 | SS3.1 |
-| `RollbackToSavepoint(name)` | [x] | P1 | SS3.2 |
-| `ReleaseSavepoint(name)` | [x] | P1 | SS3.3 |
-| Nested savepoints (stack) | [x] | P1 | SS3.4 |
-
-**Notes:** Used by EF Core for nested transactions and SaveChanges with retry. ? Implemented in `ITransactionWithSavepoints` and `Transaction`.
-
-### 2.4 Multiple Result Sets
+### 2.3 Multiple Result Sets
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -142,7 +212,7 @@
 | `NextResult()` method | [ ] | P1 | SS4.2 |
 | Batch execution support | [ ] | P1 | SS4.3 |
 
-### 2.5 Cursor Support (Deferred to v2)
+### 2.4 Cursor Support (Deferred to v2)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -151,48 +221,7 @@
 | Scrollable mode | [ ] | P2 - v2 | SS5.2 |
 | Fetch size (batching) | [ ] | P2 - v2 | SS5.3 |
 
-### 2.6 Query Execution Context
-
-| Feature | Status | Priority | TODO Ref |
-|---------|--------|----------|----------|
-| `IQueryContext` interface | [x] | P0 | SS6.1 |
-| `AffectedRows` property | [x] | P0 | SS6.2 |
-| `LastInsertId` property | [x] | P0 | SS6.3 |
-| Query timeout support | [x] | P0 | SS6.4 |
-| `CancellationToken` propagation | [x] | P0 | SS6.5 |
-
-**Notes:** ADO.NET requires information about affected rows count and last insert id. ? Implemented in `IQueryContext` and `QueryContext`.
-
-### 2.7 Secondary Indexes
-
-| Feature | Status | Priority | TODO Ref |
-|---------|--------|----------|----------|
-| `ISecondaryIndex` interface | [x] | P0 | SS7.1 |
-| B+Tree based secondary indexes | [x] | P0 | SS7.2 |
-| Unique index support | [x] | P0 | SS7.3 |
-| Composite index support | [x] | P0 | SS7.4 |
-| Index maintenance (auto-update) | [x] | P0 | SS7.5 |
-| Storage-agnostic index factory | [x] | P1 | SS7.6 |
-| WitDatabase integration | [x] | P1 | SS7.7 |
-| Index metadata persistence | [x] | P1 | SS7.8 |
-
-**Notes:** Critical for any SQL engine. Without secondary indexes, efficient filtering and JOIN operations are impossible.
-
-? Fully Implemented:
-- `ISecondaryIndex` - interface for secondary index operations
-- `SecondaryIndexBTree` - B+Tree based implementation with unique/non-unique support
-- `SecondaryIndexKeyValueStore` - generic implementation using any `IKeyValueStore`
-- `ISecondaryIndexFactory` - factory interface for creating storage-appropriate indexes
-- `SecondaryIndexFactoryKeyValueStore` - universal factory using any `IKeyValueStore`
-- `IIndexManager` - interface for managing multiple indexes per table
-- `IndexManager` - implementation with auto-update on row insert/update/delete
-- `IndexMetadataStore` - persistence of index definitions (name, isUnique)
-- `WitDatabase` integration:
-  - Fluent API (`WithSecondaryIndexFactory`, `WithIndexDirectory`)
-  - Methods (`CreateIndex`, `GetIndex`, `DropIndex`, `HasIndex`)
-  - **Auto-restoration of indexes on database reopen**
-
-### 2.8 Bulk Operations
+### 2.5 Bulk Operations
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -200,7 +229,7 @@
 | `BulkDelete(IEnumerable<key>)` | [ ] | P1 | SS8.2 |
 | Streaming insert support | [ ] | P1 | SS8.3 |
 
-### 2.9 Statistics and Metadata
+### 2.6 Statistics and Metadata
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -209,7 +238,7 @@
 | `ANALYZE` command support | [ ] | P2 - v2 | SS9.3 |
 | Column cardinality estimation | [ ] | P2 - v2 | SS9.4 |
 
-### 2.10 VACUUM / Compaction API (Deferred to v2)
+### 2.7 VACUUM / Compaction API (Deferred to v2)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -217,7 +246,7 @@
 | Incremental vacuum support | [ ] | P2 - v2 | SS10.2 |
 | Compaction progress/status API | [ ] | P2 - v2 | SS10.3 |
 
-### 2.11 Concurrent Transactions
+### 2.8 Concurrent Transactions
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -225,7 +254,7 @@
 | Read transactions during write (MVCC) | [ ] | P0 | SS11.2 |
 | Transaction wait queue with priorities | [ ] | P0 | SS11.3 |
 
-### 2.12 ROWVERSION / Concurrency Tokens
+### 2.9 ROWVERSION / Concurrency Tokens
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
@@ -239,21 +268,7 @@
 
 ### 3.1 Phase 1: MVP for ADO.NET ?
 
-| Feature | Priority | Status |
-|---------|----------|--------|
-| `IQueryContext` interface | P0 | ? |
-| `AffectedRows` property | P0 | ? |
-| `LastInsertId` property | P0 | ? |
-| Query timeout | P0 | ? |
-| `CancellationToken` support | P0 | ? |
-| `ISecondaryIndex` interface | P0 | ? |
-| B+Tree secondary indexes | P0 | ? |
-| Unique index support | P0 | ? |
-| Composite index support | P0 | ? |
-| Savepoints | P1 | ? |
-| Storage-agnostic index factory | P1 | ? |
-| WitDatabase index integration | P1 | ? |
-| Index metadata persistence | P1 | ? |
+All Phase 1 features are complete.
 
 ### 3.2 Phase 2: EF Core Compatibility
 
@@ -286,141 +301,111 @@
 
 ---
 
-## 4. Priority Summary
+## 4. Architecture Notes
 
-| Priority | Count | Description |
-|----------|-------|-------------|
-| P0 | 21 | Required for ADO.NET/EF Core |
-| P1 | 16 | Production ready features |
-| P2 | 7 | Nice-to-have features |
-
----
-
-## 5. Architecture Notes
-
-### 5.1 Modular Storage Design
-
-WitDatabase uses a modular storage architecture where users can choose or implement their own storage engines:
+### 4.1 Storage Auto-Detection
 
 ```
-IKeyValueStore (interface)
-??? StoreBTree     - B+Tree, optimized for reads
-??? StoreLsm       - LSM-Tree, optimized for writes  
-??? StoreInMemory  - In-memory, for testing
+WitDatabase.Open(path)
+    ??? StorageDetector.Detect(path)
+        ??? Directory exists? ? Check for sst_*.sst or wal.log ? LSM
+        ??? File exists? ? Read header magic bytes ? BTree
+            ??? Magic valid ? Read ProviderMetadata
+            ??? Magic invalid ? Encrypted BTree
 ```
 
-### 5.2 Secondary Index Architecture
-
-The secondary index system is fully modular and storage-agnostic:
+### 4.2 Secondary Index Architecture
 
 ```
 ISecondaryIndex (interface)
-??? SecondaryIndexBTree         - Uses BTree directly (PageManager)
-??? SecondaryIndexKeyValueStore - Uses any IKeyValueStore
+??? SecondaryIndexKeyValueStore - Universal implementation
+    ??? Uses any IKeyValueStore (BTree, LSM, InMemory, custom)
 
 ISecondaryIndexFactory (interface)
 ??? SecondaryIndexFactoryKeyValueStore - Universal factory
-    ??? Creates BTree-based indexes (via StoreBTree)
-    ??? Creates LSM-based indexes (via StoreLsm)
-    ??? Creates in-memory indexes (via StoreInMemory)
-    ??? Works with custom IKeyValueStore implementations
-
-IndexManager
-??? Accepts ISecondaryIndexFactory in constructor
-??? Manages index lifecycle and auto-updates
-??? Thread-safe operations
+    ??? Creates indexes using any IKeyValueStore
 
 IndexMetadataStore
-??? Persists index definitions (name, isUnique) to the store
-??? Uses system key prefix "\0\0_idx_meta_" to avoid collision
-??? Catalog stored as JSON for forward compatibility
-
-WitDatabase Integration
-??? CreateIndex(name, isUnique) - creates and persists index
-??? GetIndex(name) - retrieves existing index
-??? DropIndex(name) - removes index and its metadata
-??? HasIndex(name) - checks if index exists
-??? IndexNames - lists all index names
-??? Fluent API:
-?   ??? WithSecondaryIndexFactory(factory) - custom factory
-?   ??? WithIndexDirectory(path) - custom index storage location
-??? Automatic factory selection based on storage engine
-??? **Auto-restoration of indexes on database reopen**
+??? Persists index definitions (name, isUnique)
+??? Uses system key prefix "\0\0_idx_meta_"
+??? Auto-restored on WitDatabase open
 ```
 
-### 5.3 Tested Storage Combinations
+### 4.3 Tested Storage Combinations
 
-All combinations are tested and working:
-
-| Storage Engine | Backend | Encryption | Indexes | Persistence | Status |
+| Storage Engine | Backend | Encryption | Indexes | Auto-Detect | Status |
 |----------------|---------|------------|---------|-------------|--------|
-| BTree | Memory | No | ? | N/A | Working |
-| BTree | Memory | AES-GCM | ? | N/A | Working |
-| BTree | File | No | ? | ? | Working |
-| BTree | File | AES-GCM | ? | ? | Working |
-| LSM | Directory | No | ? | ? | Working |
-| LSM | Directory | AES-GCM | ? | ? | Working |
-| Custom Store | - | - | ? | ? | Working |
+| BTree | Memory | No | ? | N/A | ? |
+| BTree | Memory | AES-GCM | ? | N/A | ? |
+| BTree | File | No | ? | ? | ? |
+| BTree | File | AES-GCM | ? | ? | ? |
+| LSM | Directory | No | ? | ? | ? |
+| LSM | Directory | AES-GCM | ? | ? | ? |
 
-### 5.4 Adding Custom IKeyValueStore
+---
 
-To add a custom `IKeyValueStore` implementation:
+## 5. API Quick Reference
 
-1. **Implement `IKeyValueStore`** - no additional classes needed for indexes
-2. **Use with builder**:
-   ```csharp
-   var db = new WitDatabaseBuilder()
-       .WithStore(myCustomStore)
-       .WithTransactions()
-       .Build();
-   ```
-3. **Indexes**: By default, in-memory indexes are used. To use your storage for indexes:
-   ```csharp
-   var indexFactory = new SecondaryIndexFactoryKeyValueStore(
-       name => new MyCustomStore($"index_{name}"));
-   
-   var db = new WitDatabaseBuilder()
-       .WithStore(myCustomStore)
-       .WithSecondaryIndexFactory(indexFactory)
-       .WithTransactions()
-       .Build();
-   ```
+### 5.1 Opening Databases
 
-### 5.5 Component Integration Status
-
-| Component | WitDatabase Integration | Persistence | Notes |
-|-----------|------------------------|-------------|-------|
-| **QueryContext** | ? Not integrated | N/A | Used at SQL layer, not key-value |
-| **Savepoints** | ? Full | N/A | Via `ITransactionWithSavepoints` |
-| **Secondary Indexes** | ? Full | ? Yes | Auto-restored on reopen |
-
-**QueryContext** - This is by design. `IQueryContext` provides metadata about SQL query execution (affected rows, last insert ID). It's used by the SQL engine layer (`OutWit.Database`), not the key-value storage layer (`OutWit.Database.Core`).
-
-**Savepoints** - Fully integrated. When you call `db.BeginTransaction()`, the returned `ITransaction` also implements `ITransactionWithSavepoints`:
 ```csharp
-var tx = db.BeginTransaction();
+// Create new (BTree by default)
+var db = WitDatabase.Create("data.db");
+var db = WitDatabase.Create("data.db", password);
+
+// Open existing (auto-detects BTree vs LSM)
+var db = WitDatabase.Open("data.db");           // BTree file
+var db = WitDatabase.Open("/path/to/lsm_dir"); // LSM directory
+var db = WitDatabase.Open(path, password);      // Encrypted
+
+// Create or open (auto-detects for existing)
+var db = WitDatabase.CreateOrOpen(path);
+
+// In-memory
+var db = WitDatabase.CreateInMemory();
+
+// Full control via builder
+var db = new WitDatabaseBuilder()
+    .WithFilePath("data.db")   // or .WithLsmTree(dir)
+    .WithBTree()               // or .WithLsmTree()
+    .WithEncryption(password)
+    .WithTransactions()
+    .WithIndexDirectory("indexes/")
+    .Build();
+```
+
+### 5.2 Database Info
+
+```csharp
+var info = WitDatabase.GetDatabaseInfo(path);
+// info.Exists, info.StoreType ("btree"/"lsm"), 
+// info.RequiresPassword, info.HasTransactions, etc.
+```
+
+### 5.3 Indexes
+
+```csharp
+var index = db.CreateIndex("idx_email", isUnique: true);
+index.Add(emailBytes, userIdBytes);
+
+var userIds = index.Find(emailBytes);
+db.DropIndex("idx_email");
+```
+
+### 5.4 Transactions with Savepoints
+
+```csharp
+using var tx = db.BeginTransaction();
+tx.Put(key, value);
+
 if (tx is ITransactionWithSavepoints txSp)
 {
     txSp.CreateSavepoint("sp1");
-    // ... work ...
-    txSp.RollbackToSavepoint("sp1");
-}
-```
-
-**Secondary Indexes** - Fully integrated with persistence:
-```csharp
-// Create database with index
-using (var db = WitDatabase.Create("data.db"))
-{
-    db.CreateIndex("idx_email", isUnique: true);
-    db.GetIndex("idx_email")!.Add(key, pk);
+    tx.Put(key2, value2);
+    txSp.RollbackToSavepoint("sp1"); // Undo key2
 }
 
-// Reopen - index is automatically restored
-using (var db = WitDatabase.Open("data.db"))
-{
-    Assert.That(db.HasIndex("idx_email"), Is.True); // ?
-}
+tx.Commit(); // Only key is committed
 ```
 
 ---
