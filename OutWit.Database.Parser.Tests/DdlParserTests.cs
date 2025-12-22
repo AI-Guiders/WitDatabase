@@ -605,6 +605,100 @@ public class DdlParserTests
 
     #endregion
 
+    #region Computed Columns
+
+    [Test]
+    public void ParseComputedColumnVirtualTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Orders (
+                Quantity INT,
+                Price DECIMAL,
+                Total AS (Quantity * Price)
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        Assert.That(create.Columns, Has.Count.EqualTo(3));
+        
+        var totalCol = create.Columns[2];
+        Assert.That(totalCol.Name, Is.EqualTo("Total"));
+        Assert.That(totalCol.IsComputed, Is.True);
+        Assert.That(totalCol.ComputedExpression, Is.Not.Null);
+        Assert.That(totalCol.ComputedType, Is.EqualTo(ComputedColumnType.Virtual));
+        Assert.That(totalCol.DataType, Is.Null);
+    }
+
+    [Test]
+    public void ParseComputedColumnStoredTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Users (
+                FirstName VARCHAR(50),
+                LastName VARCHAR(50),
+                FullName AS (FirstName || ' ' || LastName) STORED
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        
+        var fullNameCol = create.Columns[2];
+        Assert.That(fullNameCol.Name, Is.EqualTo("FullName"));
+        Assert.That(fullNameCol.IsComputed, Is.True);
+        Assert.That(fullNameCol.ComputedType, Is.EqualTo(ComputedColumnType.Stored));
+    }
+
+    [Test]
+    public void ParseComputedColumnExplicitVirtualTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Products (
+                Price DECIMAL,
+                Tax AS (Price * 0.1) VIRTUAL
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        
+        var taxCol = create.Columns[1];
+        Assert.That(taxCol.ComputedType, Is.EqualTo(ComputedColumnType.Virtual));
+    }
+
+    [Test]
+    public void ParseComputedColumnWithFunctionTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Users (
+                Email VARCHAR(100),
+                EmailLower AS (LOWER(Email)) STORED
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        
+        var emailLowerCol = create.Columns[1];
+        Assert.That(emailLowerCol.IsComputed, Is.True);
+        Assert.That(emailLowerCol.ComputedType, Is.EqualTo(ComputedColumnType.Stored));
+    }
+
+    [Test]
+    public void ParseMixedColumnsTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Items (
+                Id INT PRIMARY KEY,
+                Name VARCHAR(100) NOT NULL,
+                Qty INT DEFAULT 0,
+                Price DECIMAL,
+                Total AS (Qty * Price) STORED
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        Assert.That(create.Columns, Has.Count.EqualTo(5));
+        
+        // Regular columns
+        Assert.That(create.Columns[0].IsComputed, Is.False);
+        Assert.That(create.Columns[1].IsComputed, Is.False);
+        Assert.That(create.Columns[2].IsComputed, Is.False);
+        Assert.That(create.Columns[3].IsComputed, Is.False);
+        
+        // Computed column
+        Assert.That(create.Columns[4].IsComputed, Is.True);
+    }
+
+    #endregion
+
     #region Data Types - Other
 
     [Test]

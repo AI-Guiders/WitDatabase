@@ -42,13 +42,25 @@ internal sealed partial class WitSqlVisitor
         };
     }
 
-    public override WitSqlColumn VisitColumnDefinition(WitSqlParser.ColumnDefinitionContext context)
+    private WitSqlColumn VisitColumnDefinition(WitSqlParser.ColumnDefinitionContext context)
     {
-        return new WitSqlColumn
+        return context switch
         {
-            Name = context.columnName().GetText(),
-            DataType = VisitDataType(context.dataType()),
-            Constraints = context.columnConstraint()?.Select(VisitColumnConstraint).ToList()
+            WitSqlParser.RegularColumnContext regular => new WitSqlColumn
+            {
+                Name = regular.columnName().GetText(),
+                DataType = VisitDataType(regular.dataType()),
+                Constraints = regular.columnConstraint()?.Select(VisitColumnConstraint).ToList()
+            },
+            WitSqlParser.ComputedColumnContext computed => new WitSqlColumn
+            {
+                Name = computed.columnName().GetText(),
+                ComputedExpression = VisitExpression(computed.expression()),
+                ComputedType = computed.STORED() != null ? ComputedColumnType.Stored
+                             : computed.VIRTUAL() != null ? ComputedColumnType.Virtual
+                             : ComputedColumnType.Virtual // Default is Virtual
+            },
+            _ => throw new InvalidOperationException($"Unknown column definition type: {context.GetType()}")
         };
     }
 

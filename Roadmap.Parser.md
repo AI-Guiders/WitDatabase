@@ -25,7 +25,7 @@
 | Category | Implemented | Missing | Progress |
 |----------|-------------|---------|----------|
 | Data Types | 29 | 0 | 100% |
-| DDL - CREATE TABLE | 15 | 2 | 88% |
+| DDL - CREATE TABLE | 17 | 0 | 100% |
 | DDL - DROP/ALTER TABLE | 10 | 0 | 100% |
 | DDL - INDEX | 8 | 0 | 100% |
 | DDL - VIEW | 4 | 0 | 100% |
@@ -56,7 +56,7 @@
 | EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
 | Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL (v1)** | **262** | **20** | **93%** |
+| **TOTAL (v1)** | **264** | **18** | **94%** |
 
 ---
 
@@ -96,7 +96,7 @@
 
 ---
 
-## 2. DDL - CREATE TABLE (88%)
+## 2. DDL - CREATE TABLE (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
@@ -115,8 +115,8 @@
 | `UNIQUE (column_list)` | [x] | SS2.1 |
 | `FOREIGN KEY (cols) REFERENCES ...` | [x] | SS2.1 |
 | `CONSTRAINT name ...` | [x] | SS13.3 |
-| Computed columns `AS (expr)` | [ ] | SS20 |
-| `STORED` / `VIRTUAL` modifiers | [ ] | SS20 |
+| Computed columns `AS (expr)` | [x] | SS20 |
+| `STORED` / `VIRTUAL` modifiers | [x] | SS20 |
 
 ---
 

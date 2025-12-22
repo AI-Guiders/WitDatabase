@@ -67,6 +67,7 @@ RIGHT: R I G H T;
 SELECT: S E L E C T;
 SOME: S O M E;
 SET: S E T;
+STORED: S T O R E D;
 TABLE: T A B L E;
 THEN: T H E N;
 TO: T O;
@@ -74,6 +75,7 @@ TRUE: T R U E;
 UNIQUE: U N I Q U E;
 UPDATE: U P D A T E;
 VALUES: V A L U E S;
+VIRTUAL: V I R T U A L;
 WHEN: W H E N;
 WHERE: W H E R E;
 MAX: M A X;
@@ -534,6 +536,11 @@ fragment X: [Xx];
 fragment Y: [Yy];
 fragment Z: [Zz];
 fragment DIGIT: [0-9];
+
+
+
+
+
 
 
 

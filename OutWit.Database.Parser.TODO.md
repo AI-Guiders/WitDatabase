@@ -103,9 +103,9 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
  
 ### Category 7: Computed Columns
 
-- [ ] **7.1** `column AS (expression)` in CREATE TABLE
-- [ ] **7.2** `STORED` / `VIRTUAL` modifiers
-- [ ] **7.3** Extend column definition in grammar
+- [x] **7.1** `column AS (expression)` in CREATE TABLE
+- [x] **7.2** `STORED` / `VIRTUAL` modifiers
+- [x] **7.3** Extend column definition in grammar
 
 ### Category 8: JSON Functions
 

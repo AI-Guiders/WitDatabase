@@ -255,7 +255,8 @@ tableElement
     ;
 
 columnDefinition
-    : columnName dataType columnConstraint*
+    : columnName dataType columnConstraint*                           # regularColumn
+    | columnName AS LPAREN expression RPAREN (STORED | VIRTUAL)?      # computedColumn
     ;
 
 dataType
