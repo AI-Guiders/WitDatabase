@@ -39,6 +39,7 @@ namespace OutWit.Database.Parser.Interfaces
         T VisitStatementRollback(WitSqlStatementRollback node);
         T VisitStatementSavepoint(WitSqlStatementSavepoint node);
         T VisitStatementReleaseSavepoint(WitSqlStatementReleaseSavepoint node);
+        T VisitStatementSetTransaction(WitSqlStatementSetTransaction node);
 
         #endregion
 

@@ -1,4 +1,5 @@
 using OutWit.Database.Parser.Generated;
+using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Statements;
 
 namespace OutWit.Database.Parser.Visitor;
@@ -134,7 +135,38 @@ internal sealed partial class WitSqlVisitor : WitSqlParserBaseVisitor<object?>
             };
         }
 
+        if (context.setTransactionStatement() is { } setTransaction)
+        {
+            return VisitSetTransactionStatement(setTransaction);
+        }
+
         return null;
+    }
+
+    private WitSqlStatementSetTransaction VisitSetTransactionStatement(WitSqlParser.SetTransactionStatementContext context)
+    {
+        var isolationLevelCtx = context.isolationLevel();
+        var isolationLevel = ParseIsolationLevel(isolationLevelCtx);
+
+        return new WitSqlStatementSetTransaction
+        {
+            Line = context.Start.Line,
+            Column = context.Start.Column,
+            IsolationLevel = isolationLevel
+        };
+    }
+
+    private static IsolationLevelType ParseIsolationLevel(WitSqlParser.IsolationLevelContext context)
+    {
+        if (context.SERIALIZABLE() != null)
+            return IsolationLevelType.Serializable;
+        if (context.SNAPSHOT() != null)
+            return IsolationLevelType.Snapshot;
+        if (context.REPEATABLE() != null)
+            return IsolationLevelType.RepeatableRead;
+        if (context.UNCOMMITTED() != null)
+            return IsolationLevelType.ReadUncommitted;
+        return IsolationLevelType.ReadCommitted;
     }
 
     #endregion

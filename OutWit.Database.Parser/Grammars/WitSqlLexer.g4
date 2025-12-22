@@ -320,6 +320,19 @@ DO: D O;
 NOTHING: N O T H I N G;
 
 // ============================================================================
+// Transaction Isolation Level
+// ============================================================================
+
+ISOLATION: I S O L A T I O N;
+LEVEL: L E V E L;
+READ: R E A D;
+UNCOMMITTED: U N C O M M I T T E D;
+COMMITTED: C O M M I T T E D;
+REPEATABLE: R E P E A T A B L E;
+SERIALIZABLE: S E R I A L I Z A B L E;
+SNAPSHOT: S N A P S H O T;
+
+// ============================================================================
 // Functions - Math (longer first)
 // ============================================================================
 

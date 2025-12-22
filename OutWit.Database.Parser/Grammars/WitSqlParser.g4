@@ -10,7 +10,7 @@ options {
 
 script
     : statement (SEMI statement)* SEMI? EOF
-  ;
+ ;
 
 // ============================================================================
 // Statements
@@ -51,9 +51,10 @@ transactionStatement
     | rollbackStatement
     | savepointStatement
     | releaseStatement
+    | setTransactionStatement
     ;
 
-// ============================================================================
+    // ============================================================================
 // Transaction Statements
 // ============================================================================
 
@@ -77,9 +78,17 @@ releaseStatement
     : RELEASE SAVEPOINT? IDENTIFIER
     ;
 
-// ============================================================================
-// Query Expression (SELECT with CTE and Set Operations)
-// ============================================================================
+setTransactionStatement
+    : SET TRANSACTION ISOLATION LEVEL isolationLevel
+    ;
+
+isolationLevel
+    : READ UNCOMMITTED
+    | READ COMMITTED
+    | REPEATABLE READ
+    | SERIALIZABLE
+    | SNAPSHOT
+    ;
 
 queryExpression
     : withClause? queryTerm (setOperation queryTerm)* orderByClause? limitClause?
@@ -102,7 +111,7 @@ setOperation
     : UNION ALL?
     | INTERSECT
     | EXCEPT
-  ;
+ ;
 
 // ============================================================================
 // SELECT Statement
@@ -167,7 +176,7 @@ orderByItem
 limitClause
     : LIMIT expression (OFFSET expression)?
     | LIMIT expression COMMA expression
-  ;
+ ;
 
 // ============================================================================
 // INSERT Statement
@@ -211,7 +220,7 @@ setClause
 
 deleteStatement
     : DELETE FROM tableName whereClause? returningClause?
-  ;
+ ;
 
 // ============================================================================
 // RETURNING Clause
@@ -221,7 +230,7 @@ returningClause
     : RETURNING selectList
     ;
 
-// ============================================================================
+    // ============================================================================
 // CREATE TABLE Statement
 // ============================================================================
 
@@ -532,8 +541,10 @@ tableName
 columnName
     : IDENTIFIER
     | ROWID
+    | LEVEL
     ;
 
 alias
     : IDENTIFIER
+    | LEVEL
     ;

@@ -1168,4 +1168,49 @@ public class AdvancedParserTests
     }
 
     #endregion
+
+    #region SET TRANSACTION ISOLATION LEVEL
+
+    [Test]
+    public void ParseSetTransactionReadUncommittedTest()
+    {
+        var stmt = WitSql.ParseStatement("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementSetTransaction>());
+        var setTxn = (WitSqlStatementSetTransaction)stmt;
+        Assert.That(setTxn.IsolationLevel, Is.EqualTo(IsolationLevelType.ReadUncommitted));
+    }
+
+    [Test]
+    public void ParseSetTransactionReadCommittedTest()
+    {
+        var stmt = WitSql.ParseStatement("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+        var setTxn = (WitSqlStatementSetTransaction)stmt;
+        Assert.That(setTxn.IsolationLevel, Is.EqualTo(IsolationLevelType.ReadCommitted));
+    }
+
+    [Test]
+    public void ParseSetTransactionRepeatableReadTest()
+    {
+        var stmt = WitSql.ParseStatement("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+        var setTxn = (WitSqlStatementSetTransaction)stmt;
+        Assert.That(setTxn.IsolationLevel, Is.EqualTo(IsolationLevelType.RepeatableRead));
+    }
+
+    [Test]
+    public void ParseSetTransactionSerializableTest()
+    {
+        var stmt = WitSql.ParseStatement("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE");
+        var setTxn = (WitSqlStatementSetTransaction)stmt;
+        Assert.That(setTxn.IsolationLevel, Is.EqualTo(IsolationLevelType.Serializable));
+    }
+
+    [Test]
+    public void ParseSetTransactionSnapshotTest()
+    {
+        var stmt = WitSql.ParseStatement("SET TRANSACTION ISOLATION LEVEL SNAPSHOT");
+        var setTxn = (WitSqlStatementSetTransaction)stmt;
+        Assert.That(setTxn.IsolationLevel, Is.EqualTo(IsolationLevelType.Snapshot));
+    }
+
+    #endregion
 }

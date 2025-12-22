@@ -69,9 +69,9 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 
 ### Category 2: SET TRANSACTION ISOLATION LEVEL
 
-- [ ] **2.1** `SET TRANSACTION ISOLATION LEVEL` statement
-- [ ] **2.2** Isolation level enum: `READ UNCOMMITTED`, `READ COMMITTED`, `REPEATABLE READ`, `SERIALIZABLE`, `SNAPSHOT`
-- [ ] **2.3** AST node: `WitSqlStatementSetTransaction`
+- [x] **2.1** `SET TRANSACTION ISOLATION LEVEL` statement
+- [x] **2.2** Isolation level enum: `READ UNCOMMITTED`, `READ COMMITTED`, `REPEATABLE READ`, `SERIALIZABLE`, `SNAPSHOT`
+- [x] **2.3** AST node: `WitSqlStatementSetTransaction`
 
 ### Category 3: Locking Hints (FOR UPDATE/SHARE)
 
@@ -193,9 +193,10 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 
 | # | Component | Priority |
 |---|-----------|----------|
-| 4.1-4.4 | UPSERT / ON CONFLICT | ?? Critical |
+| ~~4.1-4.3~~ | ~~UPSERT / ON CONFLICT~~ | ~~? Done~~ |
+| 4.4 | MERGE statement | ?? Critical |
 | ~~5.1-5.2~~ | ~~TRUNCATE TABLE~~ | ~~? Done~~ |
-| 16.1-16.4 | ANY/SOME/ALL | ?? Critical |
+| ~~16.1-16.4~~ | ~~ANY/SOME/ALL~~ | ~~? Done~~ |
 | ~~1.1-1.2~~ | ~~ROWVERSION, JSON types~~ | ~~? Done~~ |
 
 ### Production Ready (EF Core)

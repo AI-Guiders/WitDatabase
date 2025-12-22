@@ -50,13 +50,13 @@
 | System Functions | 6 | 0 | 100% |
 | JSON Functions | 0 | 11 | 0% |
 | Window Functions | 18 | 0 | 100% |
-| Transactions | 6 | 4 | 60% |
+| Transactions | 8 | 0 | 100% |
 | User-Defined Functions | 0 | 4 | 0% |
 | Stored Procedures | 0 | 4 | 0% |
 | EXPLAIN | 0 | 3 | 0% |
 | Database Administration | 0 | 7 | 0% |
 | Comments | 2 | 0 | 100% |
-| **TOTAL** | **250** | **32** | **89%** |
+| **TOTAL** | **252** | **30** | **89%** |
 
 ---
 
@@ -434,7 +434,7 @@
 
 ---
 
-## 21. Transactions (60%)
+## 21. Transactions (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
@@ -444,8 +444,8 @@
 | `SAVEPOINT name` | [x] | SS9 |
 | `RELEASE SAVEPOINT name` | [x] | SS9 |
 | `ROLLBACK TO SAVEPOINT name` | [x] | SS9 |
-| `SET TRANSACTION ISOLATION LEVEL` | [ ] | SS14.1 |
-| Isolation level keywords | [ ] | SS14.1 |
+| `SET TRANSACTION ISOLATION LEVEL` | [x] | SS14.1 |
+| Isolation level keywords | [x] | SS14.1 |
 
 ---
 

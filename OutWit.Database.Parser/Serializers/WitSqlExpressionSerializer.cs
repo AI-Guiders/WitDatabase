@@ -106,6 +106,9 @@ public sealed class WitSqlExpressionSerializer : IWitSqlVisitor<string>
     public string VisitStatementReleaseSavepoint(WitSqlStatementReleaseSavepoint node) =>
         throw new NotSupportedException("RELEASE SAVEPOINT statement serialization not supported");
 
+    public string VisitStatementSetTransaction(WitSqlStatementSetTransaction node) =>
+        throw new NotSupportedException("SET TRANSACTION statement serialization not supported");
+
     #endregion
 
     #region IWitSqlVisitor - Expressions
