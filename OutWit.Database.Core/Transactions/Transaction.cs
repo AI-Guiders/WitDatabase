@@ -4,11 +4,11 @@ using OutWit.Database.Core.Interfaces;
 namespace OutWit.Database.Core.Transactions
 {
     /// <summary>
-    /// Transaction implementation with change tracking.
+    /// Transaction implementation with change tracking and savepoint support.
     /// Buffers all changes until Commit() or Rollback() is called.
     /// Holds a write lock for the duration of the transaction if locking is enabled.
     /// </summary>
-    public sealed class Transaction : ITransaction
+    public sealed class Transaction : ITransactionWithSavepoints
     {
         #region Constants
 
@@ -25,6 +25,7 @@ namespace OutWit.Database.Core.Transactions
         private readonly Dictionary<byte[], (byte[]? NewValue, byte[]? OldValue)> m_changes;
         private readonly HashSet<byte[]> m_deletedKeys;
         private readonly ByteArrayComparer m_comparer;
+        private readonly List<Savepoint> m_savepoints;
 
         #endregion
 
@@ -42,6 +43,7 @@ namespace OutWit.Database.Core.Transactions
             m_comparer = ByteArrayComparer.Default;
             m_changes = new Dictionary<byte[], (byte[]?, byte[]?)>(m_comparer);
             m_deletedKeys = new HashSet<byte[]>(m_comparer);
+            m_savepoints = new List<Savepoint>();
 
             m_journal?.BeginTransaction(transactionId);
         }
@@ -58,6 +60,7 @@ namespace OutWit.Database.Core.Transactions
             m_comparer = ByteArrayComparer.Default;
             m_changes = new Dictionary<byte[], (byte[]?, byte[]?)>(m_comparer);
             m_deletedKeys = new HashSet<byte[]>(m_comparer);
+            m_savepoints = new List<Savepoint>();
 
             m_journal?.BeginTransaction(transactionId);
         }
@@ -169,6 +172,93 @@ namespace OutWit.Database.Core.Transactions
 
         #endregion
 
+        #region Savepoints
+
+        /// <inheritdoc/>
+        public void CreateSavepoint(string name)
+        {
+            ThrowIfNotActive();
+            ValidateSavepointName(name);
+
+            if (m_savepoints.Any(sp => sp.Name == name))
+                throw new ArgumentException($"Savepoint '{name}' already exists.", nameof(name));
+
+            var savepoint = new Savepoint(name, m_changes, m_deletedKeys);
+            m_savepoints.Add(savepoint);
+        }
+
+        /// <inheritdoc/>
+        public ValueTask CreateSavepointAsync(string name, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CreateSavepoint(name);
+            return ValueTask.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public void RollbackToSavepoint(string name)
+        {
+            ThrowIfNotActive();
+            ValidateSavepointName(name);
+
+            var index = m_savepoints.FindIndex(sp => sp.Name == name);
+            if (index < 0)
+                throw new ArgumentException($"Savepoint '{name}' does not exist.", nameof(name));
+
+            var savepoint = m_savepoints[index];
+            savepoint.Restore(m_changes, m_deletedKeys);
+
+            // Remove all savepoints created after this one
+            m_savepoints.RemoveRange(index + 1, m_savepoints.Count - index - 1);
+        }
+
+        /// <inheritdoc/>
+        public ValueTask RollbackToSavepointAsync(string name, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RollbackToSavepoint(name);
+            return ValueTask.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public void ReleaseSavepoint(string name)
+        {
+            ThrowIfNotActive();
+            ValidateSavepointName(name);
+
+            var index = m_savepoints.FindIndex(sp => sp.Name == name);
+            if (index < 0)
+                throw new ArgumentException($"Savepoint '{name}' does not exist.", nameof(name));
+
+            // Remove this savepoint and all savepoints created after it
+            m_savepoints.RemoveRange(index, m_savepoints.Count - index);
+        }
+
+        /// <inheritdoc/>
+        public ValueTask ReleaseSavepointAsync(string name, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ReleaseSavepoint(name);
+            return ValueTask.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public bool HasSavepoint(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return false;
+
+            return m_savepoints.Any(sp => sp.Name == name);
+        }
+
+        private static void ValidateSavepointName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                throw new ArgumentNullException(nameof(name), "Savepoint name cannot be null or empty.");
+        }
+
+        #endregion
+
         #region Commit
 
         /// <inheritdoc/>
@@ -196,6 +286,7 @@ namespace OutWit.Database.Core.Transactions
             }
             finally
             {
+                m_savepoints.Clear();
                 ReleaseLocks();
             }
         }
@@ -227,6 +318,7 @@ namespace OutWit.Database.Core.Transactions
             }
             finally
             {
+                m_savepoints.Clear();
                 await ReleaseLocksAsync().ConfigureAwait(false);
             }
         }
@@ -244,6 +336,7 @@ namespace OutWit.Database.Core.Transactions
             {
                 m_changes.Clear();
                 m_deletedKeys.Clear();
+                m_savepoints.Clear();
                 m_journal?.RollbackTransaction(TransactionId);
                 State = TransactionState.RolledBack;
             }
@@ -262,6 +355,7 @@ namespace OutWit.Database.Core.Transactions
             {
                 m_changes.Clear();
                 m_deletedKeys.Clear();
+                m_savepoints.Clear();
                 m_journal?.RollbackTransaction(TransactionId);
                 State = TransactionState.RolledBack;
             }
@@ -360,6 +454,9 @@ namespace OutWit.Database.Core.Transactions
 
         /// <inheritdoc/>
         public long TransactionId { get; }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<string> Savepoints => m_savepoints.Select(sp => sp.Name).ToList().AsReadOnly();
 
         #endregion
 

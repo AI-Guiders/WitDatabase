@@ -32,17 +32,17 @@
 | Basic Concurrency | 4 | 0 | 100% |
 | Isolation Levels | 0 | 4 | 0% |
 | Row-level Locks | 0 | 4 | 0% |
-| Savepoints | 0 | 4 | 0% |
+| Savepoints | 4 | 0 | 100% |
 | Multiple Result Sets | 0 | 3 | 0% |
-| Cursor Support | 0 | 4 | 0% |
-| Query Context | 0 | 5 | 0% |
-| Secondary Indexes | 0 | 5 | 0% |
+| Cursor Support | 0 | 4 | 0% - v2 |
+| Query Context | 5 | 0 | 100% |
+| Secondary Indexes | 5 | 0 | 100% |
 | Bulk Operations | 0 | 3 | 0% |
-| Statistics | 0 | 4 | 0% |
-| VACUUM/Compaction | 0 | 3 | 0% |
+| Statistics | 0 | 2 | 0% |
+| VACUUM/Compaction | 0 | 3 | 0% - v2 |
 | Concurrent Transactions | 0 | 3 | 0% |
 | ROWVERSION | 0 | 3 | 0% |
-| **TOTAL** | **19** | **45** | **30%** |
+| **TOTAL** | **33** | **29** | **53%** |
 
 ---
 
@@ -127,12 +127,12 @@
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `CreateSavepoint(name)` | [ ] | P1 | SS3.1 |
-| `RollbackToSavepoint(name)` | [ ] | P1 | SS3.2 |
-| `ReleaseSavepoint(name)` | [ ] | P1 | SS3.3 |
-| Nested savepoints (stack) | [ ] | P1 | SS3.4 |
+| `CreateSavepoint(name)` | [x] | P1 | SS3.1 |
+| `RollbackToSavepoint(name)` | [x] | P1 | SS3.2 |
+| `ReleaseSavepoint(name)` | [x] | P1 | SS3.3 |
+| Nested savepoints (stack) | [x] | P1 | SS3.4 |
 
-**Notes:** Used by EF Core for nested transactions and SaveChanges with retry.
+**Notes:** Used by EF Core for nested transactions and SaveChanges with retry. ? Implemented in `ITransactionWithSavepoints` and `Transaction`.
 
 ### 2.4 Multiple Result Sets
 
@@ -142,38 +142,38 @@
 | `NextResult()` method | [ ] | P1 | SS4.2 |
 | Batch execution support | [ ] | P1 | SS4.3 |
 
-### 2.5 Cursor Support (Optional)
+### 2.5 Cursor Support (Deferred to v2)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `ICursor` interface | [ ] | P2 | SS5.1 |
-| Forward-only mode | [ ] | P2 | SS5.2 |
-| Scrollable mode | [ ] | P2 | SS5.2 |
-| Fetch size (batching) | [ ] | P2 | SS5.3 |
+| `ICursor` interface | [ ] | P2 - v2 | SS5.1 |
+| Forward-only mode | [ ] | P2 - v2 | SS5.2 |
+| Scrollable mode | [ ] | P2 - v2 | SS5.2 |
+| Fetch size (batching) | [ ] | P2 - v2 | SS5.3 |
 
 ### 2.6 Query Execution Context
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `IQueryContext` interface | [ ] | P0 | SS6.1 |
-| `AffectedRows` property | [ ] | P0 | SS6.2 |
-| `LastInsertId` property | [ ] | P0 | SS6.3 |
-| Query timeout support | [ ] | P0 | SS6.4 |
-| `CancellationToken` propagation | [ ] | P0 | SS6.5 |
+| `IQueryContext` interface | [x] | P0 | SS6.1 |
+| `AffectedRows` property | [x] | P0 | SS6.2 |
+| `LastInsertId` property | [x] | P0 | SS6.3 |
+| Query timeout support | [x] | P0 | SS6.4 |
+| `CancellationToken` propagation | [x] | P0 | SS6.5 |
 
-**Notes:** ADO.NET requires information about affected rows count and last insert id.
+**Notes:** ADO.NET requires information about affected rows count and last insert id. ? Implemented in `IQueryContext` and `QueryContext`.
 
 ### 2.7 Secondary Indexes
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `ISecondaryIndex` interface | [ ] | P0 | SS7.1 |
-| B+Tree based secondary indexes | [ ] | P0 | SS7.2 |
-| Unique index support | [ ] | P0 | SS7.3 |
-| Composite index support | [ ] | P0 | SS7.4 |
-| Index maintenance (auto-update) | [ ] | P0 | SS7.5 |
+| `ISecondaryIndex` interface | [x] | P0 | SS7.1 |
+| B+Tree based secondary indexes | [x] | P0 | SS7.2 |
+| Unique index support | [x] | P0 | SS7.3 |
+| Composite index support | [x] | P0 | SS7.4 |
+| Index maintenance (auto-update) | [x] | P0 | SS7.5 |
 
-**Notes:** Critical for any SQL engine. Without secondary indexes, efficient filtering and JOIN operations are impossible.
+**Notes:** Critical for any SQL engine. Without secondary indexes, efficient filtering and JOIN operations are impossible. ? Implemented in `ISecondaryIndex`, `SecondaryIndexBTree`, `IIndexManager`, and `IndexManager`.
 
 ### 2.8 Bulk Operations
 
@@ -189,16 +189,16 @@
 |---------|--------|----------|----------|
 | Table row count (approximate/exact) | [ ] | P1 | SS9.1 |
 | Index statistics for query optimizer | [ ] | P1 | SS9.2 |
-| `ANALYZE` command support | [ ] | P2 | SS9.3 |
-| Column cardinality estimation | [ ] | P2 | SS9.4 |
+| `ANALYZE` command support | [ ] | P2 - v2 | SS9.3 |
+| Column cardinality estimation | [ ] | P2 - v2 | SS9.4 |
 
-### 2.10 VACUUM / Compaction API
+### 2.10 VACUUM / Compaction API (Deferred to v2)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| Explicit `Vacuum()` method for BTree | [ ] | P2 | SS10.1 |
-| Incremental vacuum support | [ ] | P2 | SS10.2 |
-| Compaction progress/status API | [ ] | P2 | SS10.3 |
+| Explicit `Vacuum()` method for BTree | [ ] | P2 - v2 | SS10.1 |
+| Incremental vacuum support | [ ] | P2 - v2 | SS10.2 |
+| Compaction progress/status API | [ ] | P2 - v2 | SS10.3 |
 
 ### 2.11 Concurrent Transactions
 
@@ -255,14 +255,14 @@
 | Statistics | P1 |
 | `NOWAIT` / `SKIP LOCKED` | P1 |
 
-### 3.4 Phase 4: Nice to Have
+### 3.4 Phase 4: Nice to Have (Deferred to v2)
 
 | Feature | Priority |
 |---------|----------|
-| `ICursor` interface | P2 |
-| VACUUM API | P2 |
-| `ANALYZE` support | P2 |
-| Cardinality estimation | P2 |
+| `ICursor` interface | P2 - v2 |
+| VACUUM API | P2 - v2 |
+| `ANALYZE` support | P2 - v2 |
+| Cardinality estimation | P2 - v2 |
 
 ---
 
