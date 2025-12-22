@@ -281,10 +281,25 @@ public sealed class WitDatabaseBuilder
             );
         }
 
+        // Determine if user explicitly specified index directory
+        bool hasExplicitIndexDir = !string.IsNullOrEmpty(Options.IndexDirectory);
+        
         // Determine the base directory for indexes
-        string? baseDirectory = Options.IndexDirectory 
-            ?? Options.LsmDirectory 
-            ?? (Options.FilePath != null ? Path.GetDirectoryName(Options.FilePath) : null);
+        string? baseDirectory;
+        if (hasExplicitIndexDir)
+        {
+            // User explicitly specified - use as-is
+            baseDirectory = Options.IndexDirectory;
+        }
+        else
+        {
+            // Auto-derive from main storage path
+            var mainDir = Options.LsmDirectory 
+                ?? (Options.FilePath != null ? Path.GetDirectoryName(Options.FilePath) : null);
+            
+            // Add _indexes subdirectory for auto-derived paths
+            baseDirectory = mainDir != null ? Path.Combine(mainDir, "_indexes") : null;
+        }
 
         // For memory storage, use in-memory indexes
         if (Options.UseMemoryStorage || baseDirectory == null)
@@ -298,7 +313,7 @@ public sealed class WitDatabaseBuilder
         // For LSM-Tree, use LSM-based indexes
         if (Options.UseLsmTree)
         {
-            var indexDir = Path.Combine(baseDirectory, "_indexes");
+            var indexDir = baseDirectory;
             
             // Capture encryption settings for lambda (create new instances per index)
             var cryptoProvider = Options.CryptoProvider;
@@ -307,7 +322,7 @@ public sealed class WitDatabaseBuilder
             return new SecondaryIndexFactoryKeyValueStore(
                 indexName =>
                 {
-                    var indexPath = Path.Combine(indexDir, indexName);
+                    var indexPath = Path.Combine(indexDir!, indexName);
                     Directory.CreateDirectory(indexPath);
                     
                     var lsmOptions = new LsmOptions();
@@ -324,7 +339,7 @@ public sealed class WitDatabaseBuilder
         }
 
         // For BTree, use BTree-based indexes (each index gets its own file)
-        var btreeIndexDir = Path.Combine(baseDirectory, "_indexes");
+        var btreeIndexDir = baseDirectory;
         
         // Capture settings for lambda
         var pageSize = Options.PageSize;
@@ -335,8 +350,8 @@ public sealed class WitDatabaseBuilder
         return new SecondaryIndexFactoryKeyValueStore(
             indexName =>
             {
-                Directory.CreateDirectory(btreeIndexDir);
-                var indexPath = Path.Combine(btreeIndexDir, $"{indexName}.idx");
+                Directory.CreateDirectory(btreeIndexDir!);
+                var indexPath = Path.Combine(btreeIndexDir!, $"{indexName}.idx");
                 
                 IStorage storage;
                 int storagePageSize = pageSize;
