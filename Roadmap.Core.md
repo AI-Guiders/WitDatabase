@@ -36,13 +36,13 @@
 | Multiple Result Sets | 0 | 3 | 0% |
 | Cursor Support | 0 | 4 | 0% - v2 |
 | Query Context | 5 | 0 | 100% |
-| Secondary Indexes | 7 | 0 | 100% |
+| Secondary Indexes | 8 | 0 | 100% |
 | Bulk Operations | 0 | 3 | 0% |
 | Statistics | 0 | 2 | 0% |
 | VACUUM/Compaction | 0 | 3 | 0% - v2 |
 | Concurrent Transactions | 0 | 3 | 0% |
 | ROWVERSION | 0 | 3 | 0% |
-| **TOTAL** | **35** | **29** | **55%** |
+| **TOTAL** | **36** | **29** | **55%** |
 
 ---
 
@@ -174,6 +174,7 @@
 | Index maintenance (auto-update) | [x] | P0 | SS7.5 |
 | Storage-agnostic index factory | [x] | P1 | SS7.6 |
 | WitDatabase integration | [x] | P1 | SS7.7 |
+| Index metadata persistence | [x] | P1 | SS7.8 |
 
 **Notes:** Critical for any SQL engine. Without secondary indexes, efficient filtering and JOIN operations are impossible.
 
@@ -182,10 +183,14 @@
 - `SecondaryIndexBTree` - B+Tree based implementation with unique/non-unique support
 - `SecondaryIndexKeyValueStore` - generic implementation using any `IKeyValueStore`
 - `ISecondaryIndexFactory` - factory interface for creating storage-appropriate indexes
-- `SecondaryIndexFactoryKeyValueStore` - universal factory using any `IKeyValueStore` (works with BTree, LSM, InMemory, or custom stores)
+- `SecondaryIndexFactoryKeyValueStore` - universal factory using any `IKeyValueStore`
 - `IIndexManager` - interface for managing multiple indexes per table
 - `IndexManager` - implementation with auto-update on row insert/update/delete
-- `WitDatabase` integration - fluent API (`WithSecondaryIndexFactory`, `WithIndexDirectory`) and methods (`CreateIndex`, `GetIndex`, `DropIndex`, `HasIndex`)
+- `IndexMetadataStore` - persistence of index definitions (name, isUnique)
+- `WitDatabase` integration:
+  - Fluent API (`WithSecondaryIndexFactory`, `WithIndexDirectory`)
+  - Methods (`CreateIndex`, `GetIndex`, `DropIndex`, `HasIndex`)
+  - **Auto-restoration of indexes on database reopen**
 
 ### 2.8 Bulk Operations
 
@@ -248,6 +253,7 @@
 | Savepoints | P1 | ? |
 | Storage-agnostic index factory | P1 | ? |
 | WitDatabase index integration | P1 | ? |
+| Index metadata persistence | P1 | ? |
 
 ### 3.2 Phase 2: EF Core Compatibility
 
@@ -324,32 +330,37 @@ IndexManager
 ??? Manages index lifecycle and auto-updates
 ??? Thread-safe operations
 
+IndexMetadataStore
+??? Persists index definitions (name, isUnique) to the store
+??? Uses system key prefix "\0\0_idx_meta_" to avoid collision
+??? Catalog stored as JSON for forward compatibility
+
 WitDatabase Integration
-??? CreateIndex(name, isUnique) - creates new index
+??? CreateIndex(name, isUnique) - creates and persists index
 ??? GetIndex(name) - retrieves existing index
-??? DropIndex(name) - removes index
+??? DropIndex(name) - removes index and its metadata
 ??? HasIndex(name) - checks if index exists
 ??? IndexNames - lists all index names
 ??? Fluent API:
 ?   ??? WithSecondaryIndexFactory(factory) - custom factory
 ?   ??? WithIndexDirectory(path) - custom index storage location
 ??? Automatic factory selection based on storage engine
+??? **Auto-restoration of indexes on database reopen**
 ```
 
 ### 5.3 Tested Storage Combinations
 
 All combinations are tested and working:
 
-| Storage Engine | Backend | Encryption | Indexes | Status |
-|----------------|---------|------------|---------|--------|
-| BTree | Memory | No | ? | Working |
-| BTree | Memory | AES-GCM | ? | Working |
-| BTree | File | No | ? | Working |
-| BTree | File | AES-GCM | ? | Working |
-| LSM | Directory | No | ? | Working |
-| LSM | Directory | AES-GCM | ? | Working |
-| Custom Store | - | - | ? | Working (with in-memory indexes) |
-| Custom Store | - | - | ? | Working (with custom index factory) |
+| Storage Engine | Backend | Encryption | Indexes | Persistence | Status |
+|----------------|---------|------------|---------|-------------|--------|
+| BTree | Memory | No | ? | N/A | Working |
+| BTree | Memory | AES-GCM | ? | N/A | Working |
+| BTree | File | No | ? | ? | Working |
+| BTree | File | AES-GCM | ? | ? | Working |
+| LSM | Directory | No | ? | ? | Working |
+| LSM | Directory | AES-GCM | ? | ? | Working |
+| Custom Store | - | - | ? | ? | Working |
 
 ### 5.4 Adding Custom IKeyValueStore
 
@@ -366,7 +377,7 @@ To add a custom `IKeyValueStore` implementation:
 3. **Indexes**: By default, in-memory indexes are used. To use your storage for indexes:
    ```csharp
    var indexFactory = new SecondaryIndexFactoryKeyValueStore(
-       indexName => new MyCustomStore($"index_{indexName}"));
+       name => new MyCustomStore($"index_{name}"));
    
    var db = new WitDatabaseBuilder()
        .WithStore(myCustomStore)
@@ -375,11 +386,42 @@ To add a custom `IKeyValueStore` implementation:
        .Build();
    ```
 
-### 5.5 Known Limitations
+### 5.5 Component Integration Status
 
-1. **Index Persistence**: Index metadata (names, isUnique flags) is NOT persisted. When reopening a database, indexes must be recreated. This will be addressed in a future update with index metadata storage.
+| Component | WitDatabase Integration | Persistence | Notes |
+|-----------|------------------------|-------------|-------|
+| **QueryContext** | ? Not integrated | N/A | Used at SQL layer, not key-value |
+| **Savepoints** | ? Full | N/A | Via `ITransactionWithSavepoints` |
+| **Secondary Indexes** | ? Full | ? Yes | Auto-restored on reopen |
 
-2. **LSM Database Open**: `WitDatabase.Open()` does not auto-detect LSM databases. Use `WitDatabaseBuilder` directly for LSM.
+**QueryContext** - This is by design. `IQueryContext` provides metadata about SQL query execution (affected rows, last insert ID). It's used by the SQL engine layer (`OutWit.Database`), not the key-value storage layer (`OutWit.Database.Core`).
+
+**Savepoints** - Fully integrated. When you call `db.BeginTransaction()`, the returned `ITransaction` also implements `ITransactionWithSavepoints`:
+```csharp
+var tx = db.BeginTransaction();
+if (tx is ITransactionWithSavepoints txSp)
+{
+    txSp.CreateSavepoint("sp1");
+    // ... work ...
+    txSp.RollbackToSavepoint("sp1");
+}
+```
+
+**Secondary Indexes** - Fully integrated with persistence:
+```csharp
+// Create database with index
+using (var db = WitDatabase.Create("data.db"))
+{
+    db.CreateIndex("idx_email", isUnique: true);
+    db.GetIndex("idx_email")!.Add(key, pk);
+}
+
+// Reopen - index is automatically restored
+using (var db = WitDatabase.Open("data.db"))
+{
+    Assert.That(db.HasIndex("idx_email"), Is.True); // ?
+}
+```
 
 ---
 

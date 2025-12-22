@@ -407,6 +407,11 @@ public sealed class TransactionalStore : ITransactionalStore
     }
 
     /// <summary>
+    /// Gets the underlying key-value store.
+    /// </summary>
+    public IKeyValueStore UnderlyingStore => m_store;
+
+    /// <summary>
     /// Gets the provider key of the underlying store.
     /// </summary>
     public string InnerProviderKey => m_store.ProviderKey;

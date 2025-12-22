@@ -1,3 +1,4 @@
+using OutWit.Database.Core.Indexes;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.Providers;
 using OutWit.Database.Core.Storage;
@@ -15,6 +16,7 @@ public sealed class WitDatabase : IDisposable
     private readonly IKeyValueStore m_store;
     private readonly ITransactionalStore? m_transactionalStore;
     private readonly IIndexManager? m_indexManager;
+    private readonly IndexMetadataStore? m_indexMetadataStore;
     private readonly bool m_disposeStore;
     private bool m_disposed;
 
@@ -31,6 +33,13 @@ public sealed class WitDatabase : IDisposable
         m_transactionalStore = store as ITransactionalStore;
         m_indexManager = indexManager;
         m_disposeStore = disposeStore;
+        
+        // Create metadata store using the underlying store
+        var underlyingStore = GetUnderlyingStore(store);
+        m_indexMetadataStore = new IndexMetadataStore(underlyingStore);
+        
+        // Restore indexes from metadata
+        RestoreIndexesFromMetadata();
     }
 
     /// <summary>
@@ -42,6 +51,53 @@ public sealed class WitDatabase : IDisposable
         m_transactionalStore = store;
         m_indexManager = indexManager;
         m_disposeStore = disposeStore;
+        
+        // Create metadata store using the underlying store
+        var underlyingStore = GetUnderlyingStore(store);
+        m_indexMetadataStore = new IndexMetadataStore(underlyingStore);
+        
+        // Restore indexes from metadata
+        RestoreIndexesFromMetadata();
+    }
+
+    #endregion
+
+    #region Index Restoration
+
+    private static IKeyValueStore GetUnderlyingStore(IKeyValueStore store)
+    {
+        // If it's a transactional store, get the wrapped store
+        if (store is Transactions.TransactionalStore ts)
+        {
+            return ts.UnderlyingStore;
+        }
+        return store;
+    }
+
+    private void RestoreIndexesFromMetadata()
+    {
+        if (m_indexManager == null || m_indexMetadataStore == null)
+            return;
+
+        try
+        {
+            var savedIndexes = m_indexMetadataStore.LoadAllIndexes();
+            
+            foreach (var metadata in savedIndexes)
+            {
+                // Skip if index already exists (shouldn't happen normally)
+                if (m_indexManager.HasIndex(metadata.Name))
+                    continue;
+
+                // Recreate the index
+                m_indexManager.CreateIndex(metadata.Name, metadata.IsUnique);
+            }
+        }
+        catch
+        {
+            // Ignore errors during restoration - index data might still be on disk
+            // but metadata might be corrupted. User can recreate indexes manually.
+        }
     }
 
     #endregion
@@ -465,7 +521,12 @@ public sealed class WitDatabase : IDisposable
         if (m_indexManager == null)
             throw new InvalidOperationException("Index manager is not available.");
         
-        return m_indexManager.CreateIndex(name, isUnique);
+        var index = m_indexManager.CreateIndex(name, isUnique);
+        
+        // Persist metadata
+        m_indexMetadataStore?.SaveIndex(name, isUnique);
+        
+        return index;
     }
 
     /// <summary>
@@ -487,7 +548,16 @@ public sealed class WitDatabase : IDisposable
     public bool DropIndex(string name)
     {
         ThrowIfDisposed();
-        return m_indexManager?.DropIndex(name) ?? false;
+        
+        var dropped = m_indexManager?.DropIndex(name) ?? false;
+        
+        if (dropped)
+        {
+            // Remove metadata
+            m_indexMetadataStore?.RemoveIndex(name);
+        }
+        
+        return dropped;
     }
 
     /// <summary>
