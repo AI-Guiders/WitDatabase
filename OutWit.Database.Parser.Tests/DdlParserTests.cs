@@ -699,6 +699,67 @@ public class DdlParserTests
 
     #endregion
 
+    #region SIGNAL SQLSTATE
+
+    [Test]
+    public void ParseSignalStatementTest()
+    {
+        var stmt = WitSql.ParseStatement("SIGNAL SQLSTATE '45000'");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementSignal>());
+        var signal = (WitSqlStatementSignal)stmt;
+        Assert.That(signal.SqlState, Is.EqualTo("45000"));
+        Assert.That(signal.MessageText, Is.Null);
+    }
+
+    [Test]
+    public void ParseSignalStatementWithMessageTest()
+    {
+        var stmt = WitSql.ParseStatement("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Balance cannot be negative'");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementSignal>());
+        var signal = (WitSqlStatementSignal)stmt;
+        Assert.That(signal.SqlState, Is.EqualTo("45000"));
+        Assert.That(signal.MessageText, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseSignalStatementWithExpressionMessageTest()
+    {
+        var stmt = WitSql.ParseStatement("SIGNAL SQLSTATE '22003' SET MESSAGE_TEXT = 'Invalid value: ' || TOSTRING(@value)");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementSignal>());
+        var signal = (WitSqlStatementSignal)stmt;
+        Assert.That(signal.SqlState, Is.EqualTo("22003"));
+        Assert.That(signal.MessageText, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseSignalStatementCaseInsensitiveTest()
+    {
+        var stmt = WitSql.ParseStatement("signal sqlstate '45000' set message_text = 'Error'");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementSignal>());
+        var signal = (WitSqlStatementSignal)stmt;
+        Assert.That(signal.SqlState, Is.EqualTo("45000"));
+    }
+
+    [Test]
+    public void ParseTriggerWithSignalStatementTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TRIGGER PreventNegativeBalance
+            BEFORE UPDATE ON Accounts
+            FOR EACH ROW
+            BEGIN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Balance cannot be negative';
+            END");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementCreateTrigger>());
+        var create = (WitSqlStatementCreateTrigger)stmt;
+        Assert.That(create.Body, Has.Count.EqualTo(1));
+        Assert.That(create.Body[0], Is.InstanceOf<WitSqlStatementSignal>());
+        var signal = (WitSqlStatementSignal)create.Body[0];
+        Assert.That(signal.SqlState, Is.EqualTo("45000"));
+    }
+
+    #endregion
+
     #region Data Types - Other
 
     [Test]

@@ -20,6 +20,7 @@ statement
     : dmlStatement
     | ddlStatement
     | transactionStatement
+    | signalStatement
     ;
 
 dmlStatement
@@ -671,4 +672,8 @@ nonReservedKeyword
     | ACTION | TYPE | ISOLATION | LEVEL | SNAPSHOT
     | CONFLICT | DO | NOTHING | WRITE | SHARE
     | FIRST | LAST | VALUE
+    ;
+
+signalStatement
+    : SIGNAL SQLSTATE STRING_LITERAL (SET MESSAGE_TEXT EQ expression)?
     ;

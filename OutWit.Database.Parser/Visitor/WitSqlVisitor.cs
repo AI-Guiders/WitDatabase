@@ -34,6 +34,8 @@ internal sealed partial class WitSqlVisitor : WitSqlParserBaseVisitor<object?>
             return VisitDdlStatement(ddl);
         if (context.transactionStatement() is { } txn)
             return VisitTransactionStatement(txn);
+        if (context.signalStatement() is { } signal)
+            return VisitSignalStatement(signal);
         return null;
     }
 

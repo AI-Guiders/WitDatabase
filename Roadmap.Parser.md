@@ -29,7 +29,7 @@
 | DDL - DROP/ALTER TABLE | 10 | 0 | 100% |
 | DDL - INDEX | 8 | 0 | 100% |
 | DDL - VIEW | 4 | 0 | 100% |
-| DDL - TRIGGER | 9 | 1 | 90% |
+| DDL - TRIGGER | 10 | 0 | 100% |
 | DDL - SEQUENCE | 5 | 0 | 100% |
 | DML - SELECT | 15 | 0 | 100% |
 | DML - INSERT | 8 | 0 | 100% |
@@ -56,7 +56,7 @@
 | EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
 | Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL (v1)** | **289** | **1** | **100%** |
+| **TOTAL (v1)** | **290** | **0** | **100%** |
 
 ---
 
@@ -163,7 +163,7 @@
 
 ---
 
-## 6. DDL - TRIGGER (90%)
+## 6. DDL - TRIGGER (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
@@ -176,7 +176,7 @@
 | `BEGIN ... END` body | [x] | SS2.8 |
 | `OLD.column` / `NEW.column` | [x] | SS2.8 |
 | `DROP TRIGGER [IF EXISTS]` | [x] | SS2.9 |
-| `SIGNAL SQLSTATE` | [ ] | SS2.8 |
+| `SIGNAL SQLSTATE` | [x] | SS2.8 |
 
 ---
 

@@ -557,4 +557,30 @@ internal sealed partial class WitSqlVisitor
     }
 
     #endregion
+
+    #region SIGNAL Statement
+
+    public override WitSqlStatementSignal VisitSignalStatement(WitSqlParser.SignalStatementContext context)
+    {
+        // Parse SQLSTATE code - remove quotes from string literal
+        var sqlStateText = context.STRING_LITERAL().GetText();
+        var sqlState = sqlStateText.Substring(1, sqlStateText.Length - 2);
+
+        // Parse optional MESSAGE_TEXT expression
+        WitSqlExpression? messageText = null;
+        if (context.expression() is { } expr)
+        {
+            messageText = VisitExpression(expr);
+        }
+
+        return new WitSqlStatementSignal
+        {
+            Line = context.Start.Line,
+            Column = context.Start.Column,
+            SqlState = sqlState,
+            MessageText = messageText
+        };
+    }
+
+    #endregion
 }
