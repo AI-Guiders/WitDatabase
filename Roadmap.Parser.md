@@ -25,8 +25,8 @@
 | Category | Implemented | Missing | Progress |
 |----------|-------------|---------|----------|
 | Data Types | 29 | 0 | 100% |
-| DDL - CREATE TABLE | 14 | 3 | 82% |
-| DDL - DROP/ALTER TABLE | 8 | 1 | 89% |
+| DDL - CREATE TABLE | 15 | 2 | 88% |
+| DDL - DROP/ALTER TABLE | 10 | 0 | 100% |
 | DDL - INDEX | 5 | 3 | 63% |
 | DDL - VIEW | 4 | 0 | 100% |
 | DDL - TRIGGER | 9 | 1 | 90% |
@@ -56,7 +56,7 @@
 | EXPLAIN | 0 | 3 | 0% |
 | Database Administration | 0 | 7 | 0% |
 | Comments | 2 | 0 | 100% |
-| **TOTAL** | **256** | **26** | **91%** |
+| **TOTAL** | **259** | **23** | **92%** |
 
 ---
 
@@ -96,7 +96,7 @@
 
 ---
 
-## 2. DDL - CREATE TABLE (82%)
+## 2. DDL - CREATE TABLE (88%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
@@ -114,25 +114,26 @@
 | `PRIMARY KEY (column_list)` | [x] | SS2.1 |
 | `UNIQUE (column_list)` | [x] | SS2.1 |
 | `FOREIGN KEY (cols) REFERENCES ...` | [x] | SS2.1 |
-| `CONSTRAINT name ...` | [ ] | SS13.3 |
+| `CONSTRAINT name ...` | [x] | SS13.3 |
 | Computed columns `AS (expr)` | [ ] | SS20 |
 | `STORED` / `VIRTUAL` modifiers | [ ] | SS20 |
 
 ---
 
-## 3. DDL - DROP/ALTER TABLE (89%)
+## 3. DDL - DROP/ALTER TABLE (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
 | `DROP TABLE table_name` | [x] | SS2.2 |
 | `DROP TABLE IF EXISTS` | [x] | SS2.2 |
 | `ALTER TABLE ... ADD [COLUMN]` | [x] | SS2.3 |
+| `ALTER TABLE ... ADD CONSTRAINT` | [x] | SS2.3 |
 | `ALTER TABLE ... DROP [COLUMN]` | [x] | SS2.3 |
+| `ALTER TABLE ... DROP CONSTRAINT` | [x] | SS13.3 |
 | `ALTER TABLE ... RENAME TO` | [x] | SS2.3 |
 | `ALTER TABLE ... RENAME COLUMN` | [x] | SS2.3 |
 | `ALTER TABLE ... SET/DROP DEFAULT` | [x] | SS2.3 |
 | `ALTER TABLE ... SET/DROP NOT NULL` | [x] | SS2.3 |
-| `ALTER TABLE ... DROP CONSTRAINT` | [ ] | SS13.3 |
 
 ---
 

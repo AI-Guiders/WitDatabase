@@ -139,15 +139,18 @@ internal sealed partial class WitSqlVisitor
         {
             WitSqlParser.TablePrimaryKeyContext pk => new TableConstraintPrimaryKey
             {
+                Name = pk.constraintName()?.GetText(),
                 Columns = pk.columnName().Select(c => c.GetText()).ToList()
             },
             WitSqlParser.TableUniqueContext uniq => new TableConstraintUnique
             {
+                Name = uniq.constraintName()?.GetText(),
                 Columns = uniq.columnName().Select(c => c.GetText()).ToList()
             },
             WitSqlParser.TableForeignKeyContext fk => ParseTableForeignKey(fk),
             WitSqlParser.TableCheckContext check => new TableConstraintCheck
             {
+                Name = check.constraintName()?.GetText(),
                 Condition = VisitExpression(check.expression())
             },
             _ => throw new InvalidOperationException($"Unknown table constraint: {context.GetType()}")
@@ -156,18 +159,11 @@ internal sealed partial class WitSqlVisitor
 
     private TableConstraintForeignKey ParseTableForeignKey(WitSqlParser.TableForeignKeyContext fk)
     {
-        // The grammar:
-        // FOREIGN KEY LPAREN columnName (COMMA columnName)* RPAREN
-        //     REFERENCES tableName (LPAREN columnName (COMMA columnName)* RPAREN)?
-        //
-        // We need to find where the REFERENCES keyword is to split local vs foreign columns.
-        // All columnName tokens are in a flat list, but local columns come before REFERENCES,
-        // and foreign columns come after the tableName.
+        var constraintName = fk.constraintName()?.GetText();
 
         var allColumnNames = fk.columnName();
         var referencesToken = fk.REFERENCES();
 
-        // Find which columnNames come before REFERENCES and which after
         var localColumns = new List<string>();
         var foreignColumns = new List<string>();
 
@@ -187,6 +183,7 @@ internal sealed partial class WitSqlVisitor
 
         return new TableConstraintForeignKey
         {
+            Name = constraintName,
             Columns = localColumns,
             ForeignTable = fk.tableName().GetText(),
             ForeignColumns = foreignColumns.Count > 0 ? foreignColumns : null,
@@ -233,9 +230,14 @@ internal sealed partial class WitSqlVisitor
             {
                 WitSqlColumn = VisitColumnDefinition(add.columnDefinition())
             },
+            WitSqlParser.AlterAddConstraintContext addCons => ParseAlterAddConstraint(addCons),
             WitSqlParser.AlterDropColumnContext drop => new AlterActionDropColumn
             {
                 ColumnName = drop.columnName().GetText()
+            },
+            WitSqlParser.AlterDropConstraintContext dropCons => new AlterActionDropConstraint
+            {
+                ConstraintName = dropCons.constraintName().GetText()
             },
             WitSqlParser.AlterRenameTableContext rename => new AlterActionRenameTable
             {
@@ -248,6 +250,51 @@ internal sealed partial class WitSqlVisitor
             },
             WitSqlParser.AlterAlterColumnContext alterCol => ParseAlterColumnAction(alterCol),
             _ => throw new InvalidOperationException($"Unknown alter action: {context.GetType()}")
+        };
+    }
+
+    private AlterActionAddConstraint ParseAlterAddConstraint(WitSqlParser.AlterAddConstraintContext context)
+    {
+        var constraint = VisitTableConstraint(context.tableConstraint());
+        
+        // If the alterAction has a constraintName but the tableConstraint doesn't,
+        // use the one from alterAction
+        if (constraint.Name == null && context.constraintName() != null)
+        {
+            // We need to create a new constraint with the name set
+            constraint = constraint switch
+            {
+                TableConstraintPrimaryKey pk => new TableConstraintPrimaryKey
+                {
+                    Name = context.constraintName().GetText(),
+                    Columns = pk.Columns
+                },
+                TableConstraintUnique uniq => new TableConstraintUnique
+                {
+                    Name = context.constraintName().GetText(),
+                    Columns = uniq.Columns
+                },
+                TableConstraintForeignKey fk => new TableConstraintForeignKey
+                {
+                    Name = context.constraintName().GetText(),
+                    Columns = fk.Columns,
+                    ForeignTable = fk.ForeignTable,
+                    ForeignColumns = fk.ForeignColumns,
+                    OnDelete = fk.OnDelete,
+                    OnUpdate = fk.OnUpdate
+                },
+                TableConstraintCheck check => new TableConstraintCheck
+                {
+                    Name = context.constraintName().GetText(),
+                    Condition = check.Condition
+                },
+                _ => constraint
+            };
+        }
+        
+        return new AlterActionAddConstraint
+        {
+            Constraint = constraint
         };
     }
 

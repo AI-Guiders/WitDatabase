@@ -317,12 +317,16 @@ referenceAction
    ;
 
 tableConstraint
-    : PRIMARY KEY LPAREN columnName (COMMA columnName)* RPAREN   # tablePrimaryKey
-    | UNIQUE LPAREN columnName (COMMA columnName)* RPAREN        # tableUnique
-    | FOREIGN KEY LPAREN columnName (COMMA columnName)* RPAREN
+    : (CONSTRAINT constraintName)? PRIMARY KEY LPAREN columnName (COMMA columnName)* RPAREN   # tablePrimaryKey
+    | (CONSTRAINT constraintName)? UNIQUE LPAREN columnName (COMMA columnName)* RPAREN        # tableUnique
+    | (CONSTRAINT constraintName)? FOREIGN KEY LPAREN columnName (COMMA columnName)* RPAREN
         REFERENCES tableName (LPAREN columnName (COMMA columnName)* RPAREN)?
         referenceOption*                                          # tableForeignKey
-    | CHECK LPAREN expression RPAREN                              # tableCheck
+    | (CONSTRAINT constraintName)? CHECK LPAREN expression RPAREN  # tableCheck
+    ;
+
+constraintName
+    : IDENTIFIER
     ;
 
 dropTableStatement
@@ -335,7 +339,9 @@ alterTableStatement
 
 alterAction
     : ADD COLUMN? columnDefinition                          # alterAddColumn
+    | ADD (CONSTRAINT constraintName)? tableConstraint      # alterAddConstraint
     | DROP COLUMN? columnName                               # alterDropColumn
+    | DROP CONSTRAINT constraintName                        # alterDropConstraint
     | RENAME TO tableName                                   # alterRenameTable
     | RENAME COLUMN? columnName TO columnName               # alterRenameColumn
     | ALTER COLUMN? columnName alterColumnAction            # alterAlterColumn

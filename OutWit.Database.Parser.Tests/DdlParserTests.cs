@@ -222,6 +222,114 @@ public class DdlParserTests
 
     #endregion
 
+    #region Named Constraints
+
+    [Test]
+    public void ParseNamedPrimaryKeyConstraintTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Users (
+                Id INT,
+                CONSTRAINT PK_Users PRIMARY KEY (Id)
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        var pk = create.Constraints!.OfType<TableConstraintPrimaryKey>().First();
+        Assert.That(pk.Name, Is.EqualTo("PK_Users"));
+        Assert.That(pk.Columns, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void ParseNamedUniqueConstraintTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Users (
+                Id INT,
+                Email VARCHAR(100),
+                CONSTRAINT UQ_Users_Email UNIQUE (Email)
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        var uniq = create.Constraints!.OfType<TableConstraintUnique>().First();
+        Assert.That(uniq.Name, Is.EqualTo("UQ_Users_Email"));
+    }
+
+    [Test]
+    public void ParseNamedForeignKeyConstraintTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Orders (
+                Id INT,
+                UserId INT,
+                CONSTRAINT FK_Orders_Users FOREIGN KEY (UserId) REFERENCES Users(Id)
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        var fk = create.Constraints!.OfType<TableConstraintForeignKey>().First();
+        Assert.That(fk.Name, Is.EqualTo("FK_Orders_Users"));
+        Assert.That(fk.ForeignTable, Is.EqualTo("Users"));
+    }
+
+    [Test]
+    public void ParseNamedCheckConstraintTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Products (
+                Id INT,
+                Price DECIMAL,
+                CONSTRAINT CK_Products_Price CHECK (Price >= 0)
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        var check = create.Constraints!.OfType<TableConstraintCheck>().First();
+        Assert.That(check.Name, Is.EqualTo("CK_Products_Price"));
+    }
+
+    [Test]
+    public void ParseUnnamedConstraintStillWorksTest()
+    {
+        var stmt = WitSql.ParseStatement(@"
+            CREATE TABLE Users (
+                Id INT,
+                PRIMARY KEY (Id)
+            )");
+        var create = (WitSqlStatementCreateTable)stmt;
+        var pk = create.Constraints!.OfType<TableConstraintPrimaryKey>().First();
+        Assert.That(pk.Name, Is.Null);
+    }
+
+    [Test]
+    public void ParseAlterTableAddConstraintTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "ALTER TABLE Orders ADD CONSTRAINT FK_Orders_Users FOREIGN KEY (UserId) REFERENCES Users(Id)");
+        var alter = (WitSqlStatementAlterTable)stmt;
+        Assert.That(alter.Action, Is.InstanceOf<AlterActionAddConstraint>());
+        var addCons = (AlterActionAddConstraint)alter.Action;
+        Assert.That(addCons.Constraint, Is.InstanceOf<TableConstraintForeignKey>());
+        var fk = (TableConstraintForeignKey)addCons.Constraint!;
+        Assert.That(fk.Name, Is.EqualTo("FK_Orders_Users"));
+    }
+
+    [Test]
+    public void ParseAlterTableAddConstraintWithoutNameTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "ALTER TABLE Orders ADD UNIQUE (OrderNumber)");
+        var alter = (WitSqlStatementAlterTable)stmt;
+        Assert.That(alter.Action, Is.InstanceOf<AlterActionAddConstraint>());
+        var addCons = (AlterActionAddConstraint)alter.Action;
+        Assert.That(addCons.Constraint, Is.InstanceOf<TableConstraintUnique>());
+    }
+
+    [Test]
+    public void ParseAlterTableDropConstraintTest()
+    {
+        var stmt = WitSql.ParseStatement("ALTER TABLE Orders DROP CONSTRAINT FK_Orders_Users");
+        var alter = (WitSqlStatementAlterTable)stmt;
+        Assert.That(alter.Action, Is.InstanceOf<AlterActionDropConstraint>());
+        var dropCons = (AlterActionDropConstraint)alter.Action;
+        Assert.That(dropCons.ConstraintName, Is.EqualTo("FK_Orders_Users"));
+    }
+
+    #endregion
+
     #region INDEX
 
     [Test]

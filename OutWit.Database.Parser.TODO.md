@@ -162,9 +162,9 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 
 ### Category 14: Named Constraints
 
-- [ ] **14.1** `CONSTRAINT constraint_name` prefix for table constraints
-- [ ] **14.2** `ALTER TABLE ... DROP CONSTRAINT constraint_name`
-- [ ] **14.3** Extend `TableConstraint` for named constraints
+- [x] **14.1** `CONSTRAINT constraint_name` prefix for table constraints
+- [x] **14.2** `ALTER TABLE ... DROP CONSTRAINT constraint_name`
+- [x] **14.3** Extend `TableConstraint` for named constraints
 
 ### Category 15: UPDATE/DELETE with FROM
 
@@ -205,7 +205,7 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 |---|-----------|----------|
 | ~~2.1-2.3~~ | ~~SET TRANSACTION ISOLATION~~ | ~~? Done~~ |
 | ~~3.1-3.5~~ | ~~FOR UPDATE/SHARE~~ | ~~? Done~~ |
-| 14.1-14.3 | Named Constraints | ?? Critical |
+| ~~14.1-14.3~~ | ~~Named Constraints~~ | ~~? Done~~ |
 | 6.1-6.4 | Advanced Indexes | ?? Important |
 | 7.1-7.3 | Computed Columns | ?? Important |
 | 11.1-11.5 | Collation | ?? Important |
