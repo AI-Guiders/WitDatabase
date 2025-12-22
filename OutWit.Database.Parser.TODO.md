@@ -134,13 +134,12 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 - [ ] **10.4** `EXECUTE procedure_name(args)` statement
 - [ ] **10.5** AST nodes: `WitSqlStatementCreateProcedure`, `WitSqlStatementDropProcedure`, `WitSqlStatementCall`
 
-### Category 11: Collation
+### Category 11: Collation Support
 
-- [ ] **11.1** `COLLATE collation_name` in column definition
-- [ ] **11.2** `COLLATE collation_name` in expression
-- [ ] **11.3** `COLLATE collation_name` in ORDER BY
-- [ ] **11.4** Collation names: `BINARY`, `NOCASE`, `UNICODE`, `UNICODE_CI`
-- [ ] **11.5** Extend grammar for collation
+- [x] **11.1** `COLLATE` keyword in lexer
+- [x] **11.2** `collateExpr` in expression grammar
+- [x] **11.3** `BINARY`, `NOCASE`, `UNICODE`, `UNICODE_CI` collations
+- [x] **11.4** `WitSqlExpressionCollate` AST class
 
 ### Category 12: EXPLAIN
 

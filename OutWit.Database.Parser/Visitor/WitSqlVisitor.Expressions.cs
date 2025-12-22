@@ -164,6 +164,13 @@ internal sealed partial class WitSqlVisitor
             },
             WitSqlParser.BitwiseExprContext bitwise => VisitBitwiseExpression(bitwise),
             WitSqlParser.QuantifiedExprContext quantified => VisitQuantifiedExpression(quantified),
+            WitSqlParser.CollateExprContext collate => new WitSqlExpressionCollate
+            {
+                Line = collate.Start.Line,
+                Column = collate.Start.Column,
+                Operand = VisitExpression(collate.expression()),
+                CollationName = collate.collationName().GetText().ToUpperInvariant()
+            },
             _ => throw new InvalidOperationException($"Unknown expression type: {context.GetType()}")
         };
     }

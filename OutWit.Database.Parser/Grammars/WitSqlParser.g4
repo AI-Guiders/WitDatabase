@@ -455,6 +455,7 @@ expression
     | expression (PLUS | MINUS) expression          # addSubExpr
     | expression (AMP | PIPE | RSHIFT | LSHIFT) expression # bitwiseExpr
     | expression (CONCAT) expression                # concatExpr
+    | expression COLLATE collationName              # collateExpr
     | expression (LT | LE | GT | GE) expression     # compareExpr
     | expression (EQ | NE | NE2) expression         # equalityExpr
     | expression IS NOT? NULL                       # isNullExpr
@@ -470,6 +471,14 @@ expression
     | CONVERT LPAREN dataType COMMA expression RPAREN # convertExpr
     | IIF LPAREN expression COMMA expression COMMA expression RPAREN # iifExpr
    ;
+
+collationName
+    : BINARY
+    | NOCASE
+    | UNICODE_CI
+    | UNICODE_COLLATE
+    | IDENTIFIER
+    ;
 
 parameter
     : PARAM_NAMED                                   # namedParameter

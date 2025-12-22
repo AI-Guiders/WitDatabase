@@ -990,4 +990,60 @@ public class ExpressionParserTests
     }
 
     #endregion
+
+    #region Collation
+
+    [Test]
+    public void ParseCollateExpressionTest()
+    {
+        var expr = WitSql.ParseExpression("Name COLLATE NOCASE");
+        Assert.That(expr, Is.InstanceOf<WitSqlExpressionCollate>());
+        var collate = (WitSqlExpressionCollate)expr;
+        Assert.That(collate.CollationName, Is.EqualTo("NOCASE"));
+        Assert.That(collate.Operand, Is.InstanceOf<WitSqlExpressionColumnRef>());
+    }
+
+    [Test]
+    public void ParseCollateBinaryTest()
+    {
+        var expr = WitSql.ParseExpression("Email COLLATE BINARY");
+        var collate = (WitSqlExpressionCollate)expr;
+        Assert.That(collate.CollationName, Is.EqualTo("BINARY"));
+    }
+
+    [Test]
+    public void ParseCollateUnicodeTest()
+    {
+        var expr = WitSql.ParseExpression("Title COLLATE UNICODE");
+        var collate = (WitSqlExpressionCollate)expr;
+        Assert.That(collate.CollationName, Is.EqualTo("UNICODE"));
+    }
+
+    [Test]
+    public void ParseCollateUnicodeCiTest()
+    {
+        var expr = WitSql.ParseExpression("Description COLLATE UNICODE_CI");
+        var collate = (WitSqlExpressionCollate)expr;
+        Assert.That(collate.CollationName, Is.EqualTo("UNICODE_CI"));
+    }
+
+    [Test]
+    public void ParseCollateInComparisonTest()
+    {
+        var expr = WitSql.ParseExpression("Name COLLATE NOCASE = 'john'");
+        Assert.That(expr, Is.InstanceOf<WitSqlExpressionBinary>());
+        var binary = (WitSqlExpressionBinary)expr;
+        Assert.That(binary.Left, Is.InstanceOf<WitSqlExpressionCollate>());
+    }
+
+    [Test]
+    public void ParseCollateInSelectTest()
+    {
+        var stmt = WitSql.ParseStatement("SELECT Name COLLATE NOCASE FROM Users");
+        Assert.That(stmt, Is.InstanceOf<WitSqlStatementSelect>());
+        var select = (WitSqlStatementSelect)stmt;
+        Assert.That(select.SelectList[0].Expression, Is.InstanceOf<WitSqlExpressionCollate>());
+    }
+
+    #endregion
 }

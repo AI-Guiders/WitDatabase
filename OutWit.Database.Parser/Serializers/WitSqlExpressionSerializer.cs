@@ -352,6 +352,12 @@ public sealed class WitSqlExpressionSerializer : IWitSqlVisitor<string>
         };
     }
 
+    public string VisitExpressionCollate(WitSqlExpressionCollate node)
+    {
+        var operand = node.Operand?.Accept(this) ?? "";
+        return $"({operand} COLLATE {node.CollationName})";
+    }
+
     #endregion
 
     #region Helpers

@@ -41,7 +41,7 @@
 | Operators | 20 | 0 | 100% |
 | Conditional Expressions | 6 | 0 | 100% |
 | Literals & Parameters | 6 | 0 | 100% |
-| Collation | 0 | 4 | 0% |
+| Collation | 4 | 0 | 100% |
 | Aggregate Functions | 5 | 0 | 100% |
 | String Functions | 20 | 0 | 100% |
 | Numeric Functions | 20 | 0 | 100% |
@@ -56,7 +56,7 @@
 | EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
 | Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL (v1)** | **275** | **7** | **98%** |
+| **TOTAL (v1)** | **279** | **3** | **99%** |
 
 ---
 
@@ -351,14 +351,14 @@
 
 ---
 
-## 18. Collation (0%)
+## 18. Collation (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
-| `COLLATE collation_name` in column | [ ] | SS24 |
-| `COLLATE` in expression | [ ] | SS24 |
-| `COLLATE` in ORDER BY | [ ] | SS24 |
-| `BINARY`, `NOCASE`, `UNICODE`, `UNICODE_CI` | [ ] | SS24 |
+| `COLLATE collation_name` in column | [x] | SS24 |
+| `COLLATE` in expression | [x] | SS24 |
+| `COLLATE` in ORDER BY | [x] | SS24 |
+| `BINARY`, `NOCASE`, `UNICODE`, `UNICODE_CI` | [x] | SS24 |
 
 ---
 
