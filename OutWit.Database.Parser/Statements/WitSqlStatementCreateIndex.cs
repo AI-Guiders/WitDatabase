@@ -2,6 +2,7 @@ using OutWit.Common.Abstract;
 using OutWit.Common.Attributes;
 using OutWit.Common.Collections;
 using OutWit.Common.Values;
+using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Interfaces;
 using OutWit.Database.Parser.Schema.Clauses;
 
@@ -30,7 +31,9 @@ namespace OutWit.Database.Parser.Statements
                    && TableName.Is(create.TableName)
                    && IsUnique.Is(create.IsUnique)
                    && IfNotExists.Is(create.IfNotExists)
-                   && Columns.Is(create.Columns);
+                   && Elements.Is(create.Elements)
+                   && IncludeColumns.Is(create.IncludeColumns)
+                   && WhereClause.Check(create.WhereClause);
         }
 
         public override WitSqlStatementCreateIndex Clone()
@@ -43,7 +46,9 @@ namespace OutWit.Database.Parser.Statements
                 TableName = TableName,
                 IsUnique = IsUnique,
                 IfNotExists = IfNotExists,
-                Columns = Columns.Select(column => column.Clone()).ToList()
+                Elements = Elements.Select(e => e.Clone()).ToList(),
+                IncludeColumns = IncludeColumns?.ToList(),
+                WhereClause = (WitSqlExpression?)WhereClause?.Clone()
             };
         }
 
@@ -53,11 +58,28 @@ namespace OutWit.Database.Parser.Statements
 
         [ToString]
         public required string IndexName { get; init; }
+
         [ToString]
         public required string TableName { get; init; }
+
         public bool IsUnique { get; init; }
+
         public bool IfNotExists { get; init; }
-        public required IReadOnlyList<ClauseIndexColumn> Columns { get; init; }
+
+        /// <summary>
+        /// Index elements (columns or expressions).
+        /// </summary>
+        public required IReadOnlyList<ClauseIndexElement> Elements { get; init; }
+
+        /// <summary>
+        /// Columns included in covering index (INCLUDE clause).
+        /// </summary>
+        public IReadOnlyList<string>? IncludeColumns { get; init; }
+
+        /// <summary>
+        /// WHERE condition for partial/filtered index.
+        /// </summary>
+        public WitSqlExpression? WhereClause { get; init; }
 
         #endregion
     }

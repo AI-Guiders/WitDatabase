@@ -1,3 +1,4 @@
+using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Generated;
 using OutWit.Database.Parser.Schema;
 using OutWit.Database.Parser.Schema.AlterActions;
@@ -340,6 +341,18 @@ internal sealed partial class WitSqlVisitor
 
     public override WitSqlStatementCreateIndex VisitCreateIndexStatement(WitSqlParser.CreateIndexStatementContext context)
     {
+        var elements = context.indexElement().Select(VisitIndexElement).ToList();
+
+        var includeColumns = context.includeClause()?.columnName()
+            .Select(c => c.GetText())
+            .ToList();
+
+        WitSqlExpression? whereClause = null;
+        if (context.whereClause() is { } where)
+        {
+            whereClause = VisitExpression(where.expression());
+        }
+
         return new WitSqlStatementCreateIndex
         {
             Line = context.Start.Line,
@@ -348,11 +361,27 @@ internal sealed partial class WitSqlVisitor
             TableName = context.tableName().GetText(),
             IsUnique = context.UNIQUE() != null,
             IfNotExists = context.EXISTS() != null,
-            Columns = context.indexColumn().Select(c => new ClauseIndexColumn
+            Elements = elements,
+            IncludeColumns = includeColumns,
+            WhereClause = whereClause
+        };
+    }
+
+    private ClauseIndexElement VisitIndexElement(WitSqlParser.IndexElementContext context)
+    {
+        return context switch
+        {
+            WitSqlParser.IndexColumnElementContext col => new ClauseIndexElement
             {
-                ColumnName = c.columnName().GetText(),
-                Descending = c.DESC() != null
-            }).ToList()
+                ColumnName = col.columnName().GetText(),
+                Descending = col.DESC() != null
+            },
+            WitSqlParser.IndexExpressionElementContext expr => new ClauseIndexElement
+            {
+                Expression = VisitExpression(expr.expression()),
+                Descending = expr.DESC() != null
+            },
+            _ => throw new InvalidOperationException($"Unknown index element type: {context.GetType()}")
         };
     }
 

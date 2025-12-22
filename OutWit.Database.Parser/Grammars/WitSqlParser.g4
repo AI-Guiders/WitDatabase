@@ -357,11 +357,18 @@ alterColumnAction
 
 createIndexStatement
     : CREATE UNIQUE? INDEX (IF NOT EXISTS)? indexName
-      ON tableName LPAREN indexColumn (COMMA indexColumn)* RPAREN
+      ON tableName LPAREN indexElement (COMMA indexElement)* RPAREN
+      includeClause?
+      whereClause?
     ;
 
-indexColumn
-    : columnName (ASC | DESC)?
+indexElement
+    : columnName (ASC | DESC)?                      # indexColumnElement
+    | LPAREN expression RPAREN (ASC | DESC)?        # indexExpressionElement
+    ;
+
+includeClause
+    : INCLUDE LPAREN columnName (COMMA columnName)* RPAREN
     ;
 
 indexName

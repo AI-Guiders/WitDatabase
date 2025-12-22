@@ -363,8 +363,8 @@ public class DdlParserTests
     {
         var stmt = WitSql.ParseStatement("CREATE INDEX IX_Orders ON Orders (UserId, OrderDate DESC)");
         var create = (WitSqlStatementCreateIndex)stmt;
-        Assert.That(create.Columns, Has.Count.EqualTo(2));
-        Assert.That(create.Columns[1].Descending, Is.True);
+        Assert.That(create.Elements, Has.Count.EqualTo(2));
+        Assert.That(create.Elements[1].Descending, Is.True);
     }
 
     [Test]
@@ -374,6 +374,66 @@ public class DdlParserTests
         var drop = (WitSqlStatementDropIndex)stmt;
         Assert.That(drop.IndexName, Is.EqualTo("IX_Users_Email"));
         Assert.That(drop.IfExists, Is.True);
+    }
+
+    #endregion
+
+    #region Advanced Index Features
+
+    [Test]
+    public void ParsePartialIndexTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "CREATE INDEX IX_ActiveUsers ON Users (Email) WHERE IsActive = TRUE");
+        var create = (WitSqlStatementCreateIndex)stmt;
+        Assert.That(create.WhereClause, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseExpressionIndexTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "CREATE INDEX IX_Users_LowerEmail ON Users ((LOWER(Email)))");
+        var create = (WitSqlStatementCreateIndex)stmt;
+        Assert.That(create.Elements, Has.Count.EqualTo(1));
+        Assert.That(create.Elements[0].IsExpression, Is.True);
+        Assert.That(create.Elements[0].Expression, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseCoveringIndexTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "CREATE INDEX IX_Orders ON Orders (UserId) INCLUDE (OrderDate, Total)");
+        var create = (WitSqlStatementCreateIndex)stmt;
+        Assert.That(create.IncludeColumns, Has.Count.EqualTo(2));
+        Assert.That(create.IncludeColumns![0], Is.EqualTo("OrderDate"));
+        Assert.That(create.IncludeColumns![1], Is.EqualTo("Total"));
+    }
+
+    [Test]
+    public void ParseFullAdvancedIndexTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "CREATE UNIQUE INDEX IX_ActiveEmails ON Users ((LOWER(Email))) INCLUDE (Name) WHERE IsActive = TRUE");
+        var create = (WitSqlStatementCreateIndex)stmt;
+        Assert.That(create.IsUnique, Is.True);
+        Assert.That(create.Elements[0].IsExpression, Is.True);
+        Assert.That(create.IncludeColumns, Has.Count.EqualTo(1));
+        Assert.That(create.WhereClause, Is.Not.Null);
+    }
+
+    [Test]
+    public void ParseMixedColumnAndExpressionIndexTest()
+    {
+        var stmt = WitSql.ParseStatement(
+            "CREATE INDEX IX_Mixed ON Users (LastName, (LOWER(FirstName)) DESC)");
+        var create = (WitSqlStatementCreateIndex)stmt;
+        Assert.That(create.Elements, Has.Count.EqualTo(2));
+        Assert.That(create.Elements[0].ColumnName, Is.EqualTo("LastName"));
+        Assert.That(create.Elements[0].IsExpression, Is.False);
+        Assert.That(create.Elements[1].IsExpression, Is.True);
+        Assert.That(create.Elements[1].Descending, Is.True);
     }
 
     #endregion

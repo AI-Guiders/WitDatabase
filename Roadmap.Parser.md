@@ -27,7 +27,7 @@
 | Data Types | 29 | 0 | 100% |
 | DDL - CREATE TABLE | 15 | 2 | 88% |
 | DDL - DROP/ALTER TABLE | 10 | 0 | 100% |
-| DDL - INDEX | 5 | 3 | 63% |
+| DDL - INDEX | 8 | 0 | 100% |
 | DDL - VIEW | 4 | 0 | 100% |
 | DDL - TRIGGER | 9 | 1 | 90% |
 | DDL - SEQUENCE | 5 | 0 | 100% |
@@ -51,12 +51,12 @@
 | JSON Functions | 0 | 11 | 0% |
 | Window Functions | 18 | 0 | 100% |
 | Transactions | 8 | 0 | 100% |
-| User-Defined Functions | 0 | 4 | 0% |
-| Stored Procedures | 0 | 4 | 0% |
-| EXPLAIN | 0 | 3 | 0% |
-| Database Administration | 0 | 7 | 0% |
+| User-Defined Functions | 0 | 4 | 0% - Deferred to v2 |
+| Stored Procedures | 0 | 4 | 0% - Deferred to v2 |
+| EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
+| Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL** | **259** | **23** | **92%** |
+| **TOTAL (v1)** | **262** | **20** | **93%** |
 
 ---
 
@@ -137,7 +137,7 @@
 
 ---
 
-## 4. DDL - INDEX (63%)
+## 4. DDL - INDEX (100%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
@@ -146,9 +146,9 @@
 | `CREATE INDEX IF NOT EXISTS` | [x] | SS2.4 |
 | `ASC` / `DESC` column order | [x] | SS2.4 |
 | `DROP INDEX [IF EXISTS]` | [x] | SS2.5 |
-| `WHERE condition` (partial index) | [ ] | SS19.1 |
-| Expression indexes `(LOWER(col))` | [ ] | SS19.2 |
-| `INCLUDE (cols)` (covering index) | [ ] | SS19.3 |
+| `WHERE condition` (partial index) | [x] | SS19.1 |
+| Expression indexes `(LOWER(col))` | [x] | SS19.2 |
+| `INCLUDE (cols)` (covering index) | [x] | SS19.3 |
 
 ---
 
@@ -545,12 +545,8 @@
 
 | Feature | Priority |
 |---------|----------|
-| `CREATE FUNCTION` / `DROP FUNCTION` | P2 |
-| `CREATE PROCEDURE` / `DROP PROCEDURE` | P2 |
-| `CALL` / `EXECUTE` | P2 |
-| `EXPLAIN` / `EXPLAIN ANALYZE` | P2 |
-| Database administration | P2 |
-
----
-
-**Last Updated:** 2024-12-21
+| `CREATE FUNCTION` / `DROP FUNCTION` | P2 - Deferred to v2 |
+| `CREATE PROCEDURE` / `DROP PROCEDURE` | P2 - Deferred to v2 |
+| `CALL` / `EXECUTE` | P2 - Deferred to v2 |
+| `EXPLAIN` / `EXPLAIN ANALYZE` | P2 - Deferred to v2 |
+| Database administration | P2 - Deferred to v2 |

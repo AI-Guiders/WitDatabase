@@ -44,6 +44,7 @@ INNER: I N N E R;
 INSERT: I N S E R T;
 INTO: I N T O;
 IGNORE: I G N O R E;
+INCLUDE: I N C L U D E;
 IS: I S;
 JOIN: J O I N;
 KEY: K E Y;
@@ -533,6 +534,8 @@ fragment X: [Xx];
 fragment Y: [Yy];
 fragment Z: [Zz];
 fragment DIGIT: [0-9];
+
+
 
 
 

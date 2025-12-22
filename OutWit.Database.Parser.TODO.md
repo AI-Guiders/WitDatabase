@@ -96,11 +96,11 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 
 ### Category 6: Advanced Index Features
 
-- [ ] **6.1** `WHERE` clause in CREATE INDEX (partial/filtered indexes)
-- [ ] **6.2** Expression indexes: `CREATE INDEX ... ON (LOWER(column))`
-- [ ] **6.3** `INCLUDE` clause (covering indexes)
-- [ ] **6.4** Extend `WitSqlStatementCreateIndex`
-
+- [x] **6.1** `WHERE` clause in CREATE INDEX (partial/filtered indexes)
+- [x] **6.2** Expression indexes: `CREATE INDEX ... ON (LOWER(column))`
+- [x] **6.3** `INCLUDE` clause (covering indexes)
+- [x] **6.4** Extend `WitSqlStatementCreateIndex`
+ 
 ### Category 7: Computed Columns
 
 - [ ] **7.1** `column AS (expression)` in CREATE TABLE
@@ -215,11 +215,11 @@ Analysis of the WitSQL parser for compliance with updated specifications (v1.2).
 
 | # | Component | Priority |
 |---|-----------|----------|
-| 8.1-8.8 | JSON Functions | ?? Important |
-| 9.1-9.5 | User-Defined Functions | ?? Optional |
-| 10.1-10.5 | Stored Procedures | ?? Optional |
-| 12.1-12.4 | EXPLAIN | ?? Optional |
-| 13.1-13.8 | Database Administration | ?? Optional |
+| 8.1-8.8 | JSON Functions | ?? Important (v1) |
+| 9.1-9.5 | User-Defined Functions | ?? Deferred (v2) |
+| 10.1-10.5 | Stored Procedures | ?? Deferred (v2) |
+| 12.1-12.4 | EXPLAIN | ?? Deferred (v2) |
+| 13.1-13.8 | Database Administration | ?? Deferred (v2) |
 
 ---
 
