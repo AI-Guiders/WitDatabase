@@ -335,6 +335,25 @@ Files created:
 - OutWit.Database.Core.Tests/Transactions/MvccTransactionIsolationLevelTests.cs
 ```
 
+### 8.4 Stress Tests [x]
+- [x] Concurrent read transactions stress test
+- [x] Reads during write transactions stress test
+- [x] Snapshot isolation consistency under load
+- [x] Write conflict detection under load
+- [x] First-committer-wins test
+- [x] Isolation level concurrent load test
+- [x] Savepoints under load
+- [x] Garbage collection during active transactions
+- [x] Concurrent garbage collection
+- [x] WitDatabase MVCC integration stress test
+- [x] Large transaction stress test
+- [x] Many small transactions stress test
+
+```
+Files created:
+- OutWit.Database.Core.Tests/Transactions/MvccTransactionalStoreStressTests.cs
+```
+
 ---
 
 ## Progress Tracking
@@ -388,6 +407,7 @@ Files created:
 30. `OutWit.Database.Core.Tests/Concurrency/WaitForGraphTests.cs`
 31. `OutWit.Database.Core.Tests/Concurrency/DeadlockDetectorTests.cs`
 32. `OutWit.Database.Core.Tests/Concurrency/TransactionWaitQueueTests.cs`
+33. `OutWit.Database.Core.Tests/Transactions/MvccTransactionalStoreStressTests.cs`
 
 ### Modified Files
 1. `OutWit.Database.Core/Builder/WitDatabaseBuilderOptions.cs` - Added MVCC options
