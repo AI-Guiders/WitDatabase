@@ -1,6 +1,6 @@
 # OutWit.Database.Core - Roadmap
 
-**Version:** 1.5  
+**Version:** 1.6  
 **Based on:** OutWit.Database.Core.TODO.md  
 **Last Updated:** 2025-01-17
 
@@ -43,7 +43,55 @@
 | VACUUM/Compaction | 0 | 3 | 0% - v2 |
 | Concurrent Transactions | 3 | 0 | 100% |
 | ROWVERSION | 3 | 0 | 100% |
-| **TOTAL** | **59** | **10** | **85%** |
+| **TOTAL** | **60** | **9** | **87%** |
+
+---
+
+## Recent Changes (v1.6)
+
+### Deadlock Detection [x]
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `WaitForGraph` | [x] | Graph structure for tracking waits |
+| Cycle detection (DFS) | [x] | Efficient deadlock detection algorithm |
+| `DeadlockDetector` | [x] | Main deadlock detection component |
+| `DeadlockVictimStrategy` | [x] | Youngest, Oldest, LeastWork, MostWaiting |
+| `DeadlockException` | [x] | Exception with victim and cycle info |
+| Background detection | [x] | Optional periodic detection |
+
+```csharp
+// Create deadlock detector with lock manager integration
+using var lockManager = new RowLockManager();
+using var detector = new DeadlockDetector(
+    lockManager,
+    DeadlockVictimStrategy.LeastWork,
+    detectionInterval: TimeSpan.FromSeconds(1),
+    onDeadlockDetected: ex => Console.WriteLine($"Deadlock! Victim: {ex.VictimTransactionId}"));
+
+// Register waits - throws DeadlockException if cycle detected
+try
+{
+    detector.RegisterWait(waiterTxId: 1, holderTxId: 2);
+    detector.RegisterWait(waiterTxId: 2, holderTxId: 1); // Deadlock!
+}
+catch (DeadlockException ex)
+{
+    Console.WriteLine($"Victim: {ex.VictimTransactionId}");
+    Console.WriteLine($"Cycle: [{string.Join(" -> ", ex.CycleParticipants!)}]");
+    if (ex.ShouldRetry)
+    {
+        // Retry the transaction
+    }
+}
+
+// Transaction completed - clean up
+detector.TransactionCompleted(txId);
+
+// Manual detection
+var cycle = detector.DetectDeadlock();
+var victim = detector.DetectAndSelectVictim();
+```
 
 ---
 
@@ -279,14 +327,14 @@ var db2 = new WitDatabaseBuilder()
 
 ## 2. Missing Components [ ]
 
-### 2.1 Row-level Locks [~]
+### 2.1 Row-level Locks [x]
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
 | `RowLockManager` class | [x] | P0 | SS2.1 |
 | `FOR UPDATE` / `FOR SHARE` support | [x] | P0 | SS2.2 |
 | `NOWAIT` / `SKIP LOCKED` modes | [x] | P1 | SS2.3 |
-| Deadlock detection | [ ] | P0 | SS2.4 |
+| Deadlock detection | [x] | P0 | SS2.4 |
 
 ### 2.2 Cursor Support (Deferred to v2)
 

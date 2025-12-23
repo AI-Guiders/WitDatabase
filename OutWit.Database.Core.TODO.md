@@ -32,7 +32,7 @@ Analysis of the `OutWit.Database.Core` kernel for compliance with WitSql specifi
 - [x] **2.1** `RowLockManager` - row-level locks (not just database-level)
 - [x] **2.2** `FOR UPDATE` / `FOR SHARE` - shared/exclusive row locks
 - [x] **2.3** `NOWAIT` / `SKIP LOCKED` - non-blocking lock modes
-- [ ] **2.4** Deadlock detection
+- [x] **2.4** Deadlock detection
 
 ### Category 3: Savepoints
 
@@ -118,8 +118,7 @@ Analysis of the `OutWit.Database.Core` kernel for compliance with WitSql specifi
 | # | Component | Priority | Status |
 |---|-----------|----------|--------|
 | 1.1-1.4 | Isolation levels + MVCC | P0 Critical | [x] Done |
-| 2.1-2.3 | Row-level locks | P0 Critical | [x] Done |
-| 2.4 | Deadlock detection | P0 Critical | [ ] TODO |
+| 2.1-2.4 | Row-level locks + Deadlock detection | P0 Critical | [x] Done |
 | 4.1-4.3 | Multiple result sets | P1 Important | [x] Done |
 | 8.1-8.3 | Bulk operations | P1 Important | [x] Done |
 | 11.1-11.3 | Concurrent transactions | P0 Critical | [x] Done (MVCC) |

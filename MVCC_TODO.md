@@ -192,38 +192,42 @@ Files created:
 
 ---
 
-## Phase 5: Deadlock Detection [ ]
+## Phase 5: Deadlock Detection [COMPLETE]
 
-### 5.1 Wait-For Graph
-- [ ] Create `WaitForGraph` class
-- [ ] Track which transaction waits for which
-- [ ] Cycle detection algorithm
+### 5.1 Wait-For Graph [x]
+- [x] Create `WaitForGraph` class
+- [x] Track which transaction waits for which
+- [x] Cycle detection algorithm (DFS-based)
+- [x] Find all cycles support
+- [x] Thread-safe implementation
 
 ```
-Files to create:
+Files created:
 - OutWit.Database.Core/Concurrency/WaitForGraph.cs
 - OutWit.Database.Core.Tests/Concurrency/WaitForGraphTests.cs
 ```
 
-### 5.2 Deadlock Detector
-- [ ] Create `DeadlockDetector` class
-- [ ] Periodic or on-demand cycle detection
-- [ ] Victim selection strategy (youngest, lowest priority)
-- [ ] Transaction abort on deadlock
+### 5.2 Deadlock Detector [x]
+- [x] Create `DeadlockDetector` class
+- [x] On-demand cycle detection
+- [x] Background periodic detection (optional)
+- [x] Victim selection strategies (Youngest, Oldest, LeastWork, MostWaiting)
+- [x] Transaction abort on deadlock via exception
 
 ```
-Files to create:
+Files created:
 - OutWit.Database.Core/Concurrency/DeadlockDetector.cs
 - OutWit.Database.Core.Tests/Concurrency/DeadlockDetectorTests.cs
 ```
 
-### 5.3 Deadlock Exception
-- [ ] Create `DeadlockException` class
-- [ ] Include victim transaction info
-- [ ] Retry guidance
+### 5.3 Deadlock Exception [x]
+- [x] Create `DeadlockException` class
+- [x] Include victim transaction info
+- [x] Include cycle participants
+- [x] Retry guidance (ShouldRetry property)
 
 ```
-Files to create:
+Files created:
 - OutWit.Database.Core/Exceptions/DeadlockException.cs
 ```
 
@@ -317,11 +321,11 @@ Files modified:
 | Phase 2: Snapshot Isolation | Complete | 100% |
 | Phase 3: Concurrent Transactions | Partial | 66% |
 | Phase 4: Row-Level Locks | Complete | 100% |
-| Phase 5: Deadlock Detection | Not Started | 0% |
+| Phase 5: Deadlock Detection | Complete | 100% |
 | Phase 6: Garbage Collection | Partial | 50% |
 | Phase 7: Integration | Complete | 100% |
-| Phase 8: Testing | Partial | 75% |
-| **TOTAL** | | **~75%** |
+| Phase 8: Testing | Partial | 80% |
+| **TOTAL** | | **~87%** |
 
 ---
 
@@ -341,12 +345,17 @@ Files modified:
 11. `OutWit.Database.Core/Concurrency/RowLockRequest.cs`
 12. `OutWit.Database.Core/Concurrency/RowLockHandle.cs`
 13. `OutWit.Database.Core/Concurrency/RowLockManager.cs`
-14. `OutWit.Database.Core/Exceptions/RowLockException.cs`
-15. `OutWit.Database.Core.Tests/Transactions/TransactionTimestampManagerTests.cs`
-16. `OutWit.Database.Core.Tests/Transactions/MvccTransactionalStoreTests.cs`
-17. `OutWit.Database.Core.Tests/Mvcc/MvccRecordTests.cs`
-18. `OutWit.Database.Core.Tests/Stores/MvccKeyValueStoreTests.cs`
-19. `OutWit.Database.Core.Tests/Concurrency/RowLockManagerTests.cs`
+14. `OutWit.Database.Core/Concurrency/WaitForGraph.cs`
+15. `OutWit.Database.Core/Concurrency/DeadlockDetector.cs`
+16. `OutWit.Database.Core/Exceptions/RowLockException.cs`
+17. `OutWit.Database.Core/Exceptions/DeadlockException.cs`
+18. `OutWit.Database.Core.Tests/Transactions/TransactionTimestampManagerTests.cs`
+19. `OutWit.Database.Core.Tests/Transactions/MvccTransactionalStoreTests.cs`
+20. `OutWit.Database.Core.Tests/Mvcc/MvccRecordTests.cs`
+21. `OutWit.Database.Core.Tests/Stores/MvccKeyValueStoreTests.cs`
+22. `OutWit.Database.Core.Tests/Concurrency/RowLockManagerTests.cs`
+23. `OutWit.Database.Core.Tests/Concurrency/WaitForGraphTests.cs`
+24. `OutWit.Database.Core.Tests/Concurrency/DeadlockDetectorTests.cs`
 
 ### Modified Files
 1. `OutWit.Database.Core/Builder/WitDatabaseBuilderOptions.cs` - Added MVCC options
@@ -359,10 +368,9 @@ Files modified:
 
 ## Next Steps
 
-1. **Deadlock Detection (Phase 5)** - Required for production row-level locking
-2. **Background GC** - Implement background garbage collection thread
-3. **Multi-threaded Stress Tests** - Verify MVCC under high concurrency
-4. **Integration with MVCC Transaction** - Use RowLockManager in MvccTransaction for FOR UPDATE/FOR SHARE
+1. **Background GC** - Implement background garbage collection thread
+2. **Multi-threaded Stress Tests** - Verify MVCC under high concurrency
+3. **Integration with MVCC Transaction** - Use RowLockManager in MvccTransaction for FOR UPDATE/FOR SHARE
 
 ---
 
