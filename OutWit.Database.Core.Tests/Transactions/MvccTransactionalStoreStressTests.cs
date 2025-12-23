@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using OutWit.Database.Core.Builder;
+using OutWit.Database.Core.Concurrency;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.Stores;
 using OutWit.Database.Core.Transactions;
@@ -687,6 +688,177 @@ namespace OutWit.Database.Core.Tests.Transactions
                 var value = store.Get(Key($"tx{i}"));
                 Assert.That(FromBytes(value!), Is.EqualTo($"value{i}"));
             }
+        }
+
+        #endregion
+
+        #region Wait Queue Integration Tests
+
+        [Test]
+        public void WaitQueueIsExposedTest()
+        {
+            using var store = CreateStore();
+
+            Assert.That(store.WaitQueue, Is.Not.Null);
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void WaitInQueueAndSignalTest()
+        {
+            using var store = CreateStore();
+            
+            var signaled = false;
+            var waitTask = Task.Run(() =>
+            {
+                signaled = store.WaitInQueue(1, isWriter: true, timeout: TimeSpan.FromSeconds(2));
+            });
+
+            // Small delay to ensure wait is registered
+            Thread.Sleep(50);
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(1));
+
+            // Signal the waiting transaction
+            var signaledId = store.SignalNextWaiting();
+            waitTask.Wait();
+
+            Assert.That(signaledId, Is.EqualTo(1));
+            Assert.That(signaled, Is.True);
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task WaitInQueueAsyncAndSignalTest()
+        {
+            using var store = CreateStore();
+            
+            var waitTask = store.WaitInQueueAsync(1, isWriter: false, timeout: TimeSpan.FromSeconds(2));
+
+            // Small delay to ensure wait is registered
+            await Task.Delay(50);
+
+            // Signal the waiting transaction
+            store.SignalTransaction(1);
+            var result = await waitTask;
+
+            Assert.That(result, Is.True);
+        }
+
+        [Test]
+        public void WaitInQueueTimeoutTest()
+        {
+            using var store = CreateStore();
+
+            var result = store.WaitInQueue(1, isWriter: true, timeout: TimeSpan.FromMilliseconds(50));
+
+            Assert.That(result, Is.False);
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void CommitSignalsNextWaitingTransactionTest()
+        {
+            using var store = CreateStore();
+
+            var signaled = false;
+            var waitTask = Task.Run(() =>
+            {
+                signaled = store.WaitInQueue(99, isWriter: true, timeout: TimeSpan.FromSeconds(2));
+            });
+
+            Thread.Sleep(50);
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(1));
+
+            // Commit a transaction - should signal waiting
+            using (var tx = store.BeginTransaction())
+            {
+                tx.Put(Key("key1"), Value("value1"));
+                tx.Commit();
+            }
+
+            waitTask.Wait();
+            Assert.That(signaled, Is.True);
+        }
+
+        [Test]
+        public void RollbackSignalsNextWaitingTransactionTest()
+        {
+            using var store = CreateStore();
+
+            var signaled = false;
+            var waitTask = Task.Run(() =>
+            {
+                signaled = store.WaitInQueue(99, isWriter: true, timeout: TimeSpan.FromSeconds(2));
+            });
+
+            Thread.Sleep(50);
+
+            // Rollback a transaction - should signal waiting
+            using (var tx = store.BeginTransaction())
+            {
+                tx.Put(Key("key1"), Value("value1"));
+                tx.Rollback();
+            }
+
+            waitTask.Wait();
+            Assert.That(signaled, Is.True);
+        }
+
+        [Test]
+        public void PriorityBasedWaitQueueTest()
+        {
+            using var store = CreateStore();
+
+            // Enqueue transactions with different priorities
+            var lowPriorityTask = Task.Run(() => 
+                store.WaitInQueue(1, isWriter: true, TransactionPriority.Low, TimeSpan.FromSeconds(2)));
+            Thread.Sleep(20);
+
+            var highPriorityTask = Task.Run(() => 
+                store.WaitInQueue(2, isWriter: true, TransactionPriority.High, TimeSpan.FromSeconds(2)));
+            Thread.Sleep(20);
+
+            var normalPriorityTask = Task.Run(() => 
+                store.WaitInQueue(3, isWriter: true, TransactionPriority.Normal, TimeSpan.FromSeconds(2)));
+            Thread.Sleep(20);
+
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(3));
+
+            // Signal should return high priority first
+            var first = store.SignalNextWaiting();
+            var second = store.SignalNextWaiting();
+            var third = store.SignalNextWaiting();
+
+            Task.WaitAll(lowPriorityTask, highPriorityTask, normalPriorityTask);
+
+            Assert.That(first, Is.EqualTo(2));  // High
+            Assert.That(second, Is.EqualTo(3)); // Normal
+            Assert.That(third, Is.EqualTo(1));  // Low
+        }
+
+        [Test]
+        public void DisposeSignalsAllWaitingTransactionsTest()
+        {
+            var store = CreateStore();
+
+            var results = new bool[3];
+            var tasks = new[]
+            {
+                Task.Run(() => results[0] = store.WaitInQueue(1, isWriter: true, timeout: TimeSpan.FromSeconds(5))),
+                Task.Run(() => results[1] = store.WaitInQueue(2, isWriter: true, timeout: TimeSpan.FromSeconds(5))),
+                Task.Run(() => results[2] = store.WaitInQueue(3, isWriter: true, timeout: TimeSpan.FromSeconds(5)))
+            };
+
+            Thread.Sleep(100);
+            Assert.That(store.WaitingTransactionCount, Is.EqualTo(3));
+
+            // Dispose should signal all waiting transactions
+            store.Dispose();
+
+            Task.WaitAll(tasks);
+
+            // All should have been signaled (returned true)
+            Assert.That(results.All(r => r), Is.True);
         }
 
         #endregion

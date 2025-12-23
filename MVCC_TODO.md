@@ -144,6 +144,11 @@ Files created:
 - [x] Configurable timeouts
 - [x] Max queue size limit
 - [x] Async wait support
+- [x] **Integration with MvccTransactionalStore**
+  - [x] WaitInQueue / WaitInQueueAsync methods
+  - [x] SignalNextWaiting / SignalTransaction methods
+  - [x] Auto-signal on commit/rollback
+  - [x] Dispose signals all waiting
 
 ```
 Files created:

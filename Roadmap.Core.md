@@ -63,6 +63,7 @@
 | Timeout support | [x] | Configurable wait timeout |
 | Max queue size | [x] | Prevent queue overflow |
 | Async wait | [x] | `EnqueueAndWaitAsync` method |
+| **MvccTransactionalStore integration** | [x] | Full integration with MVCC store |
 
 ```csharp
 // Create wait queue with options
@@ -102,6 +103,30 @@ var count = queue.SignalAll();
 // Query
 var waiting = queue.GetWaitingTransactions();
 var position = queue.GetPosition(transactionId);
+
+// Via MvccTransactionalStore
+using var store = new MvccTransactionalStore(innerStore);
+
+// Wait in queue with priority
+var result = store.WaitInQueue(
+    transactionId, 
+    isWriter: true, 
+    TransactionPriority.High,
+    TimeSpan.FromSeconds(5));
+
+// Async wait
+var result = await store.WaitInQueueAsync(
+    transactionId, 
+    isWriter: true, 
+    TransactionPriority.Normal,
+    cancellationToken: ct);
+
+// Signal waiting transactions
+store.SignalNextWaiting();
+store.SignalTransaction(specificTxId);
+
+// Check queue status
+var waitingCount = store.WaitingTransactionCount;
 ```
 
 ---

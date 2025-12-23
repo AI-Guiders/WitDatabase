@@ -15,6 +15,7 @@ namespace OutWit.Database.Core.Transactions
     /// - Read transactions don't block writes
     /// - Write transactions detect conflicts at commit time
     /// - Snapshot isolation by default
+    /// - Priority-based transaction wait queue
     /// </summary>
     public sealed class MvccTransactionalStore : ITransactionalStore, IMvccStore
     {
@@ -39,6 +40,7 @@ namespace OutWit.Database.Core.Transactions
         private readonly LockManager? m_lockManager;
         private readonly RowLockManager m_rowLockManager;
         private readonly DeadlockDetector m_deadlockDetector;
+        private readonly TransactionWaitQueue m_waitQueue;
         private readonly bool m_ownsStore;
         private readonly IsolationLevel m_defaultIsolationLevel;
         private readonly object m_txLock = new();
@@ -83,6 +85,24 @@ namespace OutWit.Database.Core.Transactions
             LockManager? lockManager, 
             IsolationLevel defaultIsolationLevel,
             bool ownsStore = true)
+            : this(innerStore, lockManager, defaultIsolationLevel, null, ownsStore)
+        {
+        }
+
+        /// <summary>
+        /// Creates an MVCC transactional store with full configuration.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store.</param>
+        /// <param name="lockManager">Lock manager for write serialization (null = no locking).</param>
+        /// <param name="defaultIsolationLevel">Default isolation level for transactions.</param>
+        /// <param name="waitQueueOptions">Options for transaction wait queue (null = default options).</param>
+        /// <param name="ownsStore">If true, disposes the store when this is disposed.</param>
+        public MvccTransactionalStore(
+            IKeyValueStore innerStore, 
+            LockManager? lockManager, 
+            IsolationLevel defaultIsolationLevel,
+            TransactionWaitQueueOptions? waitQueueOptions,
+            bool ownsStore = true)
         {
             if (innerStore == null)
                 throw new ArgumentNullException(nameof(innerStore));
@@ -92,6 +112,7 @@ namespace OutWit.Database.Core.Transactions
             m_lockManager = lockManager;
             m_rowLockManager = new RowLockManager();
             m_deadlockDetector = new DeadlockDetector(m_rowLockManager, DeadlockVictimStrategy.Youngest);
+            m_waitQueue = new TransactionWaitQueue(waitQueueOptions ?? new TransactionWaitQueueOptions());
             m_ownsStore = ownsStore;
             m_defaultIsolationLevel = defaultIsolationLevel;
         }
@@ -126,12 +147,33 @@ namespace OutWit.Database.Core.Transactions
             LockManager? lockManager,
             IsolationLevel defaultIsolationLevel,
             bool ownsStore = true)
+            : this(mvccStore, timestampManager, lockManager, defaultIsolationLevel, null, ownsStore)
+        {
+        }
+
+        /// <summary>
+        /// Creates an MVCC transactional store with an existing MVCC store and full configuration.
+        /// </summary>
+        /// <param name="mvccStore">The MVCC key-value store.</param>
+        /// <param name="timestampManager">The timestamp manager.</param>
+        /// <param name="lockManager">Lock manager for write serialization (null = no locking).</param>
+        /// <param name="defaultIsolationLevel">Default isolation level for transactions.</param>
+        /// <param name="waitQueueOptions">Options for transaction wait queue (null = default options).</param>
+        /// <param name="ownsStore">If true, disposes the store when this is disposed.</param>
+        public MvccTransactionalStore(
+            MvccKeyValueStore mvccStore,
+            TransactionTimestampManager timestampManager,
+            LockManager? lockManager,
+            IsolationLevel defaultIsolationLevel,
+            TransactionWaitQueueOptions? waitQueueOptions,
+            bool ownsStore = true)
         {
             m_mvccStore = mvccStore ?? throw new ArgumentNullException(nameof(mvccStore));
             m_timestampManager = timestampManager ?? throw new ArgumentNullException(nameof(timestampManager));
             m_lockManager = lockManager;
             m_rowLockManager = new RowLockManager();
             m_deadlockDetector = new DeadlockDetector(m_rowLockManager, DeadlockVictimStrategy.Youngest);
+            m_waitQueue = new TransactionWaitQueue(waitQueueOptions ?? new TransactionWaitQueueOptions());
             m_ownsStore = ownsStore;
             m_defaultIsolationLevel = defaultIsolationLevel;
         }
@@ -148,6 +190,17 @@ namespace OutWit.Database.Core.Transactions
 
         /// <inheritdoc/>
         public ITransaction BeginTransaction(IsolationLevel isolationLevel)
+        {
+            return BeginTransaction(isolationLevel, TransactionPriority.Normal);
+        }
+
+        /// <summary>
+        /// Begins a new transaction with the specified isolation level and priority.
+        /// </summary>
+        /// <param name="isolationLevel">The isolation level for the transaction.</param>
+        /// <param name="priority">The priority for the transaction in wait queue.</param>
+        /// <returns>A new transaction.</returns>
+        public ITransaction BeginTransaction(IsolationLevel isolationLevel, TransactionPriority priority)
         {
             ThrowIfDisposed();
             ValidateIsolationLevel(isolationLevel);
@@ -211,6 +264,69 @@ namespace OutWit.Database.Core.Transactions
                 m_activeTransactions.Add(tx);
                 return tx;
             }
+        }
+
+        #endregion
+
+        #region Transaction Wait Queue
+
+        /// <summary>
+        /// Waits in the transaction queue until signaled or timeout.
+        /// </summary>
+        /// <param name="transactionId">The transaction ID.</param>
+        /// <param name="isWriter">Whether this is a write transaction.</param>
+        /// <param name="priority">Priority level.</param>
+        /// <param name="timeout">Optional timeout.</param>
+        /// <returns>True if signaled, false if timed out.</returns>
+        public bool WaitInQueue(
+            long transactionId, 
+            bool isWriter, 
+            TransactionPriority priority = TransactionPriority.Normal,
+            TimeSpan? timeout = null)
+        {
+            ThrowIfDisposed();
+            return m_waitQueue.EnqueueAndWait(transactionId, isWriter, priority, timeout);
+        }
+
+        /// <summary>
+        /// Waits in the transaction queue asynchronously until signaled or timeout.
+        /// </summary>
+        /// <param name="transactionId">The transaction ID.</param>
+        /// <param name="isWriter">Whether this is a write transaction.</param>
+        /// <param name="priority">Priority level.</param>
+        /// <param name="timeout">Optional timeout.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True if signaled, false if timed out.</returns>
+        public Task<bool> WaitInQueueAsync(
+            long transactionId, 
+            bool isWriter, 
+            TransactionPriority priority = TransactionPriority.Normal,
+            TimeSpan? timeout = null,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            return m_waitQueue.EnqueueAndWaitAsync(transactionId, isWriter, priority, timeout, cancellationToken);
+        }
+
+        /// <summary>
+        /// Signals the next waiting transaction to proceed.
+        /// </summary>
+        /// <returns>The transaction ID that was signaled, or null if queue is empty.</returns>
+        public long? SignalNextWaiting()
+        {
+            ThrowIfDisposed();
+            return m_waitQueue.SignalNext();
+        }
+
+        /// <summary>
+        /// Signals a specific transaction to proceed.
+        /// </summary>
+        /// <param name="transactionId">The transaction ID to signal.</param>
+        /// <returns>True if the transaction was found and signaled.</returns>
+        public bool SignalTransaction(long transactionId)
+        {
+            ThrowIfDisposed();
+            return m_waitQueue.Signal(transactionId);
         }
 
         #endregion
@@ -341,6 +457,9 @@ namespace OutWit.Database.Core.Transactions
         {
             ThrowIfDisposed();
             m_mvccStore.CommitTransaction(transactionId, commitTimestamp);
+            
+            // Signal next waiting transaction after commit
+            SignalNextWaiting();
         }
 
         /// <inheritdoc/>
@@ -348,6 +467,9 @@ namespace OutWit.Database.Core.Transactions
         {
             ThrowIfDisposed();
             m_mvccStore.RollbackTransaction(transactionId);
+            
+            // Signal next waiting transaction after rollback
+            SignalNextWaiting();
         }
 
         /// <inheritdoc/>
@@ -432,6 +554,9 @@ namespace OutWit.Database.Core.Transactions
             {
                 m_activeTransactions.Remove(tx);
             }
+            
+            // Remove from wait queue if waiting
+            m_waitQueue.Dequeue(tx.TransactionId);
         }
 
         #endregion
@@ -489,6 +614,9 @@ namespace OutWit.Database.Core.Transactions
             if (m_disposed) return;
             m_disposed = true;
 
+            // Signal all waiting transactions
+            m_waitQueue.SignalAll();
+
             // Rollback any active transactions
             lock (m_txLock)
             {
@@ -498,6 +626,7 @@ namespace OutWit.Database.Core.Transactions
                 }
             }
 
+            m_waitQueue.Dispose();
             m_deadlockDetector.Dispose();
             m_rowLockManager.Dispose();
             m_mvccStore.Dispose();
@@ -521,6 +650,11 @@ namespace OutWit.Database.Core.Transactions
         }
 
         /// <summary>
+        /// Gets the number of transactions waiting in the queue.
+        /// </summary>
+        public int WaitingTransactionCount => m_waitQueue.WaitingCount;
+
+        /// <summary>
         /// Gets the underlying MVCC key-value store.
         /// </summary>
         public MvccKeyValueStore MvccStore => m_mvccStore;
@@ -539,6 +673,11 @@ namespace OutWit.Database.Core.Transactions
         /// Gets the deadlock detector.
         /// </summary>
         public DeadlockDetector DeadlockDetector => m_deadlockDetector;
+
+        /// <summary>
+        /// Gets the transaction wait queue.
+        /// </summary>
+        public TransactionWaitQueue WaitQueue => m_waitQueue;
 
         /// <inheritdoc/>
         public string ProviderKey => PROVIDER_KEY;
