@@ -91,6 +91,11 @@ namespace OutWit.Database.Core.Interfaces
         /// </summary>
         long TransactionId { get; }
 
+        /// <summary>
+        /// Gets the isolation level of this transaction.
+        /// </summary>
+        IsolationLevel IsolationLevel { get; }
+
         #endregion
     }
 }

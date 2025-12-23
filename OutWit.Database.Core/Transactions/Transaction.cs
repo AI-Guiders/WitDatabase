@@ -31,13 +31,19 @@ namespace OutWit.Database.Core.Transactions
 
         #region Constructors
 
-        internal Transaction(TransactionalStore store, long transactionId, ITransactionJournal? journal, IDisposable? lockHandle = null)
+        internal Transaction(
+            TransactionalStore store, 
+            long transactionId, 
+            ITransactionJournal? journal, 
+            IDisposable? lockHandle = null,
+            IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {
             m_store = store;
             m_journal = journal;
             m_syncLockHandle = lockHandle;
             m_asyncLockHandle = null;
             TransactionId = transactionId;
+            IsolationLevel = isolationLevel;
             State = TransactionState.Active;
 
             m_comparer = ByteArrayComparer.Default;
@@ -48,13 +54,19 @@ namespace OutWit.Database.Core.Transactions
             m_journal?.BeginTransaction(transactionId);
         }
 
-        internal Transaction(TransactionalStore store, long transactionId, ITransactionJournal? journal, IAsyncDisposable? asyncLockHandle)
+        internal Transaction(
+            TransactionalStore store, 
+            long transactionId, 
+            ITransactionJournal? journal, 
+            IAsyncDisposable? asyncLockHandle,
+            IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {
             m_store = store;
             m_journal = journal;
             m_syncLockHandle = null;
             m_asyncLockHandle = asyncLockHandle;
             TransactionId = transactionId;
+            IsolationLevel = isolationLevel;
             State = TransactionState.Active;
 
             m_comparer = ByteArrayComparer.Default;
@@ -454,6 +466,9 @@ namespace OutWit.Database.Core.Transactions
 
         /// <inheritdoc/>
         public long TransactionId { get; }
+
+        /// <inheritdoc/>
+        public IsolationLevel IsolationLevel { get; }
 
         /// <inheritdoc/>
         public IReadOnlyList<string> Savepoints => m_savepoints.Select(sp => sp.Name).ToList().AsReadOnly();

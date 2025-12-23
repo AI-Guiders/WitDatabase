@@ -17,6 +17,11 @@ public sealed class TransactionalStore : ITransactionalStore
     /// </summary>
     public const string PROVIDER_KEY = "transactional";
 
+    /// <summary>
+    /// Default isolation level for transactions.
+    /// </summary>
+    public const IsolationLevel DEFAULT_ISOLATION_LEVEL = IsolationLevel.ReadCommitted;
+
     #endregion
 
     #region Fields
@@ -78,7 +83,14 @@ public sealed class TransactionalStore : ITransactionalStore
     /// <inheritdoc/>
     public ITransaction BeginTransaction()
     {
+        return BeginTransaction(DEFAULT_ISOLATION_LEVEL);
+    }
+
+    /// <inheritdoc/>
+    public ITransaction BeginTransaction(IsolationLevel isolationLevel)
+    {
         ThrowIfDisposed();
+        ValidateIsolationLevel(isolationLevel);
 
         lock (m_txLock)
         {
@@ -91,7 +103,7 @@ public sealed class TransactionalStore : ITransactionalStore
 
             try
             {
-                var tx = new Transaction(this, m_nextTransactionId++, m_journal, lockHandle);
+                var tx = new Transaction(this, m_nextTransactionId++, m_journal, lockHandle, isolationLevel);
                 m_activeTransactions.Add(tx);
                 return tx;
             }
@@ -104,9 +116,16 @@ public sealed class TransactionalStore : ITransactionalStore
     }
 
     /// <inheritdoc/>
-    public async ValueTask<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    public ValueTask<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        return BeginTransactionAsync(DEFAULT_ISOLATION_LEVEL, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        ValidateIsolationLevel(isolationLevel);
 
         IAsyncDisposable? lockHandle = null;
         if (m_lockManager != null)
@@ -118,7 +137,7 @@ public sealed class TransactionalStore : ITransactionalStore
         {
             lock (m_txLock)
             {
-                var tx = new Transaction(this, m_nextTransactionId++, m_journal, lockHandle);
+                var tx = new Transaction(this, m_nextTransactionId++, m_journal, lockHandle, isolationLevel);
                 m_activeTransactions.Add(tx);
                 return tx;
             }
@@ -361,6 +380,17 @@ public sealed class TransactionalStore : ITransactionalStore
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(m_disposed, this);
+    }
+
+    private static void ValidateIsolationLevel(IsolationLevel isolationLevel)
+    {
+        // Currently only ReadCommitted is fully supported
+        // Other levels are accepted but will behave as ReadCommitted until MVCC is implemented
+        if (!Enum.IsDefined(isolationLevel))
+        {
+            throw new ArgumentOutOfRangeException(nameof(isolationLevel), isolationLevel, 
+                "Invalid isolation level.");
+        }
     }
 
     #endregion

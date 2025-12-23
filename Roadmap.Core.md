@@ -1,8 +1,8 @@
 # OutWit.Database.Core - Roadmap
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Based on:** OutWit.Database.Core.TODO.md  
-**Last Updated:** 2025-01-15
+**Last Updated:** 2025-01-16
 
 ---
 
@@ -30,20 +30,99 @@
 | Encryption | 3 | 0 | 100% |
 | Crash Recovery | 3 | 0 | 100% |
 | Basic Concurrency | 4 | 0 | 100% |
-| Isolation Levels | 0 | 4 | 0% |
+| Isolation Levels | 2 | 2 | 50% |
 | Row-level Locks | 0 | 4 | 0% |
 | Savepoints | 4 | 0 | 100% |
-| Multiple Result Sets | 0 | 3 | 0% |
+| Multiple Result Sets | 2 | 1 | 67% |
 | Cursor Support | 0 | 4 | 0% - v2 |
 | Query Context | 5 | 0 | 100% |
 | Secondary Indexes | 8 | 0 | 100% |
 | Storage Detection | 2 | 0 | 100% |
-| Bulk Operations | 0 | 3 | 0% |
-| Statistics | 0 | 2 | 0% |
+| Bulk Operations | 2 | 1 | 67% |
+| Statistics | 2 | 2 | 50% |
 | VACUUM/Compaction | 0 | 3 | 0% - v2 |
 | Concurrent Transactions | 0 | 3 | 0% |
 | ROWVERSION | 0 | 3 | 0% |
-| **TOTAL** | **38** | **29** | **57%** |
+| **TOTAL** | **46** | **23** | **67%** |
+
+---
+
+## Recent Changes (v1.2)
+
+### Transaction Isolation Levels ?
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IsolationLevel` enum | [x] | ReadUncommitted, ReadCommitted, RepeatableRead, Serializable, Snapshot |
+| `ITransaction.IsolationLevel` | [x] | Property to get transaction's isolation level |
+| `BeginTransaction(IsolationLevel)` | [x] | Create transaction with specific isolation level |
+
+```csharp
+// Create transaction with specific isolation level
+using var tx = db.BeginTransaction(IsolationLevel.Serializable);
+tx.Put(key, value);
+tx.Commit();
+
+// Check isolation level
+Console.WriteLine(tx.IsolationLevel); // Serializable
+```
+
+### Multiple Result Sets ?
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IMultiResultReader` interface | [x] | Read multiple result sets from batch execution |
+| `MultiResultReader` class | [x] | Implementation with ResultSet wrapper |
+| `NextResult()` method | [x] | Advance to next result set |
+
+```csharp
+// Reading multiple result sets
+using var reader = new MultiResultReader(resultSets);
+while (reader.NextResult())
+{
+    foreach (var (key, value) in reader.CurrentResult!)
+    {
+        // Process results
+    }
+    Console.WriteLine($"Records affected: {reader.RecordsAffected}");
+}
+```
+
+### Bulk Operations ?
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `BulkPut` extension | [x] | Insert/update multiple key-value pairs |
+| `BulkDelete` extension | [x] | Delete multiple keys |
+| `IBulkKeyValueStore` interface | [x] | For stores with native bulk support |
+
+```csharp
+// Bulk insert
+var items = Enumerable.Range(0, 10000)
+    .Select(i => (ToBytes($"key{i}"), ToBytes($"value{i}")));
+var count = store.BulkPut(items);
+
+// Bulk delete
+var keys = Enumerable.Range(0, 5000).Select(i => ToBytes($"key{i}"));
+var deleted = store.BulkDelete(keys);
+```
+
+### Store Statistics ?
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IKeyValueStoreStatistics` interface | [x] | Statistics for query optimizer |
+| `Count()` extension | [x] | Get total key-value pairs |
+| `IsEmpty()` extension | [x] | Check if store is empty |
+| `GetStatistics()` extension | [x] | Get statistics wrapper |
+
+```csharp
+// Get statistics
+var count = store.Count();
+var isEmpty = store.IsEmpty();
+var stats = store.GetStatistics();
+Console.WriteLine($"Approximate size: {stats.ApproximateSizeInBytes}");
+```
 
 ---
 
@@ -190,9 +269,9 @@ if (tx is ITransactionWithSavepoints txSp)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `IsolationLevel` enum | [ ] | P0 | SS1.1 |
+| `IsolationLevel` enum | [x] | P0 | SS1.1 |
 | MVCC (Multi-Version Concurrency Control) | [ ] | P0 | SS1.2 |
-| Extend `ITransaction` for isolation level | [ ] | P0 | SS1.3 |
+| Extend `ITransaction` for isolation level | [x] | P0 | SS1.3 |
 | Record versioning (timestamp/row version) | [ ] | P0 | SS1.4 |
 
 ### 2.2 Row-level Locks
@@ -208,8 +287,8 @@ if (tx is ITransactionWithSavepoints txSp)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `IMultiResultReader` interface | [ ] | P1 | SS4.1 |
-| `NextResult()` method | [ ] | P1 | SS4.2 |
+| `IMultiResultReader` interface | [x] | P1 | SS4.1 |
+| `NextResult()` method | [x] | P1 | SS4.2 |
 | Batch execution support | [ ] | P1 | SS4.3 |
 
 ### 2.4 Cursor Support (Deferred to v2)
@@ -225,16 +304,16 @@ if (tx is ITransactionWithSavepoints txSp)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| `BulkPut(IEnumerable<(key, value)>)` | [ ] | P1 | SS8.1 |
-| `BulkDelete(IEnumerable<key>)` | [ ] | P1 | SS8.2 |
+| `BulkPut(IEnumerable<(key, value)>)` | [x] | P1 | SS8.1 |
+| `BulkDelete(IEnumerable<key>)` | [x] | P1 | SS8.2 |
 | Streaming insert support | [ ] | P1 | SS8.3 |
 
 ### 2.6 Statistics and Metadata
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| Table row count (approximate/exact) | [ ] | P1 | SS9.1 |
-| Index statistics for query optimizer | [ ] | P1 | SS9.2 |
+| Table row count (approximate/exact) | [x] | P1 | SS9.1 |
+| Index statistics for query optimizer | [x] | P1 | SS9.2 |
 | `ANALYZE` command support | [ ] | P2 - v2 | SS9.3 |
 | Column cardinality estimation | [ ] | P2 - v2 | SS9.4 |
 
@@ -410,4 +489,4 @@ tx.Commit(); // Only key is committed
 
 ---
 
-**Last Updated:** 2025-01-15
+**Last Updated:** 2025-01-16

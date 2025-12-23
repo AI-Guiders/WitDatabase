@@ -1,6 +1,7 @@
 using OutWit.Database.Core.Managers;
 using OutWit.Database.Core.Storage;
 using OutWit.Database.Core.Stores;
+using OutWit.Database.Core.Interfaces;
 using TextEncoding = System.Text.Encoding;
 
 namespace OutWit.Database.Core.Tests.Stores;
@@ -328,7 +329,7 @@ public class StoreBTreeTest
         using var store = new StoreBTree(storage);
         
         // Should compile - proves it implements the interface
-        Interfaces.IKeyValueStore kvStore = store;
+        IKeyValueStore kvStore = store;
         
         kvStore.Put("key"u8.ToArray(), "value"u8.ToArray());
         var result = kvStore.Get("key"u8);

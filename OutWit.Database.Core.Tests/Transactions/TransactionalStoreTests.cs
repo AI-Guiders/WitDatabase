@@ -422,6 +422,103 @@ public class TransactionalStoreTests : IDisposable
 
     #endregion
 
+    #region Isolation Level Tests
+
+    [Test]
+    public void BeginTransactionWithDefaultIsolationLevelTest()
+    {
+        using var tx = m_store.BeginTransaction();
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadCommitted));
+    }
+
+    [Test]
+    public void BeginTransactionWithSpecificIsolationLevelTest()
+    {
+        using var tx = m_store.BeginTransaction(IsolationLevel.Serializable);
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+    }
+
+    [Test]
+    public void BeginTransactionWithReadUncommittedTest()
+    {
+        using var tx = m_store.BeginTransaction(IsolationLevel.ReadUncommitted);
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadUncommitted));
+        Assert.That(tx.State, Is.EqualTo(TransactionState.Active));
+    }
+
+    [Test]
+    public void BeginTransactionWithRepeatableReadTest()
+    {
+        using var tx = m_store.BeginTransaction(IsolationLevel.RepeatableRead);
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.RepeatableRead));
+    }
+
+    [Test]
+    public void BeginTransactionWithSnapshotTest()
+    {
+        using var tx = m_store.BeginTransaction(IsolationLevel.Snapshot);
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Snapshot));
+    }
+
+    [Test]
+    public void BeginTransactionWithInvalidIsolationLevelThrowsTest()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => 
+            m_store.BeginTransaction((IsolationLevel)999));
+    }
+
+    [Test]
+    public async Task BeginTransactionAsyncWithDefaultIsolationLevelTest()
+    {
+        await using var tx = await m_store.BeginTransactionAsync();
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadCommitted));
+    }
+
+    [Test]
+    public async Task BeginTransactionAsyncWithSpecificIsolationLevelTest()
+    {
+        await using var tx = await m_store.BeginTransactionAsync(IsolationLevel.Serializable);
+        
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+    }
+
+    [Test]
+    public async Task BeginTransactionAsyncWithInvalidIsolationLevelThrowsTest()
+    {
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => 
+            await m_store.BeginTransactionAsync((IsolationLevel)999));
+    }
+
+    [Test]
+    public void TransactionWithIsolationLevelCommitsSuccessfullyTest()
+    {
+        using var tx = m_store.BeginTransaction(IsolationLevel.Serializable);
+        tx.Put(ToBytes("key"), ToBytes("value"));
+        tx.Commit();
+        
+        Assert.That(tx.State, Is.EqualTo(TransactionState.Committed));
+        Assert.That(m_store.Get(ToBytes("key")), Is.EqualTo(ToBytes("value")));
+    }
+
+    [Test]
+    public void TransactionWithIsolationLevelRollsBackSuccessfullyTest()
+    {
+        using var tx = m_store.BeginTransaction(IsolationLevel.Snapshot);
+        tx.Put(ToBytes("key"), ToBytes("value"));
+        tx.Rollback();
+        
+        Assert.That(tx.State, Is.EqualTo(TransactionState.RolledBack));
+        Assert.That(m_store.Get(ToBytes("key")), Is.Null);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private TransactionalStore CreateStoreWithTimeout(TimeSpan timeout)
