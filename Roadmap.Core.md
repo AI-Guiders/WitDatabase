@@ -33,23 +33,23 @@
 | Isolation Levels | 2 | 2 | 50% |
 | Row-level Locks | 0 | 4 | 0% |
 | Savepoints | 4 | 0 | 100% |
-| Multiple Result Sets | 2 | 1 | 67% |
+| Multiple Result Sets | 3 | 0 | 100% |
 | Cursor Support | 0 | 4 | 0% - v2 |
 | Query Context | 5 | 0 | 100% |
 | Secondary Indexes | 8 | 0 | 100% |
 | Storage Detection | 2 | 0 | 100% |
-| Bulk Operations | 2 | 1 | 67% |
+| Bulk Operations | 3 | 0 | 100% |
 | Statistics | 2 | 2 | 50% |
 | VACUUM/Compaction | 0 | 3 | 0% - v2 |
 | Concurrent Transactions | 0 | 3 | 0% |
-| ROWVERSION | 0 | 3 | 0% |
-| **TOTAL** | **46** | **23** | **67%** |
+| ROWVERSION | 3 | 0 | 100% |
+| **TOTAL** | **51** | **18** | **74%** |
 
 ---
 
 ## Recent Changes (v1.2)
 
-### Transaction Isolation Levels ?
+### Transaction Isolation Levels [x]
 
 | Feature | Status | Description |
 |---------|--------|-------------|
@@ -67,13 +67,15 @@ tx.Commit();
 Console.WriteLine(tx.IsolationLevel); // Serializable
 ```
 
-### Multiple Result Sets ?
+### Multiple Result Sets [x]
 
 | Feature | Status | Description |
 |---------|--------|-------------|
 | `IMultiResultReader` interface | [x] | Read multiple result sets from batch execution |
 | `MultiResultReader` class | [x] | Implementation with ResultSet wrapper |
 | `NextResult()` method | [x] | Advance to next result set |
+| `IBatchExecutor` interface | [x] | Batch operation execution |
+| `BatchExecutor` class | [x] | Execute multiple operations with results |
 
 ```csharp
 // Reading multiple result sets
@@ -86,15 +88,30 @@ while (reader.NextResult())
     }
     Console.WriteLine($"Records affected: {reader.RecordsAffected}");
 }
+
+// Batch execution
+using var reader = store.ExecuteBatch(
+    new BatchPutOperation(key1, value1),
+    new BatchGetOperation(key1),
+    new BatchScanOperation(startKey, endKey),
+    new BatchDeleteOperation(key1)
+);
+
+while (reader.NextResult())
+{
+    // Process each result set
+}
 ```
 
-### Bulk Operations ?
+### Bulk Operations [x]
 
 | Feature | Status | Description |
 |---------|--------|-------------|
 | `BulkPut` extension | [x] | Insert/update multiple key-value pairs |
 | `BulkDelete` extension | [x] | Delete multiple keys |
 | `IBulkKeyValueStore` interface | [x] | For stores with native bulk support |
+| `StreamingPut` extension | [x] | Batch streaming with progress callback |
+| `StreamingPutWithTransaction` | [x] | Transactional streaming with auto-commit |
 
 ```csharp
 // Bulk insert
@@ -105,9 +122,16 @@ var count = store.BulkPut(items);
 // Bulk delete
 var keys = Enumerable.Range(0, 5000).Select(i => ToBytes($"key{i}"));
 var deleted = store.BulkDelete(keys);
+
+// Streaming insert with progress
+var total = store.StreamingPut(items, batchSize: 1000,
+    progress: count => Console.WriteLine($"Inserted: {count}"));
+
+// Async streaming from IAsyncEnumerable
+await store.StreamingPutAsync(asyncDataSource, batchSize: 1000);
 ```
 
-### Store Statistics ?
+### Store Statistics [x]
 
 | Feature | Status | Description |
 |---------|--------|-------------|
@@ -124,11 +148,37 @@ var stats = store.GetStatistics();
 Console.WriteLine($"Approximate size: {stats.ApproximateSizeInBytes}");
 ```
 
+### ROWVERSION / Optimistic Concurrency [x]
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `IVersionedKeyValueStore` interface | [x] | Versioned key-value operations |
+| `VersionedKeyValueStore` class | [x] | Wrapper adding versions to any store |
+| `ConditionalPut` / `ConditionalDelete` | [x] | Optimistic concurrency control |
+
+```csharp
+// Create versioned store
+var store = new VersionedKeyValueStore(innerStore);
+
+// Put with version tracking
+var version = store.PutWithVersion(key, value);
+
+// Conditional update (optimistic concurrency)
+var (success, newVersion) = store.ConditionalPut(key, newValue, expectedVersion);
+if (!success)
+{
+    // Version mismatch - handle conflict
+}
+
+// Conditional delete
+var deleted = store.ConditionalDelete(key, expectedVersion);
+```
+
 ---
 
 ## Recent Changes (v1.1)
 
-### Storage Auto-Detection ?
+### Storage Auto-Detection [x]
 
 | Feature | Status | Description |
 |---------|--------|-------------|
@@ -142,7 +192,7 @@ using var db = WitDatabase.Open(path, password); // Encrypted, auto-detects
 using var db = WitDatabase.CreateOrOpen(path);   // Creates or opens, auto-detects
 ```
 
-### Index Metadata Persistence ?
+### Index Metadata Persistence [x]
 
 | Feature | Status | Description |
 |---------|--------|-------------|
@@ -289,7 +339,7 @@ if (tx is ITransactionWithSavepoints txSp)
 |---------|--------|----------|----------|
 | `IMultiResultReader` interface | [x] | P1 | SS4.1 |
 | `NextResult()` method | [x] | P1 | SS4.2 |
-| Batch execution support | [ ] | P1 | SS4.3 |
+| Batch execution support | [x] | P1 | SS4.3 |
 
 ### 2.4 Cursor Support (Deferred to v2)
 
@@ -306,7 +356,7 @@ if (tx is ITransactionWithSavepoints txSp)
 |---------|--------|----------|----------|
 | `BulkPut(IEnumerable<(key, value)>)` | [x] | P1 | SS8.1 |
 | `BulkDelete(IEnumerable<key>)` | [x] | P1 | SS8.2 |
-| Streaming insert support | [ ] | P1 | SS8.3 |
+| Streaming insert support | [x] | P1 | SS8.3 |
 
 ### 2.6 Statistics and Metadata
 
@@ -337,15 +387,15 @@ if (tx is ITransactionWithSavepoints txSp)
 
 | Feature | Status | Priority | TODO Ref |
 |---------|--------|----------|----------|
-| Auto-incrementing row version support | [ ] | P1 | SS12.1 |
-| Optimistic concurrency check at kernel | [ ] | P1 | SS12.2 |
-| Conditional Put/Delete (version check) | [ ] | P1 | SS12.3 |
+| Auto-incrementing row version support | [x] | P1 | SS12.1 |
+| Optimistic concurrency check at kernel | [x] | P1 | SS12.2 |
+| Conditional Put/Delete (version check) | [x] | P1 | SS12.3 |
 
 ---
 
 ## 3. Implementation Priorities
 
-### 3.1 Phase 1: MVP for ADO.NET ?
+### 3.1 Phase 1: MVP for ADO.NET [x]
 
 All Phase 1 features are complete.
 
@@ -386,40 +436,40 @@ All Phase 1 features are complete.
 
 ```
 WitDatabase.Open(path)
-    ??? StorageDetector.Detect(path)
-        ??? Directory exists? ? Check for sst_*.sst or wal.log ? LSM
-        ??? File exists? ? Read header magic bytes ? BTree
-            ??? Magic valid ? Read ProviderMetadata
-            ??? Magic invalid ? Encrypted BTree
+    -> StorageDetector.Detect(path)
+        -> Directory exists? -> Check for sst_*.sst or wal.log -> LSM
+        -> File exists? -> Read header magic bytes -> BTree
+            -> Magic valid -> Read ProviderMetadata
+            -> Magic invalid -> Encrypted BTree
 ```
 
 ### 4.2 Secondary Index Architecture
 
 ```
 ISecondaryIndex (interface)
-??? SecondaryIndexKeyValueStore - Universal implementation
-    ??? Uses any IKeyValueStore (BTree, LSM, InMemory, custom)
++-- SecondaryIndexKeyValueStore - Universal implementation
+    +-- Uses any IKeyValueStore (BTree, LSM, InMemory, custom)
 
 ISecondaryIndexFactory (interface)
-??? SecondaryIndexFactoryKeyValueStore - Universal factory
-    ??? Creates indexes using any IKeyValueStore
++-- SecondaryIndexFactoryKeyValueStore - Universal factory
+    +-- Creates indexes using any IKeyValueStore
 
 IndexMetadataStore
-??? Persists index definitions (name, isUnique)
-??? Uses system key prefix "\0\0_idx_meta_"
-??? Auto-restored on WitDatabase open
++-- Persists index definitions (name, isUnique)
++-- Uses system key prefix "\0\0_idx_meta_"
++-- Auto-restored on WitDatabase open
 ```
 
 ### 4.3 Tested Storage Combinations
 
 | Storage Engine | Backend | Encryption | Indexes | Auto-Detect | Status |
 |----------------|---------|------------|---------|-------------|--------|
-| BTree | Memory | No | ? | N/A | ? |
-| BTree | Memory | AES-GCM | ? | N/A | ? |
-| BTree | File | No | ? | ? | ? |
-| BTree | File | AES-GCM | ? | ? | ? |
-| LSM | Directory | No | ? | ? | ? |
-| LSM | Directory | AES-GCM | ? | ? | ? |
+| BTree | Memory | No | Yes | N/A | Done |
+| BTree | Memory | AES-GCM | Yes | N/A | Done |
+| BTree | File | No | Yes | Yes | Done |
+| BTree | File | AES-GCM | Yes | Yes | Done |
+| LSM | Directory | No | Yes | Yes | Done |
+| LSM | Directory | AES-GCM | Yes | Yes | Done |
 
 ---
 

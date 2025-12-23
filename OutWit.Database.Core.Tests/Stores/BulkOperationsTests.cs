@@ -324,5 +324,148 @@ namespace OutWit.Database.Core.Tests.Stores
         }
 
         #endregion
+
+        #region Streaming Insert Tests
+
+        [Test]
+        public void StreamingPutInsertsAllItemsTest()
+        {
+            var items = MakeBatch(100).ToList();
+
+            var count = m_store.StreamingPut(items, batchSize: 25);
+
+            Assert.That(count, Is.EqualTo(100));
+
+            foreach (var (key, value) in items)
+            {
+                Assert.That(m_store.Get(key), Is.EqualTo(value));
+            }
+        }
+
+        [Test]
+        public void StreamingPutReportsProgressTest()
+        {
+            var items = MakeBatch(100).ToList();
+            var progressCalls = new List<int>();
+
+            var count = m_store.StreamingPut(items, batchSize: 25, progress: p => progressCalls.Add(p));
+
+            Assert.That(count, Is.EqualTo(100));
+            Assert.That(progressCalls, Is.EqualTo(new[] { 25, 50, 75, 100 }));
+        }
+
+        [Test]
+        public void StreamingPutWithPartialBatchFlushesRemainingTest()
+        {
+            var items = MakeBatch(30).ToList();
+            var progressCalls = new List<int>();
+
+            var count = m_store.StreamingPut(items, batchSize: 25, progress: p => progressCalls.Add(p));
+
+            Assert.That(count, Is.EqualTo(30));
+            Assert.That(progressCalls, Is.EqualTo(new[] { 25, 30 }));
+        }
+
+        [Test]
+        public void StreamingPutWithNullStoreThrowsTest()
+        {
+            IKeyValueStore? nullStore = null;
+
+            Assert.Throws<ArgumentNullException>(() => nullStore!.StreamingPut(MakeBatch(10)));
+        }
+
+        [Test]
+        public void StreamingPutWithNullItemsThrowsTest()
+        {
+            Assert.Throws<ArgumentNullException>(() => m_store.StreamingPut(null!));
+        }
+
+        [Test]
+        public void StreamingPutWithZeroBatchSizeThrowsTest()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => m_store.StreamingPut(MakeBatch(10), batchSize: 0));
+        }
+
+        [Test]
+        public void StreamingPutWithEmptyEnumerableReturnsZeroTest()
+        {
+            var count = m_store.StreamingPut(Array.Empty<(byte[], byte[])>());
+
+            Assert.That(count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task StreamingPutAsyncInsertsAllItemsTest()
+        {
+            var items = MakeBatch(100).ToList();
+
+            var count = await m_store.StreamingPutAsync(items, batchSize: 25);
+
+            Assert.That(count, Is.EqualTo(100));
+        }
+
+        [Test]
+        public async Task StreamingPutAsyncReportsProgressTest()
+        {
+            var items = MakeBatch(100).ToList();
+            var progressCalls = new List<int>();
+
+            var count = await m_store.StreamingPutAsync(items, batchSize: 25, 
+                progress: p => progressCalls.Add(p));
+
+            Assert.That(count, Is.EqualTo(100));
+            Assert.That(progressCalls, Is.EqualTo(new[] { 25, 50, 75, 100 }));
+        }
+
+        [Test]
+        public async Task StreamingPutAsyncSupportsCancellationTest()
+        {
+            var items = MakeBatch(1000);
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await m_store.StreamingPutAsync(items, cancellationToken: cts.Token));
+        }
+
+        [Test]
+        public async Task StreamingPutAsyncFromAsyncEnumerableTest()
+        {
+            async IAsyncEnumerable<(byte[] Key, byte[] Value)> GenerateAsync()
+            {
+                for (int i = 0; i < 50; i++)
+                {
+                    await Task.Yield();
+                    yield return MakePair(i);
+                }
+            }
+
+            var count = await m_store.StreamingPutAsync(GenerateAsync(), batchSize: 10);
+
+            Assert.That(count, Is.EqualTo(50));
+        }
+
+        [Test]
+        public async Task StreamingPutAsyncFromAsyncEnumerableReportsProgressTest()
+        {
+            var progressCalls = new List<int>();
+
+            async IAsyncEnumerable<(byte[] Key, byte[] Value)> GenerateAsync()
+            {
+                for (int i = 0; i < 30; i++)
+                {
+                    await Task.Yield();
+                    yield return MakePair(i);
+                }
+            }
+
+            var count = await m_store.StreamingPutAsync(GenerateAsync(), batchSize: 10,
+                progress: p => progressCalls.Add(p));
+
+            Assert.That(count, Is.EqualTo(30));
+            Assert.That(progressCalls, Is.EqualTo(new[] { 10, 20, 30 }));
+        }
+
+        #endregion
     }
 }

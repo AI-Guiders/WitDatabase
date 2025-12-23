@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using OutWit.Database.Core.Interfaces;
 
 namespace OutWit.Database.Core.Stores
@@ -194,6 +195,237 @@ namespace OutWit.Database.Core.Stores
                 store.Flush();
             }
             return count;
+        }
+
+        #endregion
+
+        #region Streaming Insert
+
+        /// <summary>
+        /// Streams key-value pairs into the store in batches.
+        /// Flushes after each batch for durability and memory management.
+        /// </summary>
+        /// <param name="store">The key-value store.</param>
+        /// <param name="items">The key-value pairs to stream.</param>
+        /// <param name="batchSize">Number of items per batch before flush.</param>
+        /// <param name="progress">Optional progress callback (called after each batch with total count).</param>
+        /// <returns>Total number of items inserted.</returns>
+        public static int StreamingPut(
+            this IKeyValueStore store,
+            IEnumerable<(byte[] Key, byte[] Value)> items,
+            int batchSize = 1000,
+            Action<int>? progress = null)
+        {
+            if (store == null)
+                throw new ArgumentNullException(nameof(store));
+
+            if (items == null)
+                throw new ArgumentNullException(nameof(items));
+
+            if (batchSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be positive.");
+
+            int totalCount = 0;
+            int batchCount = 0;
+
+            foreach (var (key, value) in items)
+            {
+                store.Put(key, value);
+                totalCount++;
+                batchCount++;
+
+                if (batchCount >= batchSize)
+                {
+                    store.Flush();
+                    progress?.Invoke(totalCount);
+                    batchCount = 0;
+                }
+            }
+
+            // Flush remaining items
+            if (batchCount > 0)
+            {
+                store.Flush();
+                progress?.Invoke(totalCount);
+            }
+
+            return totalCount;
+        }
+
+        /// <summary>
+        /// Streams key-value pairs into the store asynchronously in batches.
+        /// </summary>
+        /// <param name="store">The key-value store.</param>
+        /// <param name="items">The key-value pairs to stream.</param>
+        /// <param name="batchSize">Number of items per batch before flush.</param>
+        /// <param name="progress">Optional progress callback.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Total number of items inserted.</returns>
+        public static async ValueTask<int> StreamingPutAsync(
+            this IKeyValueStore store,
+            IEnumerable<(byte[] Key, byte[] Value)> items,
+            int batchSize = 1000,
+            Action<int>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (store == null)
+                throw new ArgumentNullException(nameof(store));
+
+            if (items == null)
+                throw new ArgumentNullException(nameof(items));
+
+            if (batchSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be positive.");
+
+            int totalCount = 0;
+            int batchCount = 0;
+
+            foreach (var (key, value) in items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                await store.PutAsync(key, value, cancellationToken).ConfigureAwait(false);
+                totalCount++;
+                batchCount++;
+
+                if (batchCount >= batchSize)
+                {
+                    await store.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    progress?.Invoke(totalCount);
+                    batchCount = 0;
+                }
+            }
+
+            // Flush remaining items
+            if (batchCount > 0)
+            {
+                await store.FlushAsync(cancellationToken).ConfigureAwait(false);
+                progress?.Invoke(totalCount);
+            }
+
+            return totalCount;
+        }
+
+        /// <summary>
+        /// Streams key-value pairs from an async enumerable into the store in batches.
+        /// </summary>
+        /// <param name="store">The key-value store.</param>
+        /// <param name="items">The async enumerable of key-value pairs.</param>
+        /// <param name="batchSize">Number of items per batch before flush.</param>
+        /// <param name="progress">Optional progress callback.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Total number of items inserted.</returns>
+        public static async ValueTask<int> StreamingPutAsync(
+            this IKeyValueStore store,
+            IAsyncEnumerable<(byte[] Key, byte[] Value)> items,
+            int batchSize = 1000,
+            Action<int>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (store == null)
+                throw new ArgumentNullException(nameof(store));
+
+            if (items == null)
+                throw new ArgumentNullException(nameof(items));
+
+            if (batchSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be positive.");
+
+            int totalCount = 0;
+            int batchCount = 0;
+
+            await foreach (var (key, value) in items.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                await store.PutAsync(key, value, cancellationToken).ConfigureAwait(false);
+                totalCount++;
+                batchCount++;
+
+                if (batchCount >= batchSize)
+                {
+                    await store.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    progress?.Invoke(totalCount);
+                    batchCount = 0;
+                }
+            }
+
+            // Flush remaining items
+            if (batchCount > 0)
+            {
+                await store.FlushAsync(cancellationToken).ConfigureAwait(false);
+                progress?.Invoke(totalCount);
+            }
+
+            return totalCount;
+        }
+
+        #endregion
+
+        #region Streaming with Transaction
+
+        /// <summary>
+        /// Streams key-value pairs into a transactional store in batched transactions.
+        /// Each batch is committed as a separate transaction for durability and memory management.
+        /// </summary>
+        /// <param name="store">The transactional store.</param>
+        /// <param name="items">The key-value pairs to stream.</param>
+        /// <param name="batchSize">Number of items per transaction.</param>
+        /// <param name="progress">Optional progress callback (called after each commit with total count).</param>
+        /// <returns>Total number of items inserted.</returns>
+        public static int StreamingPutWithTransaction(
+            this ITransactionalStore store,
+            IEnumerable<(byte[] Key, byte[] Value)> items,
+            int batchSize = 1000,
+            Action<int>? progress = null)
+        {
+            if (store == null)
+                throw new ArgumentNullException(nameof(store));
+
+            if (items == null)
+                throw new ArgumentNullException(nameof(items));
+
+            if (batchSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be positive.");
+
+            int totalCount = 0;
+            int batchCount = 0;
+            ITransaction? tx = null;
+
+            try
+            {
+                foreach (var (key, value) in items)
+                {
+                    if (tx == null)
+                    {
+                        tx = store.BeginTransaction();
+                    }
+
+                    tx.Put(key, value);
+                    totalCount++;
+                    batchCount++;
+
+                    if (batchCount >= batchSize)
+                    {
+                        tx.Commit();
+                        tx.Dispose();
+                        tx = null;
+                        progress?.Invoke(totalCount);
+                        batchCount = 0;
+                    }
+                }
+
+                // Commit remaining items
+                if (tx != null)
+                {
+                    tx.Commit();
+                    progress?.Invoke(totalCount);
+                }
+            }
+            finally
+            {
+                tx?.Dispose();
+            }
+
+            return totalCount;
         }
 
         #endregion
