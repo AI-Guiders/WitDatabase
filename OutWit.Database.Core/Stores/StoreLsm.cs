@@ -666,9 +666,12 @@ namespace OutWit.Database.Core.Stores
                 m_immutableMemTable?.Dispose();
                 m_wal?.Dispose();
 
-                m_sstableLock.EnterWriteLock();
+                // Try to acquire write lock with timeout to close SSTables
+                // If we can't get the lock, readers are still active - we'll dispose anyway
+                var lockAcquired = false;
                 try
                 {
+                    lockAcquired = m_sstableLock.TryEnterWriteLock(TimeSpan.FromSeconds(1));
                     foreach (var sst in m_sstables)
                     {
                         sst.Dispose();
@@ -677,11 +680,30 @@ namespace OutWit.Database.Core.Stores
                 }
                 finally
                 {
-                    m_sstableLock.ExitWriteLock();
+                    if (lockAcquired)
+                    {
+                        m_sstableLock.ExitWriteLock();
+                    }
                 }
             }
 
-            m_sstableLock.Dispose();
+            // Dispose lock only if no one is using it
+            // Check if we can safely dispose (no active readers/writers)
+            try
+            {
+                if (m_sstableLock.CurrentReadCount == 0 && 
+                    !m_sstableLock.IsReadLockHeld && 
+                    !m_sstableLock.IsWriteLockHeld)
+                {
+                    m_sstableLock.Dispose();
+                }
+            }
+            catch (SynchronizationLockException)
+            {
+                // Lock is still in use by other threads - don't dispose it
+                // This can happen in concurrent scenarios
+            }
+
             m_blockCache?.Dispose();
         }
 

@@ -353,7 +353,6 @@ namespace OutWit.Database.Core.Tests.LSM
         }
 
         [Test]
-        [Explicit]
         public void LsmTreeConcurrentReadWriteTest()
         {
             var dir = Path.Combine(m_testDir, "concurrent_rw");
