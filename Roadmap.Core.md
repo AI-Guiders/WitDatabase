@@ -1,6 +1,6 @@
 # OutWit.Database.Core - Roadmap
 
-**Version:** 1.8  
+**Version:** 1.9  
 **Based on:** OutWit.Database.Core.TODO.md  
 **Last Updated:** 2025-01-17
 
@@ -30,8 +30,9 @@
 | Encryption | 3 | 0 | 100% |
 | Crash Recovery | 3 | 0 | 100% |
 | Basic Concurrency | 4 | 0 | 100% |
-| Isolation Levels + MVCC | 4 | 0 | 100% |
+| Isolation Levels + MVCC | 5 | 0 | 100% |
 | Row-level Locks | 4 | 0 | 100% |
+| Transaction Wait Queue | 4 | 0 | 100% |
 | Savepoints | 4 | 0 | 100% |
 | Multiple Result Sets | 3 | 0 | 100% |
 | Cursor Support | 0 | 4 | 0% - v2 |
@@ -44,7 +45,64 @@
 | Concurrent Transactions | 3 | 0 | 100% |
 | ROWVERSION | 3 | 0 | 100% |
 | MVCC Garbage Collection | 2 | 0 | 100% |
-| **TOTAL** | **62** | **9** | **87%** |
+| **TOTAL** | **66** | **9** | **88%** |
+
+---
+
+## Recent Changes (v1.9)
+
+### Transaction Wait Queue [x]
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `TransactionPriority` | [x] | Low, Normal, High, Critical priorities |
+| `TransactionWaitQueueOptions` | [x] | Configuration options |
+| `TransactionWaitQueue` | [x] | Priority-based wait queue |
+| Writer priority | [x] | Writers processed before readers |
+| FIFO/LIFO ordering | [x] | Configurable ordering within priority |
+| Timeout support | [x] | Configurable wait timeout |
+| Max queue size | [x] | Prevent queue overflow |
+| Async wait | [x] | `EnqueueAndWaitAsync` method |
+
+```csharp
+// Create wait queue with options
+var options = new TransactionWaitQueueOptions
+{
+    WriterPriority = true,
+    DefaultTimeout = TimeSpan.FromSeconds(30),
+    UseFifoOrdering = true,
+    MaxWaitingTransactions = 1000
+};
+
+using var queue = new TransactionWaitQueue(options);
+
+// Enqueue and wait synchronously
+var result = queue.EnqueueAndWait(
+    transactionId: 1,
+    isWriter: true,
+    priority: TransactionPriority.High,
+    timeout: TimeSpan.FromSeconds(5));
+
+// Enqueue and wait asynchronously
+var result = await queue.EnqueueAndWaitAsync(
+    transactionId: 2,
+    isWriter: false,
+    priority: TransactionPriority.Normal,
+    cancellationToken: ct);
+
+// Signal next transaction
+var signaled = queue.SignalNext();
+
+// Signal specific transaction
+queue.Signal(transactionId);
+
+// Signal all waiting
+var count = queue.SignalAll();
+
+// Query
+var waiting = queue.GetWaitingTransactions();
+var position = queue.GetPosition(transactionId);
+```
 
 ---
 
