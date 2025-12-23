@@ -38,6 +38,7 @@ namespace OutWit.Database.Core.Transactions
         private readonly TransactionTimestampManager m_timestampManager;
         private readonly LockManager? m_lockManager;
         private readonly bool m_ownsStore;
+        private readonly IsolationLevel m_defaultIsolationLevel;
         private readonly object m_txLock = new();
         private readonly HashSet<MvccTransaction> m_activeTransactions = new();
         private long m_nextTransactionId = 1;
@@ -53,7 +54,7 @@ namespace OutWit.Database.Core.Transactions
         /// <param name="innerStore">The underlying key-value store.</param>
         /// <param name="ownsStore">If true, disposes the store when this is disposed.</param>
         public MvccTransactionalStore(IKeyValueStore innerStore, bool ownsStore = true)
-            : this(innerStore, lockManager: null, ownsStore)
+            : this(innerStore, lockManager: null, DEFAULT_ISOLATION_LEVEL, ownsStore)
         {
         }
 
@@ -64,6 +65,22 @@ namespace OutWit.Database.Core.Transactions
         /// <param name="lockManager">Lock manager for write serialization (null = no locking).</param>
         /// <param name="ownsStore">If true, disposes the store when this is disposed.</param>
         public MvccTransactionalStore(IKeyValueStore innerStore, LockManager? lockManager, bool ownsStore = true)
+            : this(innerStore, lockManager, DEFAULT_ISOLATION_LEVEL, ownsStore)
+        {
+        }
+
+        /// <summary>
+        /// Creates an MVCC transactional store with optional lock manager and custom default isolation level.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store.</param>
+        /// <param name="lockManager">Lock manager for write serialization (null = no locking).</param>
+        /// <param name="defaultIsolationLevel">Default isolation level for transactions.</param>
+        /// <param name="ownsStore">If true, disposes the store when this is disposed.</param>
+        public MvccTransactionalStore(
+            IKeyValueStore innerStore, 
+            LockManager? lockManager, 
+            IsolationLevel defaultIsolationLevel,
+            bool ownsStore = true)
         {
             if (innerStore == null)
                 throw new ArgumentNullException(nameof(innerStore));
@@ -72,6 +89,7 @@ namespace OutWit.Database.Core.Transactions
             m_mvccStore = new MvccKeyValueStore(innerStore, m_timestampManager, ownsStore);
             m_lockManager = lockManager;
             m_ownsStore = ownsStore;
+            m_defaultIsolationLevel = defaultIsolationLevel;
         }
 
         /// <summary>
@@ -86,11 +104,30 @@ namespace OutWit.Database.Core.Transactions
             TransactionTimestampManager timestampManager,
             LockManager? lockManager = null,
             bool ownsStore = true)
+            : this(mvccStore, timestampManager, lockManager, DEFAULT_ISOLATION_LEVEL, ownsStore)
+        {
+        }
+
+        /// <summary>
+        /// Creates an MVCC transactional store with an existing MVCC store and custom default isolation level.
+        /// </summary>
+        /// <param name="mvccStore">The MVCC key-value store.</param>
+        /// <param name="timestampManager">The timestamp manager.</param>
+        /// <param name="lockManager">Lock manager for write serialization (null = no locking).</param>
+        /// <param name="defaultIsolationLevel">Default isolation level for transactions.</param>
+        /// <param name="ownsStore">If true, disposes the store when this is disposed.</param>
+        public MvccTransactionalStore(
+            MvccKeyValueStore mvccStore,
+            TransactionTimestampManager timestampManager,
+            LockManager? lockManager,
+            IsolationLevel defaultIsolationLevel,
+            bool ownsStore = true)
         {
             m_mvccStore = mvccStore ?? throw new ArgumentNullException(nameof(mvccStore));
             m_timestampManager = timestampManager ?? throw new ArgumentNullException(nameof(timestampManager));
             m_lockManager = lockManager;
             m_ownsStore = ownsStore;
+            m_defaultIsolationLevel = defaultIsolationLevel;
         }
 
         #endregion
@@ -100,7 +137,7 @@ namespace OutWit.Database.Core.Transactions
         /// <inheritdoc/>
         public ITransaction BeginTransaction()
         {
-            return BeginTransaction(DEFAULT_ISOLATION_LEVEL);
+            return BeginTransaction(m_defaultIsolationLevel);
         }
 
         /// <inheritdoc/>
@@ -134,7 +171,7 @@ namespace OutWit.Database.Core.Transactions
         /// <inheritdoc/>
         public ValueTask<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
-            return BeginTransactionAsync(DEFAULT_ISOLATION_LEVEL, cancellationToken);
+            return BeginTransactionAsync(m_defaultIsolationLevel, cancellationToken);
         }
 
         /// <inheritdoc/>

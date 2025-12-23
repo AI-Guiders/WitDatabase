@@ -2,6 +2,7 @@ using OutWit.Database.Core.Indexes;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.Providers;
 using OutWit.Database.Core.Storage;
+using OutWit.Database.Core.Transactions;
 
 namespace OutWit.Database.Core.Builder;
 
@@ -71,6 +72,13 @@ public sealed class WitDatabase : IDisposable
         {
             return ts.UnderlyingStore;
         }
+        
+        // If it's an MVCC transactional store, get the inner MVCC store
+        if (store is Transactions.MvccTransactionalStore mvccTs)
+        {
+            return mvccTs.MvccStore.InnerStore;
+        }
+        
         return store;
     }
 
@@ -452,6 +460,22 @@ public sealed class WitDatabase : IDisposable
     }
 
     /// <summary>
+    /// Begins a lightweight read-only transaction with snapshot isolation.
+    /// Read-only transactions don't require locks and can run concurrently.
+    /// </summary>
+    /// <returns>An MVCC transaction in read-only mode.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if MVCC is not enabled.</exception>
+    public IMvccTransaction BeginReadOnlyTransaction()
+    {
+        ThrowIfDisposed();
+        if (m_transactionalStore is not MvccTransactionalStore mvccStore)
+            throw new InvalidOperationException(
+                "Read-only transactions require MVCC. Use WithMvcc() when building the database.");
+        
+        return mvccStore.BeginReadOnlyTransaction();
+    }
+
+    /// <summary>
     /// Begins a new transaction asynchronously with default isolation level.
     /// </summary>
     public ValueTask<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
@@ -604,6 +628,12 @@ public sealed class WitDatabase : IDisposable
     /// Gets whether transaction support is enabled.
     /// </summary>
     public bool SupportsTransactions => m_transactionalStore != null;
+
+    /// <summary>
+    /// Gets whether MVCC (Multi-Version Concurrency Control) is enabled.
+    /// When true, supports read-only transactions and snapshot isolation.
+    /// </summary>
+    public bool SupportsMvcc => m_transactionalStore is MvccTransactionalStore;
 
     /// <summary>
     /// Gets the number of active transactions (if transactions are supported).

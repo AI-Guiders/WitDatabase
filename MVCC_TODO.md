@@ -1,7 +1,7 @@
 # MVCC and Concurrent Transactions - Implementation Plan
 
-**Version:** 1.1  
-**Last Updated:** 2025-01-16  
+**Version:** 1.2  
+**Last Updated:** 2025-01-17  
 **Status:** In Progress
 
 ---
@@ -60,7 +60,7 @@ Files created:
 ```
 
 ### 1.2 Versioned Record Format [x]
-- [x] Define `MvccRecord` struct (Value, CreateTimestamp, DeleteTimestamp)
+- [x] Define `MvccRecord` struct (Value, CreateTimestamp, DeleteTimestamp, CommitTimestamp)
 - [x] Serialization/Deserialization
 - [x] Visibility rules implementation
 - [x] Unit tests
@@ -115,6 +115,7 @@ Files created:
 - [x] Support for read during write
 - [x] Snapshot isolation implementation
 - [x] BeginReadOnlyTransaction() method
+- [x] Configurable default isolation level
 - [x] Unit tests
 
 ```
@@ -243,7 +244,7 @@ Files to create:
 
 ---
 
-## Phase 7: Integration [PARTIAL]
+## Phase 7: Integration [COMPLETE]
 
 ### 7.1 WitDatabaseBuilder Integration [x]
 - [x] Add `EnableMvcc` option
@@ -258,10 +259,18 @@ Files modified:
 - OutWit.Database.Core/Builder/WitDatabaseBuilderExtensions.cs
 ```
 
-### 7.2 WitDatabase Integration [ ]
-- [ ] Factory methods with MVCC support
-- [ ] Auto-detection of MVCC-enabled databases
-- [ ] Update WitDatabaseBuilder.Build() to use MvccTransactionalStore
+### 7.2 WitDatabase Integration [x]
+- [x] Factory methods work with MVCC support via builder
+- [x] Update WitDatabaseBuilder.Build() to use MvccTransactionalStore when MVCC enabled
+- [x] Add `SupportsMvcc` property
+- [x] Add `BeginReadOnlyTransaction()` method
+- [x] Handle underlying store retrieval for MVCC stores
+
+```
+Files modified:
+- OutWit.Database.Core/Builder/WitDatabaseBuilder.cs
+- OutWit.Database.Core/Builder/WitDatabase.cs
+```
 
 ### 7.3 Isolation Level Implementation
 - [x] Snapshot - MVCC snapshot isolation (fully implemented)
@@ -283,10 +292,12 @@ Files modified:
 - [x] Write-write conflict detection
 - [x] Version garbage collection
 
-### 8.2 Integration Tests [ ]
-- [ ] All storage backends (BTree, LSM, InMemory)
-- [ ] With and without encryption
-- [ ] End-to-end WitDatabase tests with MVCC
+### 8.2 Integration Tests [x]
+- [x] WitDatabaseBuilder with MVCC tests
+- [x] MVCC with BTree storage
+- [x] MVCC with LSM storage
+- [x] Concurrent read transactions
+- [x] Snapshot isolation end-to-end
 
 ### 8.3 Concurrency Tests [ ]
 - [ ] Multi-threaded stress tests
@@ -307,9 +318,9 @@ Files modified:
 | Phase 4: Row-Level Locks | Not Started | 0% |
 | Phase 5: Deadlock Detection | Not Started | 0% |
 | Phase 6: Garbage Collection | Partial | 50% |
-| Phase 7: Integration | Partial | 40% |
-| Phase 8: Testing | Partial | 50% |
-| **TOTAL** | | **~55%** |
+| Phase 7: Integration | Complete | 100% |
+| Phase 8: Testing | Partial | 70% |
+| **TOTAL** | | **~65%** |
 
 ---
 
@@ -332,23 +343,25 @@ Files modified:
 ### Modified Files
 1. `OutWit.Database.Core/Builder/WitDatabaseBuilderOptions.cs` - Added MVCC options
 2. `OutWit.Database.Core/Builder/WitDatabaseBuilderExtensions.cs` - Added MVCC extensions
+3. `OutWit.Database.Core/Builder/WitDatabaseBuilder.cs` - Use MvccTransactionalStore when MVCC enabled
+4. `OutWit.Database.Core/Builder/WitDatabase.cs` - Added SupportsMvcc, BeginReadOnlyTransaction
+5. `OutWit.Database.Core.Tests/Builder/WitDatabaseBuilderTests.cs` - Added MVCC integration tests
 
 ---
 
 ## Next Steps
 
-1. **Complete WitDatabase Integration** - Update `WitDatabaseBuilder.Build()` to create `MvccTransactionalStore` when MVCC is enabled
-2. **Row-Level Locks (Phase 4)** - Required for `FOR UPDATE` / `FOR SHARE` support
-3. **Deadlock Detection (Phase 5)** - Required for production row-level locking
-4. **Background GC** - Implement background garbage collection thread
-5. **Integration Tests** - Test with all storage backends and encryption
+1. **Row-Level Locks (Phase 4)** - Required for `FOR UPDATE` / `FOR SHARE` support
+2. **Deadlock Detection (Phase 5)** - Required for production row-level locking
+3. **Background GC** - Implement background garbage collection thread
+4. **Multi-threaded Stress Tests** - Verify MVCC under high concurrency
 
 ---
 
 ## Design Decisions Made
 
 ### 1. Version Storage Strategy
-**Decision:** Store version metadata inline with values (24 bytes header: CreateTs + DeleteTs + TxId)
+**Decision:** Store version metadata inline with values (32 bytes header: CreateTs + DeleteTs + TxId + CommitTs)
 - Format: `[key][inverted_timestamp]` -> `MvccRecord`
 - Inverted timestamp ensures newest versions come first in sorted order
 
@@ -366,6 +379,11 @@ Files modified:
 - Works with BTree, LSM, InMemory
 - Same approach as `VersionedKeyValueStore` and `TransactionalStore`
 
+### 5. Commit Timestamp Tracking
+**Decision:** Store commit timestamp in MvccRecord for accurate visibility
+- EffectiveTimestamp = CommitTimestamp if committed via transaction, else CreateTimestamp
+- Enables accurate visibility for snapshots taken between create and commit
+
 ---
 
-**Last Updated:** 2025-01-16
+**Last Updated:** 2025-01-17

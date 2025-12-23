@@ -248,6 +248,16 @@ public sealed class WitDatabaseBuilder
         {
             lockManager = new LockManager(Options.LockTimeout);
         }
+
+        // Use MVCC transactional store when enabled
+        if (Options.EnableMvcc)
+        {
+            return new MvccTransactionalStore(
+                store, 
+                lockManager, 
+                Options.DefaultIsolationLevel,
+                ownsStore: true);
+        }
         
         return new TransactionalStore(
             store, 

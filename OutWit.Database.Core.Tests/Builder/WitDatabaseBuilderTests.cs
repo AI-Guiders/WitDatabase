@@ -657,6 +657,208 @@ public class WitDatabaseBuilderTests
 
     #endregion
 
+    #region MVCC Tests
+
+    [Test]
+    public void MemoryBTreeWithMvccTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc()
+            .Build();
+
+        Assert.That(db.SupportsTransactions, Is.True);
+        Assert.That(db.SupportsMvcc, Is.True);
+
+        using (var tx = db.BeginTransaction())
+        {
+            tx.Put("key1"u8, "value1"u8);
+            tx.Commit();
+        }
+
+        var value = db.Get("key1"u8);
+        Assert.That(value, Is.EqualTo("value1"u8.ToArray()));
+    }
+
+    [Test]
+    public void MvccReadOnlyTransactionTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc()
+            .Build();
+
+        db.Put("key1"u8, "value1"u8);
+
+        var readTx = db.BeginReadOnlyTransaction();
+        
+        var value = readTx.Get("key1"u8);
+        Assert.That(value, Is.EqualTo("value1"u8.ToArray()));
+        Assert.That(readTx.IsReadOnly, Is.True);
+        
+        readTx.Dispose();
+    }
+
+    [Test]
+    public void MvccConcurrentReadTransactionsTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc()
+            .Build();
+
+        db.Put("key1"u8, "value1"u8);
+
+        // Start multiple read transactions concurrently
+        var readTx1 = db.BeginReadOnlyTransaction();
+        var readTx2 = db.BeginReadOnlyTransaction();
+        var readTx3 = db.BeginReadOnlyTransaction();
+
+        // All should see the same data
+        Assert.That(readTx1.Get("key1"u8), Is.EqualTo("value1"u8.ToArray()));
+        Assert.That(readTx2.Get("key1"u8), Is.EqualTo("value1"u8.ToArray()));
+        Assert.That(readTx3.Get("key1"u8), Is.EqualTo("value1"u8.ToArray()));
+
+        readTx1.Dispose();
+        readTx2.Dispose();
+        readTx3.Dispose();
+    }
+
+    [Test]
+    public void MvccSnapshotIsolationTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc()
+            .Build();
+
+        db.Put("key1"u8, "v1"u8);
+
+        // Start read transaction - takes snapshot
+        var readTx = db.BeginReadOnlyTransaction();
+        Assert.That(readTx.Get("key1"u8), Is.EqualTo("v1"u8.ToArray()));
+
+        // Commit new value outside the read transaction
+        db.Put("key1"u8, "v2"u8);
+
+        // Read transaction still sees old value (snapshot isolation)
+        Assert.That(readTx.Get("key1"u8), Is.EqualTo("v1"u8.ToArray()));
+
+        readTx.Dispose();
+
+        // New read sees updated value
+        Assert.That(db.Get("key1"u8), Is.EqualTo("v2"u8.ToArray()));
+    }
+
+    [Test]
+    public void MvccReadDuringWriteTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc()
+            .Build();
+
+        db.Put("key1"u8, "initial"u8);
+
+        // Start write transaction
+        using var writeTx = db.BeginTransaction();
+        writeTx.Put("key1"u8, "new-value"u8);
+
+        // Start read transaction during write
+        var readTx = db.BeginReadOnlyTransaction();
+
+        // Read should see old value (snapshot isolation)
+        Assert.That(readTx.Get("key1"u8), Is.EqualTo("initial"u8.ToArray()));
+
+        writeTx.Commit();
+
+        // Read transaction still sees old value (its snapshot)
+        Assert.That(readTx.Get("key1"u8), Is.EqualTo("initial"u8.ToArray()));
+
+        readTx.Dispose();
+    }
+
+    [Test]
+    public void MvccWithCustomIsolationLevelTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc(IsolationLevel.Serializable)
+            .Build();
+
+        Assert.That(db.SupportsMvcc, Is.True);
+
+        using var tx = db.BeginTransaction();
+        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+        tx.Rollback();
+    }
+
+    [Test]
+    public void MvccLsmTreeTest()
+    {
+        var lsmDir = Path.Combine(m_testDir, "lsm_mvcc");
+
+        using var db = new WitDatabaseBuilder()
+            .WithLsmTree(lsmDir)
+            .WithMvcc()
+            .Build();
+
+        Assert.That(db.SupportsMvcc, Is.True);
+
+        db.Put("key1"u8, "value1"u8);
+
+        var readTx = db.BeginReadOnlyTransaction();
+        Assert.That(readTx.Get("key1"u8), Is.EqualTo("value1"u8.ToArray()));
+        readTx.Dispose();
+    }
+
+    [Test]
+    public void BeginReadOnlyTransactionWithoutMvccThrowsTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithTransactions() // Regular transactions, not MVCC
+            .Build();
+
+        Assert.That(db.SupportsMvcc, Is.False);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => db.BeginReadOnlyTransaction());
+        Assert.That(ex!.Message, Does.Contain("MVCC"));
+    }
+
+    [Test]
+    public void MvccActiveTransactionCountTest()
+    {
+        using var db = new WitDatabaseBuilder()
+            .WithMemoryStorage()
+            .WithBTree()
+            .WithMvcc()
+            .Build();
+
+        Assert.That(db.ActiveTransactionCount, Is.EqualTo(0));
+
+        var tx1 = db.BeginTransaction();
+        Assert.That(db.ActiveTransactionCount, Is.EqualTo(1));
+
+        var tx2 = db.BeginReadOnlyTransaction();
+        Assert.That(db.ActiveTransactionCount, Is.EqualTo(2));
+
+        tx1.Commit();
+        Assert.That(db.ActiveTransactionCount, Is.EqualTo(1));
+
+        tx2.Dispose();
+        Assert.That(db.ActiveTransactionCount, Is.EqualTo(0));
+    }
+
+    #endregion
+
     #region Helper class for tests
 
     private class StoreInMemory : IKeyValueStore

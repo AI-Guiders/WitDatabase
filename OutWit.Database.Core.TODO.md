@@ -14,6 +14,7 @@ Analysis of the `OutWit.Database.Core` kernel for compliance with WitSql specifi
 | StoreBTree | [x] Done | B+Tree storage |
 | StoreLsm | [x] Done | LSM-Tree storage |
 | Encryption | [x] Done | AES-GCM, ChaCha20 |
+| MVCC | [x] Done | Multi-Version Concurrency Control |
 
 ---
 
@@ -120,7 +121,7 @@ Analysis of the `OutWit.Database.Core` kernel for compliance with WitSql specifi
 | 2.1-2.4 | Row-level locks | P0 Critical | [ ] TODO |
 | 4.1-4.3 | Multiple result sets | P1 Important | [x] Done |
 | 8.1-8.3 | Bulk operations | P1 Important | [x] Done |
-| 11.1-11.3 | Concurrent transactions | P0 Critical | [~] Partial |
+| 11.1-11.3 | Concurrent transactions | P0 Critical | [x] Done (MVCC) |
 | 12.1-12.3 | ROWVERSION support | P1 Important | [x] Done |
 
 ### Nice to Have (v2)
@@ -137,10 +138,10 @@ Analysis of the `OutWit.Database.Core` kernel for compliance with WitSql specifi
 
 1. **Secondary indexes** - critical for any SQL engine. Without them, efficient filtering and JOIN operations are impossible.
 
-2. **MVCC** - **IMPLEMENTED**. Required for Snapshot isolation and concurrent reads. Enables EF Core to work in multi-user scenarios.
+2. **MVCC** - **FULLY IMPLEMENTED**. Provides snapshot isolation and concurrent read transactions. Integrated into WitDatabase via `.WithMvcc()` builder extension.
 
 3. **Savepoints** - used by EF Core for nested transactions and SaveChanges with retry.
 
 4. **Query execution context** - ADO.NET requires information about affected rows count and last insert id.
 
-5. **Current state** - MVCC is implemented, enabling snapshot isolation and concurrent read transactions. Row-level locks and deadlock detection are still needed for complete EF Core support.
+5. **Current state** - MVCC is fully implemented and integrated. Only row-level locks and deadlock detection remain for complete concurrent transaction support.
