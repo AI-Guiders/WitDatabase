@@ -19,6 +19,7 @@ Current BTree implementation uses synchronous I/O operations internally, which c
 - ? Page cache async methods (GetPageAsync, CreatePageAsync, EvictAsync)
 - ? Node splits/merges now have async versions
 - ? StoreBTree async methods use true async BTree operations
+- ? TransactionalStore async operations use true async store operations
 
 ---
 
@@ -94,24 +95,39 @@ Current BTree implementation uses synchronous I/O operations internally, which c
 
 ---
 
-## Phase 6: Async Transactions (Priority: MEDIUM) ? PENDING
+## Phase 6: Async Transactions (Priority: MEDIUM) ? COMPLETED
 
-### 6.1 TransactionalStore async operations
-- [ ] Ensure `ITransaction.Put/Delete` work with async BTree
-- [ ] Add async commit/rollback if needed
+### 6.1 TransactionalStore async operations ?
+- `GetAsync` ? uses `m_store.GetAsync()`
+- `PutAsync` ? uses `m_store.GetAsync()` + `m_store.PutAsync()`
+- `DeleteAsync` ? uses `m_store.GetAsync()` + `m_store.DeleteAsync()`
+- `ScanAsync` ? uses `m_store.ScanAsync()` (IAsyncEnumerable)
 
-### Files to modify:
-- `OutWit.Database.Core\Transactions\TransactionalStore.cs`
-- `OutWit.Database.Core\Transactions\Transaction.cs`
+### 6.2 Transaction async operations ?
+- `GetAsync` ? uses `m_store.GetFromStoreAsync()`
+- `CommitAsync` ? uses `m_store.PutToStoreAsync()` / `m_store.DeleteFromStoreAsync()`
+- Internal store methods for async access
+
+### 6.3 Tests ? - 18 tests passing
+
+### Files modified:
+- `OutWit.Database.Core\Transactions\TransactionalStore.cs` ?
+- `OutWit.Database.Core\Transactions\Transaction.cs` ?
+- `OutWit.Database.Core.Tests\Transactions\TransactionalStoreAsyncTests.cs` ? (NEW)
+
+### Note on MvccTransactionalStore:
+MvccTransaction uses in-memory MVCC versioning structures, so sync operations are acceptable.
+For full WASM support, the primary path is TransactionalStore (not MVCC).
 
 ---
 
-## Phase 7: Testing (Priority: HIGH) ? PARTIAL COMPLETE
+## Phase 7: Testing (Priority: HIGH) ? COMPLETED
 
 ### 7.1 Unit tests for async operations
 - [x] `PageCacheAsyncTests.cs` - 19 tests ?
 - [x] `BTreeAsyncTests.cs` - 16 tests ?
 - [x] `StoreBTreeAsyncTests.cs` - existing tests pass with updated async ?
+- [x] `TransactionalStoreAsyncTests.cs` - 18 tests ? (NEW)
 
 ### 7.2 Integration tests (pending)
 - [ ] Test in actual Blazor WASM environment
@@ -120,6 +136,7 @@ Current BTree implementation uses synchronous I/O operations internally, which c
 ### Files created:
 - `OutWit.Database.Core.Tests\Cache\PageCacheAsyncTests.cs` ?
 - `OutWit.Database.Core.Tests\Tree\BTreeAsyncTests.cs` ?
+- `OutWit.Database.Core.Tests\Transactions\TransactionalStoreAsyncTests.cs` ?
 
 ---
 
@@ -142,13 +159,13 @@ Both sync and async APIs available for backward compatibility.
 | Phase 3 | ? Complete | 16/16 |
 | Phase 4 | ? Complete | 37/37 |
 | Phase 5 | ? Complete | - |
-| Phase 6 | ? Pending | - |
-| Phase 7 | ? Partial | 35 tests |
+| Phase 6 | ? Complete | 18/18 |
+| Phase 7 | ? Complete | 53 tests |
 | Phase 8 | ? Pending | - |
 
-**Total Tests:** 1894 passing (all platforms)
+**Total Tests:** 1912 passing (all platforms)
 **BTree-specific Tests:** 257 passing
-**New Async Tests:** 35 (19 + 16)
+**New Async Tests:** 53 (19 + 16 + 18)
 
 ---
 
@@ -161,10 +178,10 @@ Both sync and async APIs available for backward compatibility.
 | Phase 3 | High | 8-12 hours | ~4 hours ? |
 | Phase 4 | Low | 1-2 hours | ~30 min ? |
 | Phase 5 | Medium | 3-4 hours | ~1 hour ? |
-| Phase 6 | Medium | 4-6 hours | - |
-| Phase 7 | Medium | 6-8 hours | ~2.5 hours ? |
+| Phase 6 | Medium | 4-6 hours | ~1 hour ? |
+| Phase 7 | Medium | 6-8 hours | ~3 hours ? |
 | Phase 8 | Low | 2-3 hours | - |
-| **Total** | | **30-44 hours** | ~12 hours done |
+| **Total** | | **30-44 hours** | ~13.5 hours done |
 
 ---
 
@@ -181,6 +198,11 @@ Both sync and async APIs available for backward compatibility.
 ## API Summary for WASM Usage
 
 ```csharp
+// Create database asynchronously (required for WASM)
+var db = await new WitDatabaseBuilder()
+    .WithIndexedDb(jsRuntime, "mydb")
+    .BuildAsync();
+
 // Create store asynchronously (required for WASM)
 await using var store = await StoreBTree.CreateAsync(storage);
 
@@ -197,3 +219,18 @@ await foreach (var (k, v) in store.ScanAsync(start, end, ct))
 }
 
 await store.FlushAsync(ct);
+
+// Transactions with async operations
+await using var tx = await db.BeginTransactionAsync();
+await tx.PutAsync(key, value);
+var val = await tx.GetAsync(key);
+await tx.CommitAsync();
+```
+
+---
+
+## Remaining Work
+
+1. **Phase 8: API Design** - Storage capability detection, builder helpers
+2. **Integration Testing** - Test in actual Blazor WASM environment
+3. **Documentation** - Update README with WASM usage examples

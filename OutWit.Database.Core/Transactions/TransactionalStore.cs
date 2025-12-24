@@ -209,8 +209,9 @@ public sealed class TransactionalStore : ITransactionalStore
             ? await m_lockManager.AcquireWriteLockAsync(cancellationToken).ConfigureAwait(false)
             : null;
 
+        var oldValue = await m_store.GetAsync(key, cancellationToken).ConfigureAwait(false);
         m_journal?.BeginTransaction(0);
-        m_journal?.LogPut(0, key, value, m_store.Get(key) ?? ReadOnlySpan<byte>.Empty);
+        m_journal?.LogPut(0, key, value, oldValue ?? []);
         await m_store.PutAsync(key, value, cancellationToken).ConfigureAwait(false);
         m_journal?.CommitTransaction(0);
     }
@@ -244,9 +245,9 @@ public sealed class TransactionalStore : ITransactionalStore
             ? await m_lockManager.AcquireWriteLockAsync(cancellationToken).ConfigureAwait(false)
             : null;
 
-        var oldValue = m_store.Get(key);
+        var oldValue = await m_store.GetAsync(key, cancellationToken).ConfigureAwait(false);
         m_journal?.BeginTransaction(0);
-        m_journal?.LogDelete(0, key, oldValue ?? ReadOnlySpan<byte>.Empty);
+        m_journal?.LogDelete(0, key, oldValue ?? []);
         var result = await m_store.DeleteAsync(key, cancellationToken).ConfigureAwait(false);
         m_journal?.CommitTransaction(0);
         return result;
@@ -269,7 +270,6 @@ public sealed class TransactionalStore : ITransactionalStore
         return m_store.Scan(startKey, endKey).ToList();
     }
 
-
     /// <inheritdoc/>
     public async IAsyncEnumerable<(byte[] Key, byte[] Value)> ScanAsync(
         byte[]? startKey,
@@ -278,23 +278,22 @@ public sealed class TransactionalStore : ITransactionalStore
     {
         ThrowIfDisposed();
 
-        // Materialize under lock
-        List<(byte[] Key, byte[] Value)> results;
-
+        // For WASM compatibility, use async scan with lock held during iteration
         if (m_lockManager != null)
         {
             await using var _ = await m_lockManager.AcquireReadLockAsync(cancellationToken).ConfigureAwait(false);
-            results = m_store.Scan(startKey, endKey).ToList();
+            
+            await foreach (var item in m_store.ScanAsync(startKey, endKey, cancellationToken).ConfigureAwait(false))
+            {
+                yield return item;
+            }
         }
         else
         {
-            results = m_store.Scan(startKey, endKey).ToList();
-        }
-
-        foreach (var item in results)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return item;
+            await foreach (var item in m_store.ScanAsync(startKey, endKey, cancellationToken).ConfigureAwait(false))
+            {
+                yield return item;
+            }
         }
     }
 
@@ -354,6 +353,16 @@ public sealed class TransactionalStore : ITransactionalStore
     internal byte[]? GetFromStore(ReadOnlySpan<byte> key) => m_store.Get(key);
     internal void PutToStore(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value) => m_store.Put(key, value);
     internal bool DeleteFromStore(ReadOnlySpan<byte> key) => m_store.Delete(key);
+
+    // Internal async methods for Transaction class (WASM-compatible)
+    internal ValueTask<byte[]?> GetFromStoreAsync(byte[] key, CancellationToken cancellationToken = default)
+        => m_store.GetAsync(key, cancellationToken);
+
+    internal ValueTask PutToStoreAsync(byte[] key, byte[] value, CancellationToken cancellationToken = default)
+        => m_store.PutAsync(key, value, cancellationToken);
+
+    internal ValueTask<bool> DeleteFromStoreAsync(byte[] key, CancellationToken cancellationToken = default)
+        => m_store.DeleteAsync(key, cancellationToken);
 
     internal void NotifyTransactionComplete(Transaction tx)
     {

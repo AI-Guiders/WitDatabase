@@ -101,12 +101,23 @@ namespace OutWit.Database.Core.Transactions
             return m_store.GetFromStore(key);
         }
 
-
         /// <inheritdoc/>
-        public ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken cancellationToken = default)
+        public async ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken cancellationToken = default)
         {
+            ThrowIfNotActive();
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(Get(key));
+
+            if (m_changes.TryGetValue(key, out var value))
+            {
+                return value.NewValue;
+            }
+
+            if (m_deletedKeys.Contains(key))
+            {
+                return null;
+            }
+
+            return await m_store.GetFromStoreAsync(key, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
@@ -316,11 +327,11 @@ namespace OutWit.Database.Core.Transactions
 
                     if (newValue == null)
                     {
-                        m_store.DeleteFromStore(key);
+                        await m_store.DeleteFromStoreAsync(key, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        m_store.PutToStore(key, newValue);
+                        await m_store.PutToStoreAsync(key, newValue, cancellationToken).ConfigureAwait(false);
                     }
                 }
 
