@@ -286,19 +286,23 @@ public class PageCacheLruTest
     }
 
     [Test]
-    public void FlushAllAsyncCancellationTest()
+    public async Task FlushAllAsyncCancellationTest()
     {
         using var storage = new StorageMemory(initialPageCount: 5);
         using var cache = new PageCacheLru(storage, maxPages: 10);
         
         var page = cache.GetPage(0);
         page.MarkDirty();
+        cache.ReleasePage(0);
         
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         
-        Assert.ThrowsAsync<OperationCanceledException>(async () => 
+        // CatchAsync catches base type and derived types (TaskCanceledException derives from OperationCanceledException)
+        var ex = Assert.CatchAsync<OperationCanceledException>(async () => 
             await cache.FlushAllAsync(cts.Token));
+        
+        Assert.That(ex, Is.Not.Null);
     }
 
     #endregion

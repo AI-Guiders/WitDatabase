@@ -425,6 +425,62 @@ public sealed class PageManager : IDisposable
     }
 
     /// <summary>
+    /// Frees a page asynchronously, adding it to the free list for later reuse.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="pageNumber">Page number to free</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    public async ValueTask FreePageAsync(uint pageNumber, CancellationToken cancellationToken = default)
+    {
+        uint totalPages;
+        uint firstFreePage;
+        
+        lock (m_lock)
+        {
+            ThrowIfDisposed();
+            ThrowIfNotInitialized();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (pageNumber == 0)
+                throw new ArgumentException("Cannot free page 0 (header page)", nameof(pageNumber));
+
+            if (pageNumber >= m_header.TotalPageCount)
+                throw new ArgumentOutOfRangeException(nameof(pageNumber),
+                    $"Page number {pageNumber} is out of range (total: {m_header.TotalPageCount})");
+
+            totalPages = m_header.TotalPageCount;
+            firstFreePage = m_header.FirstFreePage;
+        }
+
+        // Get the page asynchronously
+        var page = await m_cache.GetPageAsync(pageNumber, cancellationToken).ConfigureAwait(false);
+
+        lock (m_lock)
+        {
+            // Mark as free and point to current head of free list
+            var header = new PageHeader
+            {
+                PageType = PageType.Free,
+                Flags = 0,
+                CellCount = 0,
+                FreeSpaceStart = (ushort)m_storage.PageSize,
+                FragmentedFreeSpace = 0,
+                RightChild = m_header.FirstFreePage,
+                Reserved = 0
+            };
+
+            header.WriteTo(page.Data);
+            page.MarkDirty();
+
+            m_header.FirstFreePage = pageNumber;
+            m_header.FreePageCount++;
+
+            m_cache.ReleasePage(pageNumber);
+            m_headerDirty = true;
+        }
+    }
+
+    /// <summary>
     /// Frees multiple pages at once (more efficient than multiple FreePage calls).
     /// </summary>
     /// <param name="pageNumbers">Page numbers to free</param>
@@ -495,6 +551,30 @@ public sealed class PageManager : IDisposable
                 $"Page number {pageNumber} is out of range (total: {totalPages})");
 
         return m_cache.GetPage(pageNumber);
+    }
+
+    /// <summary>
+    /// Gets a page from cache or storage asynchronously.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="pageNumber">Page number to retrieve</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The cached page</returns>
+    public async ValueTask<CachedPage> GetPageAsync(uint pageNumber, CancellationToken cancellationToken = default)
+    {
+        uint totalPages;
+        lock (m_lock)
+        {
+            ThrowIfDisposed();
+            ThrowIfNotInitialized();
+            totalPages = m_header.TotalPageCount;
+        }
+
+        if (pageNumber >= totalPages)
+            throw new ArgumentOutOfRangeException(nameof(pageNumber),
+                $"Page number {pageNumber} is out of range (total: {totalPages})");
+
+        return await m_cache.GetPageAsync(pageNumber, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

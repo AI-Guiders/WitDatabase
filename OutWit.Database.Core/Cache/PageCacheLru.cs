@@ -33,6 +33,8 @@ public sealed class PageCacheLru : IPageCache
 
     private readonly Lock m_lock = new();
 
+    private readonly SemaphoreSlim m_asyncLock = new(1, 1);
+
     private bool m_disposed;
 
     #endregion
@@ -59,7 +61,7 @@ public sealed class PageCacheLru : IPageCache
 
     #endregion
 
-    #region Functions
+    #region Sync Operations
 
     /// <inheritdoc/>
     public CachedPage GetPage(long pageNumber)
@@ -142,52 +144,6 @@ public sealed class PageCacheLru : IPageCache
         }
     }
 
-    /// <inheritdoc/>
-    public async ValueTask FlushAllAsync(CancellationToken cancellationToken = default)
-    {
-        List<CachedPage> dirtyPages;
-        
-        lock (m_lock)
-        {
-            ThrowIfDisposed();
-            dirtyPages = m_lruList.Where(p => p.IsDirty).ToList();
-            
-            foreach (var page in dirtyPages)
-            {
-                page.IncrementReferenceCount();
-            }
-        }
-
-        try
-        {
-            foreach (var page in dirtyPages)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                
-                if (!page.IsDisposed)
-                {
-                    await m_storage.WritePageAsync(page.PageNumber, page.Memory, cancellationToken).ConfigureAwait(false);
-                    page.ClearDirty();
-                }
-            }
-
-            await m_storage.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            lock (m_lock)
-            {
-                foreach (var page in dirtyPages)
-                {
-                    if (m_cache.ContainsKey(page.PageNumber))
-                    {
-                        page.DecrementReferenceCount();
-                    }
-                }
-            }
-        }
-    }
-
     /// <summary>
     /// Flushes a specific dirty page to storage.
     /// </summary>
@@ -201,47 +157,6 @@ public sealed class PageCacheLru : IPageCache
             {
                 m_storage.WritePage(node.Value.PageNumber, node.Value.ReadOnlyData);
                 node.Value.ClearDirty();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Flushes a specific dirty page to storage asynchronously.
-    /// </summary>
-    public async ValueTask FlushPageAsync(long pageNumber, CancellationToken cancellationToken = default)
-    {
-        CachedPage? pageToFlush = null;
-        
-        lock (m_lock)
-        {
-            ThrowIfDisposed();
-
-            if (m_cache.TryGetValue(pageNumber, out var node) && node.Value.IsDirty)
-            {
-                pageToFlush = node.Value;
-                pageToFlush.IncrementReferenceCount();
-            }
-        }
-
-        if (pageToFlush == null)
-            return;
-
-        try
-        {
-            if (!pageToFlush.IsDisposed)
-            {
-                await m_storage.WritePageAsync(pageToFlush.PageNumber, pageToFlush.Memory, cancellationToken).ConfigureAwait(false);
-                pageToFlush.ClearDirty();
-            }
-        }
-        finally
-        {
-            lock (m_lock)
-            {
-                if (m_cache.ContainsKey(pageNumber))
-                {
-                    pageToFlush.DecrementReferenceCount();
-                }
             }
         }
     }
@@ -280,6 +195,198 @@ public sealed class PageCacheLru : IPageCache
             m_lruList.Clear();
         }
     }
+
+    #endregion
+
+    #region Async Operations
+
+    /// <inheritdoc/>
+    public async ValueTask<CachedPage> GetPageAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+
+            if (m_cache.TryGetValue(pageNumber, out var node))
+            {
+                // Move to front (most recently used)
+                m_lruList.Remove(node);
+                m_lruList.AddFirst(node);
+                node.Value.IncrementReferenceCount();
+                return node.Value;
+            }
+
+            // Need to load from storage asynchronously
+            return await LoadPageAsync(pageNumber, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            m_asyncLock.Release();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<CachedPage> CreatePageAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+
+            if (m_cache.ContainsKey(pageNumber))
+                throw new InvalidOperationException($"Page {pageNumber} already exists in cache");
+
+            await EnsureCapacityAsync(cancellationToken).ConfigureAwait(false);
+
+            var page = new CachedPage(pageNumber, m_storage.PageSize);
+            page.Data.Clear();
+            page.MarkDirty();
+            page.ReferenceCount = 1;
+
+            var node = m_lruList.AddFirst(page);
+            m_cache[pageNumber] = node;
+
+            return page;
+        }
+        finally
+        {
+            m_asyncLock.Release();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask EvictAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+
+            if (m_cache.TryGetValue(pageNumber, out var node))
+            {
+                if (node.Value.ReferenceCount > 0)
+                    throw new InvalidOperationException($"Cannot evict page {pageNumber}: page is pinned (ReferenceCount = {node.Value.ReferenceCount})");
+                    
+                await EvictNodeAsync(node, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            m_asyncLock.Release();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask FlushAllAsync(CancellationToken cancellationToken = default)
+    {
+        List<CachedPage> dirtyPages;
+        
+        await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            dirtyPages = m_lruList.Where(p => p.IsDirty).ToList();
+            
+            foreach (var page in dirtyPages)
+            {
+                page.IncrementReferenceCount();
+            }
+        }
+        finally
+        {
+            m_asyncLock.Release();
+        }
+
+        try
+        {
+            foreach (var page in dirtyPages)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                if (!page.IsDisposed)
+                {
+                    await m_storage.WritePageAsync(page.PageNumber, page.Memory, cancellationToken).ConfigureAwait(false);
+                    page.ClearDirty();
+                }
+            }
+
+            await m_storage.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                foreach (var page in dirtyPages)
+                {
+                    if (m_cache.ContainsKey(page.PageNumber))
+                    {
+                        page.DecrementReferenceCount();
+                    }
+                }
+            }
+            finally
+            {
+                m_asyncLock.Release();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flushes a specific dirty page to storage asynchronously.
+    /// </summary>
+    public async ValueTask FlushPageAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        CachedPage? pageToFlush = null;
+        
+        await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+
+            if (m_cache.TryGetValue(pageNumber, out var node) && node.Value.IsDirty)
+            {
+                pageToFlush = node.Value;
+                pageToFlush.IncrementReferenceCount();
+            }
+        }
+        finally
+        {
+            m_asyncLock.Release();
+        }
+
+        if (pageToFlush == null)
+            return;
+
+        try
+        {
+            if (!pageToFlush.IsDisposed)
+            {
+                await m_storage.WritePageAsync(pageToFlush.PageNumber, pageToFlush.Memory, cancellationToken).ConfigureAwait(false);
+                pageToFlush.ClearDirty();
+            }
+        }
+        finally
+        {
+            await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (m_cache.ContainsKey(pageNumber))
+                {
+                    pageToFlush.DecrementReferenceCount();
+                }
+            }
+            finally
+            {
+                m_asyncLock.Release();
+            }
+        }
+    }
+
+    #endregion
+
+    #region Private Sync Helpers
 
     private void FlushAllInternal()
     {
@@ -338,6 +445,56 @@ public sealed class PageCacheLru : IPageCache
         page.Dispose();
     }
 
+    #endregion
+
+    #region Private Async Helpers
+
+    private async ValueTask<CachedPage> LoadPageAsync(long pageNumber, CancellationToken cancellationToken)
+    {
+        await EnsureCapacityAsync(cancellationToken).ConfigureAwait(false);
+
+        var page = new CachedPage(pageNumber, m_storage.PageSize);
+        await m_storage.ReadPageAsync(pageNumber, page.Memory, cancellationToken).ConfigureAwait(false);
+        page.ReferenceCount = 1;
+
+        var node = m_lruList.AddFirst(page);
+        m_cache[pageNumber] = node;
+
+        return page;
+    }
+
+    private async ValueTask EnsureCapacityAsync(CancellationToken cancellationToken)
+    {
+        while (m_cache.Count >= m_maxPages)
+        {
+            var nodeToEvict = m_lruList.Last;
+
+            while (nodeToEvict != null && nodeToEvict.Value.ReferenceCount > 0)
+            {
+                nodeToEvict = nodeToEvict.Previous;
+            }
+
+            if (nodeToEvict == null)
+                throw new InvalidOperationException("Cache is full and all pages are pinned");
+
+            await EvictNodeAsync(nodeToEvict, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask EvictNodeAsync(LinkedListNode<CachedPage> node, CancellationToken cancellationToken)
+    {
+        var page = node.Value;
+
+        if (page.IsDirty)
+        {
+            await m_storage.WritePageAsync(page.PageNumber, page.Memory, cancellationToken).ConfigureAwait(false);
+        }
+
+        m_cache.Remove(page.PageNumber);
+        m_lruList.Remove(node);
+        page.Dispose();
+    }
+
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(m_disposed, this);
@@ -357,6 +514,7 @@ public sealed class PageCacheLru : IPageCache
                 if (!m_disposed)
                 {
                     Clear();
+                    m_asyncLock.Dispose();
                     m_disposed = true;
                 }
             }

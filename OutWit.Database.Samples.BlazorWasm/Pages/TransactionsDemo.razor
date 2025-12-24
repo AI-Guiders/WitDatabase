@@ -7,7 +7,7 @@
 
 <div class="card">
     <h1>&#128188; Transactions Demo</h1>
-    <p>Demonstrates transaction support with commit and rollback operations using IndexedDB storage.</p>
+    <p>Demonstrates transaction support with commit and rollback operations.</p>
 </div>
 
 <!-- Database Status -->
@@ -24,8 +24,8 @@
             <div class="stat-label">@(_activeTransaction != null ? "Transaction Active" : "No Transaction")</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">&#128190;</div>
-            <div class="stat-label">IndexedDB</div>
+            <div class="stat-value">&#128203;</div>
+            <div class="stat-label">In-Memory</div>
         </div>
     </div>
     
@@ -34,6 +34,9 @@
         <button class="btn btn-primary" @onclick="InitializeDatabaseAsync">
             Initialize Database
         </button>
+        <p style="margin-top: 10px; font-size: 12px; color: #666;">
+            ?? Using in-memory storage. IndexedDB support requires async BTree refactoring (in progress).
+        </p>
     }
 </div>
 
@@ -142,19 +145,6 @@
             </button>
         </div>
     </div>
-    
-    <!-- Persistence Info -->
-    <div class="card">
-        <h3>&#128161; Persistence Info</h3>
-        <p>
-            Data is stored in browser's IndexedDB. Committed transactions persist across browser sessions!
-        </p>
-        <ul>
-            <li>Add records and commit - they will survive page refresh.</li>
-            <li>Add records and rollback - they will be discarded.</li>
-            <li>Use DevTools (F12) &#8594; Application &#8594; IndexedDB to inspect stored data.</li>
-        </ul>
-    </div>
 }
 
 <!-- Activity Log -->
@@ -184,21 +174,19 @@
     private List<(string Key, string Value)> _committedRecords = new();
     private List<string> _activityLog = new();
     
-    private const string DatabaseName = "WitDbTransactionsDemo";
-    
     private async Task InitializeDatabaseAsync()
     {
         try
         {
-            // Use IndexedDB for persistent storage with BuildAsync
+            // Use in-memory storage for now (IndexedDB requires async BTree refactoring)
             _db = await new WitDatabaseBuilder()
-                .WithIndexedDbStorage(DatabaseName, JSRuntime)
+                .WithMemoryStorage()
                 .WithBTree()
                 .WithTransactions()
                 .BuildAsync();
             
             _isConnected = true;
-            Log("Database initialized with IndexedDB storage");
+            Log("Database initialized with in-memory storage");
             await RefreshRecordsAsync();
         }
         catch (Exception ex)
@@ -224,7 +212,7 @@
         try
         {
             _activeTransaction.Commit();
-            Log("Transaction committed - changes persisted to IndexedDB");
+            Log("Transaction committed - changes saved");
             
             _activeTransaction = null;
             await RefreshRecordsAsync();
@@ -310,7 +298,7 @@
         Log("Added record 3 to transaction");
         
         await CommitTransactionAsync();
-        Log("--- Demo Complete: Records are now persisted in IndexedDB ---");
+        Log("--- Demo Complete: Records are now persisted ---");
     }
     
     private async Task DemoRollbackScenarioAsync()

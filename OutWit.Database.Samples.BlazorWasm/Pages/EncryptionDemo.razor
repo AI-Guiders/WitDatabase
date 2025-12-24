@@ -7,7 +7,7 @@
 
 <div class="card">
     <h1>&#128274; Encryption Demo</h1>
-    <p>Demonstrates AES-GCM encryption at rest for secure data storage with IndexedDB.</p>
+    <p>Demonstrates AES-GCM encryption at rest for secure data storage.</p>
 </div>
 
 <!-- Setup -->
@@ -24,8 +24,8 @@
             <div class="stat-label">@(_isEncrypted ? "Encrypted" : "Not Encrypted")</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">&#128190;</div>
-            <div class="stat-label">IndexedDB</div>
+            <div class="stat-value">&#128203;</div>
+            <div class="stat-label">In-Memory</div>
         </div>
     </div>
     
@@ -52,6 +52,10 @@
                 Please enter a password to enable encryption.
             </div>
         }
+        
+        <p style="margin-top: 10px; font-size: 12px; color: #666;">
+            ?? Using in-memory storage. IndexedDB support requires async BTree refactoring (in progress).
+        </p>
     }
     else
     {
@@ -59,12 +63,12 @@
             @if (_isEncrypted)
             {
                 <strong>&#128274; Encryption Enabled</strong>
-                <p style="margin: 5px 0 0 0;">All data is encrypted using AES-GCM before storing in IndexedDB.</p>
+                <p style="margin: 5px 0 0 0;">All data is encrypted using AES-GCM before storing.</p>
             }
             else
             {
                 <strong>&#128275; No Encryption</strong>
-                <p style="margin: 5px 0 0 0;">Data is stored in plain text in IndexedDB.</p>
+                <p style="margin: 5px 0 0 0;">Data is stored in plain text.</p>
             }
         </div>
         
@@ -196,18 +200,15 @@
         <ul>
             <li><strong>AES-GCM Encryption:</strong> Data is encrypted using AES-256 in GCM mode with a 96-bit nonce.</li>
             <li><strong>Key Derivation:</strong> The encryption key is derived from your password using PBKDF2.</li>
-            <li><strong>IndexedDB Storage:</strong> Encrypted data persists in browser's IndexedDB across sessions.</li>
+            <li><strong>In-Memory Storage:</strong> Data is stored in memory (lost on page refresh).</li>
             <li><strong>Password Required:</strong> You'll need the same password to decrypt data.</li>
         </ul>
         
-        <div class="alert alert-danger">
-            <strong>&#9888; Important:</strong> If you forget your password, encrypted data cannot be recovered!
-        </div>
-        
         @if (_isEncrypted)
         {
-            <div class="alert alert-info">
-                <strong>&#128161; Try this:</strong> Store some secrets, close the database, and reopen with the same password - your data will still be there and decryptable!
+            <div class="alert alert-success">
+                <strong>&#128274; Your data is encrypted!</strong> Even if someone could access the raw storage, 
+                they would only see encrypted bytes without your password.
             </div>
         }
     </div>
@@ -239,18 +240,13 @@
     private List<(string Key, string Value)> _secrets = new();
     private HashSet<string> _revealedKeys = new();
     
-    private const string DatabaseName = "WitDbEncryptionDemo";
-    private const string DatabaseNameEncrypted = "WitDbEncryptionDemo_Encrypted";
-    
     private async Task InitializeDatabaseAsync()
     {
         try
         {
-            var dbName = _enableEncryption ? DatabaseNameEncrypted : DatabaseName;
-            
-            // Use BuildAsync for proper async initialization (required for IndexedDB)
+            // Use in-memory storage (IndexedDB requires async BTree refactoring)
             var builder = new WitDatabaseBuilder()
-                .WithIndexedDbStorage(dbName, JSRuntime)
+                .WithMemoryStorage()
                 .WithBTree()
                 .WithTransactions();
             
@@ -266,7 +262,7 @@
             await RefreshSecretsAsync();
             
             ShowMessage(_isEncrypted 
-                ? "Encrypted database initialized with IndexedDB!" 
+                ? "Encrypted database initialized!" 
                 : "Database initialized without encryption");
         }
         catch (Exception ex)
@@ -435,7 +431,7 @@
         }
         
         await _db.FlushAsync();
-        ShowMessage("Sample user data stored (encrypted in IndexedDB)!");
+        ShowMessage("Sample user data stored (encrypted)!");
         await RefreshSecretsAsync();
     }
     

@@ -29,9 +29,12 @@ public sealed class PageCacheShardedClock : IPageCache
 
     private sealed class CacheShard : IDisposable
     {
+        #region Fields
+
         private readonly IStorage m_storage;
         private readonly int m_capacity;
         private readonly Lock m_lock = new();
+        private readonly SemaphoreSlim m_asyncLock = new(1, 1);
         
         // Clock data structures
         private readonly CachedPage?[] m_pages;
@@ -40,6 +43,10 @@ public sealed class PageCacheShardedClock : IPageCache
         private int m_count;
         private int m_firstFreeSlot;
         private bool m_disposed;
+
+        #endregion
+
+        #region Constructors
 
         public CacheShard(IStorage storage, int capacity)
         {
@@ -51,6 +58,10 @@ public sealed class PageCacheShardedClock : IPageCache
             m_count = 0;
             m_firstFreeSlot = 0;
         }
+
+        #endregion
+
+        #region Sync Operations
 
         public CachedPage GetPage(long pageNumber)
         {
@@ -146,11 +157,113 @@ public sealed class PageCacheShardedClock : IPageCache
             }
         }
 
+        public void Clear()
+        {
+            lock (m_lock)
+            {
+                FlushAllInternal();
+
+                for (int i = 0; i < m_capacity; i++)
+                {
+                    m_pages[i]?.Dispose();
+                    m_pages[i] = null;
+                }
+
+                m_pageIndex.Clear();
+                m_count = 0;
+                m_clockHand = 0;
+                m_firstFreeSlot = 0;
+            }
+        }
+
+        #endregion
+
+        #region Async Operations
+
+        public async ValueTask<CachedPage> GetPageAsync(long pageNumber, CancellationToken cancellationToken)
+        {
+            await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                ThrowIfDisposed();
+
+                if (m_pageIndex.TryGetValue(pageNumber, out int index))
+                {
+                    var page = m_pages[index]!;
+                    page.Referenced = true;
+                    page.IncrementReferenceCount();
+                    return page;
+                }
+
+                return await LoadPageAsync(pageNumber, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                m_asyncLock.Release();
+            }
+        }
+
+        public async ValueTask<CachedPage> CreatePageAsync(long pageNumber, CancellationToken cancellationToken)
+        {
+            await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                ThrowIfDisposed();
+
+                if (m_pageIndex.ContainsKey(pageNumber))
+                    throw new InvalidOperationException($"Page {pageNumber} already exists in cache");
+
+                int slot = await FindSlotForNewPageAsync(cancellationToken).ConfigureAwait(false);
+
+                var page = new CachedPage(pageNumber, m_storage.PageSize);
+                page.Data.Clear();
+                page.MarkDirty();
+                page.ReferenceCount = 1;
+                page.Referenced = true;
+
+                m_pages[slot] = page;
+                m_pageIndex[pageNumber] = slot;
+                m_count++;
+
+                return page;
+            }
+            finally
+            {
+                m_asyncLock.Release();
+            }
+        }
+
+        public async ValueTask EvictAsync(long pageNumber, CancellationToken cancellationToken)
+        {
+            await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                ThrowIfDisposed();
+
+                if (m_pageIndex.TryGetValue(pageNumber, out int index))
+                {
+                    var page = m_pages[index];
+                    if (page != null)
+                    {
+                        if (page.ReferenceCount > 0)
+                            throw new InvalidOperationException($"Cannot evict pinned page {pageNumber}");
+
+                        await EvictSlotAsync(index, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
+            finally
+            {
+                m_asyncLock.Release();
+            }
+        }
+
         public async ValueTask FlushAllAsync(CancellationToken cancellationToken)
         {
             List<CachedPage>? dirtyPages = null;
 
-            lock (m_lock)
+            await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
                 ThrowIfDisposed();
                 
@@ -164,6 +277,10 @@ public sealed class PageCacheShardedClock : IPageCache
                         dirtyPages.Add(page);
                     }
                 }
+            }
+            finally
+            {
+                m_asyncLock.Release();
             }
 
             if (dirtyPages == null)
@@ -184,53 +301,24 @@ public sealed class PageCacheShardedClock : IPageCache
             }
             finally
             {
-                lock (m_lock)
+                await m_asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
                 {
                     foreach (var page in dirtyPages)
                     {
                         page.DecrementReferenceCount();
                     }
                 }
-            }
-        }
-
-        public void Clear()
-        {
-            lock (m_lock)
-            {
-                FlushAllInternal();
-
-                for (int i = 0; i < m_capacity; i++)
+                finally
                 {
-                    m_pages[i]?.Dispose();
-                    m_pages[i] = null;
-                }
-
-                m_pageIndex.Clear();
-                m_count = 0;
-                m_clockHand = 0;
-                m_firstFreeSlot = 0;
-            }
-        }
-
-        public int Count => Volatile.Read(ref m_count);
-
-        public int DirtyCount
-        {
-            get
-            {
-                lock (m_lock)
-                {
-                    int count = 0;
-                    for (int i = 0; i < m_capacity; i++)
-                    {
-                        if (m_pages[i]?.IsDirty == true)
-                            count++;
-                    }
-                    return count;
+                    m_asyncLock.Release();
                 }
             }
         }
+
+        #endregion
+
+        #region Private Sync Helpers
 
         private CachedPage LoadPage(long pageNumber)
         {
@@ -330,10 +418,104 @@ public sealed class PageCacheShardedClock : IPageCache
             }
         }
 
+        #endregion
+
+        #region Private Async Helpers
+
+        private async ValueTask<CachedPage> LoadPageAsync(long pageNumber, CancellationToken cancellationToken)
+        {
+            int slot = await FindSlotForNewPageAsync(cancellationToken).ConfigureAwait(false);
+
+            var page = new CachedPage(pageNumber, m_storage.PageSize);
+            await m_storage.ReadPageAsync(pageNumber, page.Memory, cancellationToken).ConfigureAwait(false);
+            page.ReferenceCount = 1;
+            page.Referenced = true;
+
+            m_pages[slot] = page;
+            m_pageIndex[pageNumber] = slot;
+            m_count++;
+
+            return page;
+        }
+
+        private async ValueTask<int> FindSlotForNewPageAsync(CancellationToken cancellationToken)
+        {
+            if (m_count < m_capacity)
+            {
+                for (int i = m_firstFreeSlot; i < m_capacity; i++)
+                {
+                    if (m_pages[i] == null)
+                    {
+                        m_firstFreeSlot = i + 1;
+                        return i;
+                    }
+                }
+                for (int i = 0; i < m_firstFreeSlot; i++)
+                {
+                    if (m_pages[i] == null)
+                    {
+                        m_firstFreeSlot = i + 1;
+                        return i;
+                    }
+                }
+            }
+
+            int maxIterations = m_capacity * 2;
+
+            for (int iterations = 0; iterations < maxIterations; iterations++)
+            {
+                var page = m_pages[m_clockHand];
+
+                if (page != null && page.ReferenceCount == 0)
+                {
+                    if (page.Referenced)
+                    {
+                        page.Referenced = false;
+                    }
+                    else
+                    {
+                        int slot = m_clockHand;
+                        await EvictSlotAsync(slot, cancellationToken).ConfigureAwait(false);
+                        m_clockHand = (m_clockHand + 1) % m_capacity;
+                        return slot;
+                    }
+                }
+
+                m_clockHand = (m_clockHand + 1) % m_capacity;
+            }
+
+            throw new InvalidOperationException("Cache is full and all pages are pinned");
+        }
+
+        private async ValueTask EvictSlotAsync(int slot, CancellationToken cancellationToken)
+        {
+            var page = m_pages[slot];
+            if (page != null)
+            {
+                if (page.IsDirty)
+                {
+                    await m_storage.WritePageAsync(page.PageNumber, page.Memory, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                m_pageIndex.Remove(page.PageNumber);
+                page.Dispose();
+                m_pages[slot] = null;
+                m_count--;
+                
+                if (slot < m_firstFreeSlot)
+                    m_firstFreeSlot = slot;
+            }
+        }
+
         private void ThrowIfDisposed()
         {
             ObjectDisposedException.ThrowIf(m_disposed, this);
         }
+
+        #endregion
+
+        #region IDisposable
 
         public void Dispose()
         {
@@ -344,17 +526,44 @@ public sealed class PageCacheShardedClock : IPageCache
                     if (!m_disposed)
                     {
                         Clear();
+                        m_asyncLock.Dispose();
                         m_disposed = true;
                     }
                 }
             }
         }
+
+        #endregion
+
+        #region Properties
+
+        public int Count => Volatile.Read(ref m_count);
+
+        public int DirtyCount
+        {
+            get
+            {
+                lock (m_lock)
+                {
+                    int count = 0;
+                    for (int i = 0; i < m_capacity; i++)
+                    {
+                        if (m_pages[i]?.IsDirty == true)
+                            count++;
+                    }
+                    return count;
+                }
+            }
+        }
+
+        #endregion
     }
 
     #endregion
 
     #region Fields
 
+    private readonly IStorage m_storage;
     private readonly CacheShard[] m_shards;
     private readonly int m_shardMask;
     private bool m_disposed;
@@ -376,6 +585,8 @@ public sealed class PageCacheShardedClock : IPageCache
         if (maxPages < 1)
             throw new ArgumentOutOfRangeException(nameof(maxPages), "Cache must hold at least 1 page");
 
+        m_storage = storage;
+        
         int actualShardCount = shardCount ?? Math.Min(DEFAULT_SHARD_COUNT, Math.Max(1, maxPages / MIN_PAGES_PER_SHARD));
         
         actualShardCount = RoundUpToPowerOf2(actualShardCount);
@@ -393,7 +604,7 @@ public sealed class PageCacheShardedClock : IPageCache
 
     #endregion
 
-    #region Functions
+    #region Sync Operations
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private CacheShard GetShard(long pageNumber)
@@ -447,6 +658,42 @@ public sealed class PageCacheShardedClock : IPageCache
     }
 
     /// <inheritdoc/>
+    public void Clear()
+    {
+        ThrowIfDisposed();
+
+        foreach (var shard in m_shards)
+        {
+            shard.Clear();
+        }
+    }
+
+    #endregion
+
+    #region Async Operations
+
+    /// <inheritdoc/>
+    public async ValueTask<CachedPage> GetPageAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return await GetShard(pageNumber).GetPageAsync(pageNumber, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<CachedPage> CreatePageAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return await GetShard(pageNumber).CreatePageAsync(pageNumber, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask EvictAsync(long pageNumber, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        await GetShard(pageNumber).EvictAsync(pageNumber, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask FlushAllAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -463,16 +710,9 @@ public sealed class PageCacheShardedClock : IPageCache
         }
     }
 
-    /// <inheritdoc/>
-    public void Clear()
-    {
-        ThrowIfDisposed();
+    #endregion
 
-        foreach (var shard in m_shards)
-        {
-            shard.Clear();
-        }
-    }
+    #region Tools
 
     private static int RoundUpToPowerOf2(int value)
     {
@@ -494,6 +734,7 @@ public sealed class PageCacheShardedClock : IPageCache
 
     #region IDisposable
 
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (!m_disposed)
