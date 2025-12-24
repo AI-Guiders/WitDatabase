@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "OutWit.Database.Samples.BlazorWasm": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:1539;http://localhost:1540"
+    }
+  }
+}

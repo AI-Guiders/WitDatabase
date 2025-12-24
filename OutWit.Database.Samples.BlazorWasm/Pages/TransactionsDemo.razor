@@ -1,15 +1,12 @@
 @page "/transactions"
 @using System.Text
-@using OutWit.Database.Core.Builder
-@using OutWit.Database.Core
-@using OutWit.Database.Core.Transactions
 @inject IJSRuntime JSRuntime
-@implements IAsyncDisposable
+@implements IDisposable
 
 <PageTitle>Transactions Demo - WitDatabase</PageTitle>
 
 <div class="card">
-    <h1>?? Transactions Demo</h1>
+    <h1>&#128188; Transactions Demo</h1>
     <p>Demonstrates transaction support with commit and rollback operations.</p>
 </div>
 
@@ -19,11 +16,11 @@
     
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-value">@(_isConnected ? "??" : "??")</div>
+            <div class="stat-value">@(_isConnected ? "&#128994;" : "&#128308;")</div>
             <div class="stat-label">@(_isConnected ? "Connected" : "Disconnected")</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">@(_activeTransaction != null ? "??" : "—")</div>
+            <div class="stat-value">@(_activeTransaction != null ? "&#128260;" : "&#8212;")</div>
             <div class="stat-label">@(_activeTransaction != null ? "Transaction Active" : "No Transaction")</div>
         </div>
     </div>
@@ -45,26 +42,17 @@
         @if (_activeTransaction == null)
         {
             <button class="btn btn-primary" @onclick="BeginTransactionAsync">
-                ?? Begin Transaction
+                Begin Transaction
             </button>
         }
         else
         {
             <button class="btn btn-success" @onclick="CommitTransactionAsync">
-                ? Commit
+                Commit
             </button>
             <button class="btn btn-danger" @onclick="RollbackTransactionAsync">
-                ?? Rollback
+                Rollback
             </button>
-            <button class="btn btn-secondary" @onclick="CreateSavepointAsync">
-                ?? Create Savepoint
-            </button>
-            @if (_savepoints.Count > 0)
-            {
-                <button class="btn btn-secondary" @onclick="RollbackToSavepointAsync">
-                    ?? Rollback to Savepoint (@_savepoints.Last())
-                </button>
-            }
         }
     </div>
     
@@ -83,7 +71,7 @@
         </div>
         
         <button class="btn btn-success" @onclick="AddRecordAsync" disabled="@string.IsNullOrEmpty(_inputKey)">
-            ?? Add Record
+            Add Record
         </button>
     </div>
     
@@ -93,7 +81,7 @@
         
         <div style="margin-bottom: 15px;">
             <button class="btn btn-primary" @onclick="DemoCommitScenarioAsync">
-                ?? Demo: Add Records & Commit
+                Demo: Add Records &amp; Commit
             </button>
             <p style="margin-top: 5px; color: #666; font-size: 12px;">
                 Adds 3 records in a transaction and commits them.
@@ -102,19 +90,10 @@
         
         <div style="margin-bottom: 15px;">
             <button class="btn btn-primary" @onclick="DemoRollbackScenarioAsync">
-                ?? Demo: Add Records & Rollback
+                Demo: Add Records &amp; Rollback
             </button>
             <p style="margin-top: 5px; color: #666; font-size: 12px;">
                 Adds 3 records in a transaction and rolls back (discards changes).
-            </p>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-            <button class="btn btn-primary" @onclick="DemoSavepointScenarioAsync">
-                ?? Demo: Savepoint & Partial Rollback
-            </button>
-            <p style="margin-top: 5px; color: #666; font-size: 12px;">
-                Adds records, creates savepoint, adds more, rolls back to savepoint.
             </p>
         </div>
     </div>
@@ -152,10 +131,10 @@
         
         <div style="margin-top: 15px;">
             <button class="btn btn-secondary" @onclick="RefreshRecordsAsync">
-                ?? Refresh
+                Refresh
             </button>
             <button class="btn btn-danger" @onclick="ClearAllAsync">
-                ??? Clear All
+                Clear All
             </button>
         </div>
     </div>
@@ -179,7 +158,6 @@
 
 @code {
     private WitDatabase? _db;
-    private TransactionalStore? _transactionalStore;
     private ITransaction? _activeTransaction;
     private bool _isConnected;
     
@@ -187,28 +165,18 @@
     private string _inputValue = "";
     
     private List<(string Key, string Value)> _committedRecords = new();
-    private List<string> _savepoints = new();
     private List<string> _activityLog = new();
-    
-    private const string DatabaseName = "WitDbTransactionDemo";
     
     private async Task InitializeDatabaseAsync()
     {
         try
         {
-            _db = new WitDatabaseBuilder()
-                .WithIndexedDbStorage(DatabaseName, JSRuntime)
+            // Use BuildAsync for proper async initialization
+            _db = await new WitDatabaseBuilder()
+                .WithMemoryStorage()
                 .WithBTree()
                 .WithTransactions()
-                .Build();
-            
-            if (_db.Store is StorageIndexedDb storage)
-            {
-                await storage.InitializeAsync();
-            }
-            
-            // Get transactional store
-            _transactionalStore = _db.Store as TransactionalStore;
+                .BuildAsync();
             
             _isConnected = true;
             Log("Database initialized");
@@ -222,10 +190,9 @@
     
     private Task BeginTransactionAsync()
     {
-        if (_transactionalStore == null) return Task.CompletedTask;
+        if (_db == null) return Task.CompletedTask;
         
-        _activeTransaction = _transactionalStore.BeginTransaction();
-        _savepoints.Clear();
+        _activeTransaction = _db.BeginTransaction();
         Log("Transaction started");
         
         return Task.CompletedTask;
@@ -241,7 +208,6 @@
             Log("Transaction committed");
             
             _activeTransaction = null;
-            _savepoints.Clear();
             await RefreshRecordsAsync();
         }
         catch (Exception ex)
@@ -260,40 +226,12 @@
             Log("Transaction rolled back - all changes discarded");
             
             _activeTransaction = null;
-            _savepoints.Clear();
             await RefreshRecordsAsync();
         }
         catch (Exception ex)
         {
             Log($"ERROR rolling back: {ex.Message}");
         }
-    }
-    
-    private Task CreateSavepointAsync()
-    {
-        if (_activeTransaction == null) return Task.CompletedTask;
-        
-        var savepointName = $"sp_{_savepoints.Count + 1}";
-        _activeTransaction.Savepoint(savepointName);
-        _savepoints.Add(savepointName);
-        Log($"Savepoint '{savepointName}' created");
-        
-        return Task.CompletedTask;
-    }
-    
-    private async Task RollbackToSavepointAsync()
-    {
-        if (_activeTransaction == null || _savepoints.Count == 0) return;
-        
-        var savepointName = _savepoints.Last();
-        _activeTransaction.RollbackToSavepoint(savepointName);
-        Log($"Rolled back to savepoint '{savepointName}'");
-        
-        // Remove savepoints after the one we rolled back to
-        var idx = _savepoints.IndexOf(savepointName);
-        _savepoints = _savepoints.Take(idx + 1).ToList();
-        
-        await Task.CompletedTask;
     }
     
     private async Task AddRecordAsync()
@@ -385,50 +323,6 @@
         Log("--- Demo Complete: All changes discarded ---");
     }
     
-    private async Task DemoSavepointScenarioAsync()
-    {
-        if (_db == null) return;
-        
-        Log("--- Demo: Savepoint Scenario ---");
-        
-        await BeginTransactionAsync();
-        
-        var timestamp = DateTime.Now.ToString("HHmmss");
-        
-        // Add first batch
-        _activeTransaction!.Put(
-            Encoding.UTF8.GetBytes($"demo:savepoint:{timestamp}:1"),
-            Encoding.UTF8.GetBytes($"{{\"item\":1,\"batch\":\"first\"}}"));
-        Log("Added record 1 (first batch)");
-        
-        _activeTransaction.Put(
-            Encoding.UTF8.GetBytes($"demo:savepoint:{timestamp}:2"),
-            Encoding.UTF8.GetBytes($"{{\"item\":2,\"batch\":\"first\"}}"));
-        Log("Added record 2 (first batch)");
-        
-        // Create savepoint
-        await CreateSavepointAsync();
-        
-        // Add second batch
-        _activeTransaction.Put(
-            Encoding.UTF8.GetBytes($"demo:savepoint:{timestamp}:3"),
-            Encoding.UTF8.GetBytes($"{{\"item\":3,\"batch\":\"second\"}}"));
-        Log("Added record 3 (second batch - after savepoint)");
-        
-        _activeTransaction.Put(
-            Encoding.UTF8.GetBytes($"demo:savepoint:{timestamp}:4"),
-            Encoding.UTF8.GetBytes($"{{\"item\":4,\"batch\":\"second\"}}"));
-        Log("Added record 4 (second batch - after savepoint)");
-        
-        // Rollback to savepoint
-        await RollbackToSavepointAsync();
-        Log("Second batch discarded, first batch retained");
-        
-        // Commit
-        await CommitTransactionAsync();
-        Log("--- Demo Complete: Only first batch persisted ---");
-    }
-    
     private async Task RefreshRecordsAsync()
     {
         if (_db == null) return;
@@ -437,7 +331,7 @@
         
         try
         {
-            await foreach (var (key, value) in _db.GetRangeAsync(null, null))
+            await foreach (var (key, value) in _db.ScanAsync(null, null))
             {
                 var keyStr = Encoding.UTF8.GetString(key);
                 var valueStr = Encoding.UTF8.GetString(value);
@@ -477,13 +371,9 @@
         }
     }
     
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
         _activeTransaction?.Dispose();
-        
-        if (_db != null)
-        {
-            await _db.DisposeAsync();
-        }
+        _db?.Dispose();
     }
 }

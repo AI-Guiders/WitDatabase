@@ -1,15 +1,13 @@
 @page "/encryption"
 @using System.Text
-@using OutWit.Database.Core.Builder
-@using OutWit.Database.Core
 @inject IJSRuntime JSRuntime
-@implements IAsyncDisposable
+@implements IDisposable
 
 <PageTitle>Encryption Demo - WitDatabase</PageTitle>
 
 <div class="card">
-    <h1>?? Encryption Demo</h1>
-    <p>Demonstrates AES-GCM encryption at rest for secure data storage in the browser.</p>
+    <h1>&#128274; Encryption Demo</h1>
+    <p>Demonstrates AES-GCM encryption at rest for secure data storage.</p>
 </div>
 
 <!-- Setup -->
@@ -18,11 +16,11 @@
     
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-value">@(_isConnected ? "??" : "??")</div>
+            <div class="stat-value">@(_isConnected ? "&#128994;" : "&#128308;")</div>
             <div class="stat-label">@(_isConnected ? "Connected" : "Disconnected")</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">@(_isEncrypted ? "??" : "??")</div>
+            <div class="stat-value">@(_isEncrypted ? "&#128274;" : "&#128275;")</div>
             <div class="stat-label">@(_isEncrypted ? "Encrypted" : "Not Encrypted")</div>
         </div>
     </div>
@@ -56,13 +54,13 @@
         <div class="alert @(_isEncrypted ? "alert-success" : "alert-info")">
             @if (_isEncrypted)
             {
-                <strong>?? Encryption Enabled</strong>
-                <p style="margin: 5px 0 0 0;">All data is encrypted using AES-GCM before storing in IndexedDB.</p>
+                <strong>&#128274; Encryption Enabled</strong>
+                <p style="margin: 5px 0 0 0;">All data is encrypted using AES-GCM (in-memory demo).</p>
             }
             else
             {
-                <strong>?? No Encryption</strong>
-                <p style="margin: 5px 0 0 0;">Data is stored in plain text in IndexedDB.</p>
+                <strong>&#128275; No Encryption</strong>
+                <p style="margin: 5px 0 0 0;">Data is stored in plain text (in-memory demo).</p>
             }
         </div>
         
@@ -99,10 +97,10 @@
         }
         
         <button class="btn btn-success" @onclick="SaveSecretAsync" disabled="@string.IsNullOrEmpty(_inputKey)">
-            ?? Store Securely
+            Store Securely
         </button>
         <button class="btn btn-primary" @onclick="LoadSecretAsync" disabled="@string.IsNullOrEmpty(_inputKey)">
-            ?? Retrieve
+            Retrieve
         </button>
     </div>
     
@@ -112,7 +110,7 @@
         
         <div style="margin-bottom: 15px;">
             <button class="btn btn-primary" @onclick="DemoStoreCredentialsAsync">
-                ?? Store Sample Credentials
+                Store Sample Credentials
             </button>
             <p style="margin-top: 5px; color: #666; font-size: 12px;">
                 Stores sample API keys, tokens, and passwords.
@@ -121,7 +119,7 @@
         
         <div style="margin-bottom: 15px;">
             <button class="btn btn-primary" @onclick="DemoStoreUserDataAsync">
-                ?? Store Sample User Data
+                Store Sample User Data
             </button>
             <p style="margin-top: 5px; color: #666; font-size: 12px;">
                 Stores sample personal information (encrypted at rest).
@@ -161,7 +159,7 @@
                                 }
                                 else
                                 {
-                                    <code>••••••••</code>
+                                    <code>********</code>
                                 }
                             </td>
                             <td>
@@ -182,7 +180,7 @@
         
         <div style="margin-top: 15px;">
             <button class="btn btn-secondary" @onclick="RefreshSecretsAsync">
-                ?? Refresh
+                Refresh
             </button>
         </div>
     </div>
@@ -194,13 +192,12 @@
         <ul>
             <li><strong>AES-GCM Encryption:</strong> Data is encrypted using AES-256 in GCM mode with a 96-bit nonce.</li>
             <li><strong>Key Derivation:</strong> The encryption key is derived from your password using PBKDF2.</li>
-            <li><strong>At-Rest Encryption:</strong> Data is encrypted before being stored in IndexedDB.</li>
-            <li><strong>Browser Security:</strong> IndexedDB is sandboxed per origin, but encryption adds an additional layer.</li>
-            <li><strong>Password Required:</strong> You'll need the same password to decrypt data in future sessions.</li>
+            <li><strong>In-Memory Demo:</strong> This demo uses in-memory storage. Data is not persisted.</li>
+            <li><strong>Password Required:</strong> You'll need the same password to decrypt data.</li>
         </ul>
         
         <div class="alert alert-danger">
-            <strong>?? Important:</strong> If you forget your password, encrypted data cannot be recovered!
+            <strong>&#9888; Important:</strong> If you forget your password, encrypted data cannot be recovered!
         </div>
     </div>
 }
@@ -231,14 +228,13 @@
     private List<(string Key, string Value)> _secrets = new();
     private HashSet<string> _revealedKeys = new();
     
-    private const string DatabaseName = "WitDbEncryptionDemo";
-    
     private async Task InitializeDatabaseAsync()
     {
         try
         {
+            // Use BuildAsync for proper async initialization
             var builder = new WitDatabaseBuilder()
-                .WithIndexedDbStorage(DatabaseName, JSRuntime)
+                .WithMemoryStorage()
                 .WithBTree()
                 .WithTransactions();
             
@@ -248,19 +244,14 @@
                 _isEncrypted = true;
             }
             
-            _db = builder.Build();
-            
-            if (_db.Store is StorageIndexedDb storage)
-            {
-                await storage.InitializeAsync();
-            }
+            _db = await builder.BuildAsync();
             
             _isConnected = true;
             await RefreshSecretsAsync();
             
             ShowMessage(_isEncrypted 
-                ? "Encrypted database initialized successfully!" 
-                : "Database initialized (no encryption)");
+                ? "Encrypted database initialized!" 
+                : "Database initialized without encryption");
         }
         catch (Exception ex)
         {
@@ -268,13 +259,10 @@
         }
     }
     
-    private async Task CloseDatabaseAsync()
+    private void CloseDatabaseAsync()
     {
-        if (_db != null)
-        {
-            await _db.DisposeAsync();
-            _db = null;
-        }
+        _db?.Dispose();
+        _db = null;
         
         _isConnected = false;
         _isEncrypted = false;
@@ -363,7 +351,7 @@
         
         try
         {
-            await foreach (var (key, value) in _db.GetRangeAsync(null, null))
+            await foreach (var (key, value) in _db.ScanAsync(null, null))
             {
                 var keyStr = Encoding.UTF8.GetString(key);
                 var valueStr = Encoding.UTF8.GetString(value);
@@ -444,11 +432,8 @@
         _isError = true;
     }
     
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
-        if (_db != null)
-        {
-            await _db.DisposeAsync();
-        }
+        _db?.Dispose();
     }
 }

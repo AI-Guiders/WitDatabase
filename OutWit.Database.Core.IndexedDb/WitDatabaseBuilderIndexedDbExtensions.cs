@@ -26,15 +26,15 @@ public static class WitDatabaseBuilderIndexedDbExtensions
     /// File locking is automatically disabled as it's not applicable in browser.
     /// Secondary index factory is automatically configured to use IndexedDB.
     /// 
-    /// Example usage in Blazor component:
+    /// For Blazor WASM, use <see cref="WitDatabaseBuilder.BuildAsync"/> for proper async initialization:
     /// <code>
     /// @inject IJSRuntime JSRuntime
     /// 
-    /// var db = new WitDatabaseBuilder()
+    /// var db = await new WitDatabaseBuilder()
     ///     .WithIndexedDbStorage("MyDatabase", JSRuntime)
     ///     .WithBTree()
     ///     .WithTransactions()
-    ///     .Build();
+    ///     .BuildAsync();  // Use BuildAsync for WASM!
     /// </code>
     /// </remarks>
     public static WitDatabaseBuilder WithIndexedDbStorage(
@@ -67,6 +67,9 @@ public static class WitDatabaseBuilderIndexedDbExtensions
 
         // Validate compatibility BEFORE setting options
         ValidateIndexedDbCompatibility(builder.Options);
+
+        // Register validation event to catch late configuration changes
+        builder.OnValidating += ValidateIndexedDbOnBuild;
 
         // Auto-disable incompatible features
         builder.Options.EnableFileLocking = false;  // Not applicable in browser
@@ -127,6 +130,19 @@ public static class WitDatabaseBuilderIndexedDbExtensions
     #endregion
 
     #region Validation
+
+    /// <summary>
+    /// Validation handler for OnValidating event.
+    /// Catches configuration changes made after WithIndexedDbStorage was called.
+    /// </summary>
+    private static void ValidateIndexedDbOnBuild(WitDatabaseBuilderOptions options)
+    {
+        // Only validate if IndexedDB storage is configured
+        if (options.Storage is not StorageIndexedDb)
+            return;
+
+        ValidateIndexedDbCompatibility(options);
+    }
 
     /// <summary>
     /// Validates that the current builder options are compatible with IndexedDB storage.

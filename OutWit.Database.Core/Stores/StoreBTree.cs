@@ -37,6 +37,7 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
 
     /// <summary>
     /// Creates a new BTreeStore with file storage.
+    /// For async initialization (e.g., WASM), use <see cref="CreateAsync(string, int, int, CancellationToken)"/> instead.
     /// </summary>
     /// <param name="filePath">Path to the database file.</param>
     /// <param name="pageSize">Page size in bytes (default 4096).</param>
@@ -48,6 +49,7 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
 
     /// <summary>
     /// Creates a new BTreeStore with custom storage.
+    /// For async initialization (e.g., WASM), use <see cref="CreateAsync(IStorage, int, bool, CancellationToken)"/> instead.
     /// </summary>
     /// <param name="storage">Storage implementation.</param>
     /// <param name="cacheSize">Number of pages to cache.</param>
@@ -59,6 +61,7 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
 
     /// <summary>
     /// Creates a new BTreeStore with custom storage and provider metadata.
+    /// For async initialization (e.g., WASM), use <see cref="CreateAsync(IStorage, int, bool, ProviderMetadata?, CancellationToken)"/> instead.
     /// </summary>
     /// <param name="storage">Storage implementation.</param>
     /// <param name="cacheSize">Number of pages to cache.</param>
@@ -92,6 +95,111 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
         m_ownsStorage = false;
         m_ownsPageManager = false;
         m_tree = new BTree(m_pageManager, rootPageNumber);
+    }
+
+    /// <summary>
+    /// Private constructor for async factory pattern.
+    /// </summary>
+    private StoreBTree(
+        IStorage? storage, 
+        PageManager pageManager, 
+        BTree tree, 
+        bool ownsStorage, 
+        bool ownsPageManager)
+    {
+        m_storage = storage;
+        m_pageManager = pageManager;
+        m_tree = tree;
+        m_ownsStorage = ownsStorage;
+        m_ownsPageManager = ownsPageManager;
+    }
+
+    #endregion
+
+    #region Static Factory Methods
+
+    /// <summary>
+    /// Creates a new BTreeStore with file storage asynchronously.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="filePath">Path to the database file.</param>
+    /// <param name="pageSize">Page size in bytes (default 4096).</param>
+    /// <param name="cacheSize">Number of pages to cache (default 1000).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An initialized BTreeStore.</returns>
+    public static async ValueTask<StoreBTree> CreateAsync(
+        string filePath, 
+        int pageSize = 4096, 
+        int cacheSize = 1000,
+        CancellationToken cancellationToken = default)
+    {
+        var storage = new StorageFile(filePath, pageSize);
+        return await CreateAsync(storage, cacheSize, ownsStorage: true, providerMetadata: null, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates a new BTreeStore with custom storage asynchronously.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="storage">Storage implementation.</param>
+    /// <param name="cacheSize">Number of pages to cache.</param>
+    /// <param name="ownsStorage">If true, disposes the storage when this store is disposed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An initialized BTreeStore.</returns>
+    public static ValueTask<StoreBTree> CreateAsync(
+        IStorage storage, 
+        int cacheSize = 1000, 
+        bool ownsStorage = true,
+        CancellationToken cancellationToken = default)
+    {
+        return CreateAsync(storage, cacheSize, ownsStorage, providerMetadata: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a new BTreeStore with custom storage and provider metadata asynchronously.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="storage">Storage implementation.</param>
+    /// <param name="cacheSize">Number of pages to cache.</param>
+    /// <param name="ownsStorage">If true, disposes the storage when this store is disposed.</param>
+    /// <param name="providerMetadata">Provider metadata for new databases.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An initialized BTreeStore.</returns>
+    public static async ValueTask<StoreBTree> CreateAsync(
+        IStorage storage, 
+        int cacheSize, 
+        bool ownsStorage, 
+        ProviderMetadata? providerMetadata,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        
+        var cache = new PageCacheShardedClock(storage, cacheSize);
+        var pageManager = await PageManager.CreateAsync(storage, cache, providerMetadata, cancellationToken)
+            .ConfigureAwait(false);
+        
+        // Use schema root page as B+Tree root, or create new tree
+        var header = pageManager.GetHeader();
+        uint rootPage = header.SchemaRootPage;
+        
+        var tree = new BTree(pageManager, rootPage);
+        
+        return new StoreBTree(storage, pageManager, tree, ownsStorage, ownsPageManager: true);
+    }
+
+    /// <summary>
+    /// Creates a BTreeStore with an existing PageManager asynchronously.
+    /// </summary>
+    /// <param name="pageManager">The page manager to use.</param>
+    /// <param name="rootPageNumber">Root page number (0 to create new tree).</param>
+    /// <returns>An initialized BTreeStore.</returns>
+    public static StoreBTree CreateFromPageManager(PageManager pageManager, uint rootPageNumber = 0)
+    {
+        ArgumentNullException.ThrowIfNull(pageManager);
+        
+        var tree = new BTree(pageManager, rootPageNumber);
+        return new StoreBTree(storage: null, pageManager, tree, ownsStorage: false, ownsPageManager: false);
     }
 
     #endregion

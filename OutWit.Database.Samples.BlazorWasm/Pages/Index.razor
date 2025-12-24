@@ -3,10 +3,10 @@
 <PageTitle>WitDatabase Blazor WASM Sample</PageTitle>
 
 <div class="card">
-    <h1>??? WitDatabase Blazor WASM Sample</h1>
+    <h1>&#128190; WitDatabase Blazor WASM Sample</h1>
     <p>
-        This sample demonstrates using <strong>WitDatabase</strong> with <strong>IndexedDB</strong> storage 
-        in a Blazor WebAssembly application.
+        This sample demonstrates using <strong>WitDatabase</strong> in a Blazor WebAssembly application.
+        Uses async initialization via <code>BuildAsync()</code> for WASM compatibility.
     </p>
 </div>
 
@@ -21,22 +21,21 @@
 </div>
 
 <div class="card">
-    <h3>About IndexedDB Storage</h3>
+    <h3>Async Initialization for WASM</h3>
     
     <p>
-        IndexedDB is the only persistent storage option available in browsers for large amounts of data.
-        WitDatabase's IndexedDB provider allows you to use the full B+Tree database engine with data 
-        persisted in the browser's IndexedDB.
+        Blazor WebAssembly runs in a single-threaded environment where synchronous I/O operations are not available.
+        WitDatabase provides <code>BuildAsync()</code> for proper async initialization in WASM scenarios.
     </p>
     
     <h4>Supported Features</h4>
     <ul>
-        <li>? B+Tree storage engine</li>
-        <li>? ACID transactions</li>
-        <li>? MVCC (Multi-Version Concurrency Control)</li>
-        <li>? AES-GCM encryption</li>
-        <li>? Secondary indexes</li>
-        <li>? LSM-Tree (requires file system)</li>
+        <li>&#10004; B+Tree storage engine (async init via <code>BuildAsync()</code>)</li>
+        <li>&#10004; ACID transactions</li>
+        <li>&#10004; MVCC (Multi-Version Concurrency Control)</li>
+        <li>&#10004; AES-GCM encryption</li>
+        <li>&#10004; Secondary indexes</li>
+        <li>&#10008; LSM-Tree (requires file system)</li>
     </ul>
     
     <h4>Browser Support</h4>
@@ -52,21 +51,56 @@
     <h3>Quick Start</h3>
     
     <pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;">
-@@inject IJSRuntime JSRuntime
-
 @@code {
     private WitDatabase? _db;
     
     protected override async Task OnInitializedAsync()
     {
-        _db = new WitDatabaseBuilder()
-            .WithIndexedDbStorage("MyDatabase", JSRuntime)
+        // Use BuildAsync for WASM compatibility
+        _db = await new WitDatabaseBuilder()
+            .WithMemoryStorage()
             .WithBTree()
             .WithTransactions()
-            .Build();
-        
-        await (_db.Store as StorageIndexedDb)?.InitializeAsync()!;
+            .BuildAsync();
+    }
+    
+    private async Task SaveData(byte[] key, byte[] value)
+    {
+        await _db!.PutAsync(key, value);
+        await _db.FlushAsync();
     }
 }
+    </pre>
+</div>
+
+<div class="card">
+    <h3>Validation Events</h3>
+    
+    <p>
+        WitDatabase now supports validation events for custom validation logic.
+        Extension packages can subscribe to perform additional validation.
+    </p>
+    
+    <pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;">
+var builder = new WitDatabaseBuilder();
+
+// Subscribe to validation event
+builder.OnValidating += options =>
+{
+    if (options.UseLsmTree)
+        throw new InvalidOperationException(
+            "LSM-Tree not supported in this environment");
+};
+
+// Subscribe to store built event  
+builder.OnStoreBuilt += store =>
+{
+    Console.WriteLine($"Store created: {store.ProviderKey}");
+};
+
+var db = await builder
+    .WithMemoryStorage()
+    .WithBTree()
+    .BuildAsync();
     </pre>
 </div>

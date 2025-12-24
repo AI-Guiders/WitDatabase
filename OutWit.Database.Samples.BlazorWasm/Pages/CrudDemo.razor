@@ -1,15 +1,13 @@
 @page "/crud"
 @using System.Text
-@using OutWit.Database.Core.Builder
-@using OutWit.Database.Core
 @inject IJSRuntime JSRuntime
-@implements IAsyncDisposable
+@implements IDisposable
 
 <PageTitle>CRUD Demo - WitDatabase</PageTitle>
 
 <div class="card">
-    <h1>?? CRUD Operations Demo</h1>
-    <p>Demonstrates basic Create, Read, Update, Delete operations using WitDatabase with IndexedDB storage.</p>
+    <h1>&#128221; CRUD Operations Demo</h1>
+    <p>Demonstrates basic Create, Read, Update, Delete operations using WitDatabase with in-memory storage.</p>
 </div>
 
 <!-- Database Status -->
@@ -18,16 +16,12 @@
     
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-value">@(_isConnected ? "??" : "??")</div>
+            <div class="stat-value">@(_isConnected ? "&#128994;" : "&#128308;")</div>
             <div class="stat-label">@(_isConnected ? "Connected" : "Disconnected")</div>
         </div>
         <div class="stat-card">
             <div class="stat-value">@_recordCount</div>
             <div class="stat-label">Records</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">@_pageCount</div>
-            <div class="stat-label">Pages</div>
         </div>
     </div>
     
@@ -65,13 +59,13 @@
         </div>
         
         <button class="btn btn-success" @onclick="SaveRecordAsync" disabled="@string.IsNullOrEmpty(_inputKey)">
-            ?? Save Record
+            Save Record
         </button>
         <button class="btn btn-primary" @onclick="LoadRecordAsync" disabled="@string.IsNullOrEmpty(_inputKey)">
-            ?? Load Record
+            Load Record
         </button>
         <button class="btn btn-danger" @onclick="DeleteRecordAsync" disabled="@string.IsNullOrEmpty(_inputKey)">
-            ??? Delete Record
+            Delete Record
         </button>
     </div>
     
@@ -119,7 +113,7 @@
         
         <div style="margin-top: 15px;">
             <button class="btn btn-secondary" @onclick="LoadAllRecordsAsync">
-                ?? Refresh List
+                Refresh List
             </button>
         </div>
     </div>
@@ -137,7 +131,6 @@
     private WitDatabase? _db;
     private bool _isConnected;
     private int _recordCount;
-    private int _pageCount;
     
     private string _inputKey = "";
     private string _inputValue = "";
@@ -146,23 +139,16 @@
     
     private List<(string Key, string Value)> _records = new();
     
-    private const string DatabaseName = "WitDbCrudDemo";
-    
     private async Task InitializeDatabaseAsync()
     {
         try
         {
-            _db = new WitDatabaseBuilder()
-                .WithIndexedDbStorage(DatabaseName, JSRuntime)
+            // Use BuildAsync for proper async initialization
+            _db = await new WitDatabaseBuilder()
+                .WithMemoryStorage()
                 .WithBTree()
                 .WithTransactions()
-                .Build();
-            
-            // Initialize storage
-            if (_db.Store is StorageIndexedDb indexedDbStorage)
-            {
-                await indexedDbStorage.InitializeAsync();
-            }
+                .BuildAsync();
             
             _isConnected = true;
             await RefreshStatsAsync();
@@ -270,7 +256,7 @@
         {
             _records.Clear();
             
-            await foreach (var (key, value) in _db.GetRangeAsync(null, null))
+            await foreach (var (key, value) in _db.ScanAsync(null, null))
             {
                 var keyStr = Encoding.UTF8.GetString(key);
                 var valueStr = Encoding.UTF8.GetString(value);
@@ -290,11 +276,6 @@
     
     private async Task RefreshStatsAsync()
     {
-        if (_db?.Store is StorageIndexedDb storage)
-        {
-            _pageCount = storage.PageCount;
-        }
-        
         await LoadAllRecordsAsync();
     }
     
@@ -338,11 +319,8 @@
         return value.Length > 50 ? value[..47] + "..." : value;
     }
     
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
-        if (_db != null)
-        {
-            await _db.DisposeAsync();
-        }
+        _db?.Dispose();
     }
 }

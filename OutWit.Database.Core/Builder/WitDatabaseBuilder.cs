@@ -16,6 +16,27 @@ namespace OutWit.Database.Core.Builder;
 /// </summary>
 public sealed class WitDatabaseBuilder
 {
+    #region Events
+
+    /// <summary>
+    /// Event fired during validation, before building the database.
+    /// External packages can subscribe to perform additional validation.
+    /// </summary>
+    /// <remarks>
+    /// Subscribers should throw <see cref="InvalidOperationException"/> to fail validation.
+    /// This allows extension packages (e.g., IndexedDb) to validate their specific requirements
+    /// without modifying the core builder.
+    /// </remarks>
+    public event Action<WitDatabaseBuilderOptions>? OnValidating;
+
+    /// <summary>
+    /// Event fired after the store is built but before creating the database.
+    /// Can be used for post-build configuration or logging.
+    /// </summary>
+    public event Action<IKeyValueStore>? OnStoreBuilt;
+
+    #endregion
+
     #region Properties
 
     /// <summary>
@@ -35,6 +56,32 @@ public sealed class WitDatabaseBuilder
         ValidateConfiguration();
         
         var store = BuildStoreInternal();
+        OnStoreBuilt?.Invoke(store);
+        
+        var indexManager = BuildIndexManagerInternal();
+        
+        if (Options.EnableTransactions)
+        {
+            var transactionalStore = BuildTransactionalStoreInternal(store);
+            return new WitDatabase(transactionalStore, indexManager, disposeStore: true);
+        }
+        
+        return new WitDatabase(store, indexManager, disposeStore: true);
+    }
+
+    /// <summary>
+    /// Builds the database asynchronously.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An initialized WitDatabase.</returns>
+    public async ValueTask<WitDatabase> BuildAsync(CancellationToken cancellationToken = default)
+    {
+        ValidateConfiguration();
+        
+        var store = await BuildStoreInternalAsync(cancellationToken).ConfigureAwait(false);
+        OnStoreBuilt?.Invoke(store);
+        
         var indexManager = BuildIndexManagerInternal();
         
         if (Options.EnableTransactions)
@@ -56,12 +103,35 @@ public sealed class WitDatabaseBuilder
     }
 
     /// <summary>
+    /// Builds just the key-value store asynchronously without transaction wrapper.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public ValueTask<IKeyValueStore> BuildStoreAsync(CancellationToken cancellationToken = default)
+    {
+        ValidateConfiguration();
+        return BuildStoreInternalAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Builds a transactional store.
     /// </summary>
     public ITransactionalStore BuildTransactionalStore()
     {
         ValidateConfiguration();
         var store = BuildStoreInternal();
+        return BuildTransactionalStoreInternal(store);
+    }
+
+    /// <summary>
+    /// Builds a transactional store asynchronously.
+    /// Use this in environments where synchronous I/O is not available (e.g., Blazor WASM).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async ValueTask<ITransactionalStore> BuildTransactionalStoreAsync(CancellationToken cancellationToken = default)
+    {
+        ValidateConfiguration();
+        var store = await BuildStoreInternalAsync(cancellationToken).ConfigureAwait(false);
         return BuildTransactionalStoreInternal(store);
     }
 
@@ -136,6 +206,9 @@ public sealed class WitDatabaseBuilder
             throw new InvalidOperationException(
                 $"Page size must be a power of 2. Got {Options.PageSize}.");
         }
+
+        // Fire validation event for external validators
+        OnValidating?.Invoke(Options);
     }
 
     private static bool IsPowerOfTwo(int value)
@@ -198,6 +271,37 @@ public sealed class WitDatabaseBuilder
         // Build BTree store with provider metadata
         var storage = BuildStorage();
         return new StoreBTree(storage, Options.CacheSize, ownsStorage: true, metadata);
+    }
+
+    private async ValueTask<IKeyValueStore> BuildStoreInternalAsync(CancellationToken cancellationToken)
+    {
+        // Use custom store if provided
+        if (Options.KeyValueStore != null)
+            return Options.KeyValueStore;
+
+        // Build provider metadata for new databases
+        var metadata = BuildProviderMetadata();
+
+        // Build LSM-Tree store (LSM is inherently file-based, sync is OK)
+        if (Options.UseLsmTree)
+        {
+            var directory = Options.LsmDirectory ?? Options.FilePath!;
+            
+            var lsmOptions = Options.LsmOptions ?? new LsmOptions();
+            
+            // Add encryption to LSM options if configured
+            if (Options.CryptoProvider != null)
+            {
+                lsmOptions.Encryptor = new EncryptorBlock(Options.CryptoProvider, Options.EncryptionSalt);
+            }
+            
+            return new StoreLsm(directory, lsmOptions);
+        }
+
+        // Build BTree store with async initialization
+        var storage = BuildStorage();
+        return await StoreBTree.CreateAsync(storage, Options.CacheSize, ownsStorage: true, metadata, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private IStorage BuildStorage()

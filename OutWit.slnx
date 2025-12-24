@@ -21,6 +21,9 @@
     <Project Path="OutWit.Database.Parser.Tests/OutWit.Database.Parser.Tests.csproj" Id="198cc914-dec7-4660-b8f2-e8069cd68a17" />
     <Project Path="OutWit.Database.Parser/OutWit.Database.Parser.csproj" Id="5d480879-e75e-4d6a-bd07-09be725177a5" />
   </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="OutWit.Database.Samples.BlazorWasm/OutWit.Database.Samples.BlazorWasm.csproj" />
+  </Folder>
   <Project Path="OutWit.Database.Tests/OutWit.Database.Tests.csproj" Id="300c3af8-a89b-4507-b444-167d9b0d947c" />
   <Project Path="OutWit.Database/OutWit.Database.csproj" Id="e9257641-e6c2-4a4b-b263-1b72246a5a72" />
 </Solution>
