@@ -216,10 +216,10 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
     }
 
     /// <inheritdoc/>
-    public ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken cancellationToken = default)
+    public async ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(Get(key));
+        ThrowIfDisposed();
+        return await m_tree.SearchAsync(key, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
@@ -234,11 +234,10 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
     }
 
     /// <inheritdoc/>
-    public ValueTask PutAsync(byte[] key, byte[] value, CancellationToken cancellationToken = default)
+    public async ValueTask PutAsync(byte[] key, byte[] value, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        Put(key, value);
-        return ValueTask.CompletedTask;
+        ThrowIfDisposed();
+        await m_tree.UpsertAsync(key, value, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
@@ -253,10 +252,10 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
     }
 
     /// <inheritdoc/>
-    public ValueTask<bool> DeleteAsync(byte[] key, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> DeleteAsync(byte[] key, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(Delete(key));
+        ThrowIfDisposed();
+        return await m_tree.DeleteAsync(key, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
@@ -285,12 +284,26 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
         byte[]? endKey,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        foreach (var item in Scan(startKey, endKey))
+        ThrowIfDisposed();
+        await foreach (var item in m_tree.GetRangeAsync(startKey, endKey, cancellationToken).ConfigureAwait(false))
         {
-            cancellationToken.ThrowIfCancellationRequested();
             yield return item;
         }
-        await ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Scans with inclusive end key asynchronously.
+    /// </summary>
+    public async IAsyncEnumerable<(byte[] Key, byte[] Value)> ScanInclusiveAsync(
+        byte[]? startKey,
+        byte[]? endKey,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        await foreach (var item in m_tree.GetRangeInclusiveAsync(startKey, endKey, cancellationToken).ConfigureAwait(false))
+        {
+            yield return item;
+        }
     }
 
     #endregion
@@ -344,6 +357,18 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
     {
         ThrowIfDisposed();
         return m_tree.ContainsKey(key);
+    }
+
+    /// <summary>
+    /// Checks if a key exists in the store asynchronously.
+    /// </summary>
+    /// <param name="key">The key to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the key exists.</returns>
+    public async ValueTask<bool> ContainsKeyAsync(byte[] key, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return await m_tree.ContainsKeyAsync(key, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion

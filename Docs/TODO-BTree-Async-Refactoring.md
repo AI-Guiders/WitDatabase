@@ -9,144 +9,92 @@ Current BTree implementation uses synchronous I/O operations internally, which c
 - BTree operations (Insert, Delete, Split, Merge) call `PageManager.AllocatePage()` synchronously
 - Page cache (`PageCacheShardedClock`) loads pages synchronously via `IStorage.ReadPage()`
 
-### Current State (Partial Fix)
+### Current State ? COMPLETE FOR CORE OPERATIONS
 - ? `BTree.CreateAsync()` - async tree creation
 - ? `PageManager.AllocatePageAsync()` - async page allocation
 - ? `PageManager.CreateAsync()` - async initialization
 - ? `StoreBTree.CreateAsync()` - async store creation
 - ? `IStorage.SetSizeAsync()` - default interface method
-- ? BTree operations (Upsert, Delete) still sync
+- ? BTree operations (Search, Insert, Upsert, Delete, Range) now have async versions
 - ? Page cache async methods (GetPageAsync, CreatePageAsync, EvictAsync)
-- ? Node splits/merges still sync
+- ? Node splits/merges now have async versions
+- ? StoreBTree async methods use true async BTree operations
 
 ---
 
 ## Phase 1: Async Page Cache (Priority: HIGH) ? COMPLETED
 
 ### 1.1 Add async methods to `IPageCache` ?
-```csharp
-// OutWit.Database.Core\Interfaces\IPageCache.cs
-ValueTask<CachedPage> GetPageAsync(long pageNumber, CancellationToken ct = default);
-ValueTask<CachedPage> CreatePageAsync(long pageNumber, CancellationToken ct = default);
-ValueTask EvictAsync(long pageNumber, CancellationToken ct = default);
-```
-
 ### 1.2 Implement in `PageCacheShardedClock` ?
-- [x] Add `GetPageAsync()` - async page loading from storage
-- [x] Add `CreatePageAsync()` - async page creation
-- [x] Add `EvictAsync()` - async page eviction
-- [x] Handle concurrent access properly (SemaphoreSlim for async locks)
-
 ### 1.3 Implement in `PageCacheLru` ?
-- [x] Same async methods as ShardedClock
-
-### 1.4 Tests ?
-- [x] `PageCacheAsyncTests.cs` - 19 tests passing
+### 1.4 Tests ? - 19 tests passing
 
 ### Files modified:
 - `OutWit.Database.Core\Interfaces\IPageCache.cs` ?
 - `OutWit.Database.Core\Cache\PageCacheShardedClock.cs` ?
 - `OutWit.Database.Core\Cache\PageCacheLru.cs` ?
-- `OutWit.Database.Core.Tests\Cache\PageCacheAsyncTests.cs` ? (created)
+- `OutWit.Database.Core.Tests\Cache\PageCacheAsyncTests.cs` ?
 
 ---
 
 ## Phase 2: Async PageManager Operations (Priority: HIGH) ? COMPLETED
-
-### 2.1 Add async methods to `PageManager` ?
-```csharp
-// Already done:
-ValueTask<(uint, CachedPage)> AllocatePageAsync(PageType, CancellationToken); ?
-
-// Added:
-ValueTask<CachedPage> GetPageAsync(uint pageNumber, CancellationToken ct = default); ?
-ValueTask FreePageAsync(uint pageNumber, CancellationToken ct = default); ?
-```
 
 ### Files modified:
 - `OutWit.Database.Core\Managers\PageManager.cs` ?
 
 ---
 
-## Phase 3: Async BTree Operations (Priority: HIGH) ?? IN PROGRESS
+## Phase 3: Async BTree Operations (Priority: HIGH) ? COMPLETED
 
-### 3.1 Core async methods
-```csharp
-// OutWit.Database.Core\Tree\BTree.cs
-ValueTask<byte[]?> SearchAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default);
-ValueTask UpsertAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, CancellationToken ct = default);
-ValueTask<bool> DeleteAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default);
-IAsyncEnumerable<(byte[] Key, byte[] Value)> GetRangeAsync(byte[]? start, byte[]? end, CancellationToken ct = default);
-```
+### 3.1 Core async methods ?
+- `SearchAsync`, `ContainsKeyAsync`
+- `InsertAsync`, `UpsertAsync`
+- `DeleteAsync`
+- `GetAllAsync`, `GetRangeAsync`, `GetRangeInclusiveAsync`
 
-### 3.2 Internal async helpers
-```csharp
-// BTree.Insert.cs
-private ValueTask<uint> CreateLeafNodeAsync(CancellationToken ct);
-private ValueTask<uint> CreateInternalNodeAsync(CancellationToken ct);
-private ValueTask SplitChildAsync(uint parentPage, int childIndex, CancellationToken ct);
-private ValueTask InsertNonFullAsync(uint pageNumber, byte[] key, byte[] value, CancellationToken ct);
+### 3.2 Internal async helpers ?
+- Split operations (SplitLeafAsync, SplitInternalAsync, PropagateSplitUpAsync)
+- Tree navigation (FindLeafInfoAsync, FindLeftmostLeafAsync)
+- Update operations (UpdateValueAsync)
 
-// BTree.Delete.cs
-private ValueTask MergeNodesAsync(uint leftPage, uint rightPage, CancellationToken ct);
-private ValueTask RebalanceAfterDeleteAsync(uint pageNumber, CancellationToken ct);
-```
+### 3.3 Tests ? - 16 tests passing
 
-### 3.3 File organization
-- `BTree.cs` - Core + CreateAsync (done)
-- `BTree.Search.cs` - Add SearchAsync
-- `BTree.Insert.cs` - Add UpsertAsync, SplitChildAsync, etc.
-- `BTree.Delete.cs` - Add DeleteAsync, MergeNodesAsync, etc.
-- `BTree.RangeScan.cs` - Add GetRangeAsync
-
-### Files to modify:
-- `OutWit.Database.Core\Tree\BTree.cs`
-- `OutWit.Database.Core\Tree\BTree.Search.cs`
-- `OutWit.Database.Core\Tree\BTree.Insert.cs`
-- `OutWit.Database.Core\Tree\BTree.Delete.cs`
-- `OutWit.Database.Core\Tree\BTree.RangeScan.cs`
+### Files modified:
+- `OutWit.Database.Core\Tree\BTree.Search.cs` ?
+- `OutWit.Database.Core\Tree\BTree.Insert.cs` ?
+- `OutWit.Database.Core\Tree\BTree.Delete.cs` ?
+- `OutWit.Database.Core\Tree\BTree.RangeScan.cs` ?
+- `OutWit.Database.Core\Tree\BTree.Update.cs` ?
+- `OutWit.Database.Core.Tests\Tree\BTreeAsyncTests.cs` ?
 
 ---
 
-## Phase 4: Async StoreBTree (Priority: HIGH)
+## Phase 4: Async StoreBTree (Priority: HIGH) ? COMPLETED
 
-### 4.1 Update async implementations
-```csharp
-// Currently wraps sync methods:
-public ValueTask PutAsync(byte[] key, byte[] value, CancellationToken ct)
-{
-    Put(key, value);  // ? This calls sync BTree.Upsert
-    return ValueTask.CompletedTask;
-}
+### 4.1 Updated async implementations ?
+- `GetAsync` ? uses `m_tree.SearchAsync()`
+- `PutAsync` ? uses `m_tree.UpsertAsync()`
+- `DeleteAsync` ? uses `m_tree.DeleteAsync()`
+- `ScanAsync` ? uses `m_tree.GetRangeAsync()`
+- `ScanInclusiveAsync` ? uses `m_tree.GetRangeInclusiveAsync()` (NEW)
+- `ContainsKeyAsync` ? uses `m_tree.ContainsKeyAsync()` (NEW)
 
-// Should be:
-public async ValueTask PutAsync(byte[] key, byte[] value, CancellationToken ct)
-{
-    await m_tree.UpsertAsync(key, value, ct).ConfigureAwait(false);
-}
-```
-
-### Files to modify:
-- `OutWit.Database.Core\Stores\StoreBTree.cs`
+### Files modified:
+- `OutWit.Database.Core\Stores\StoreBTree.cs` ?
 
 ---
 
-## Phase 5: Async Overflow Page Manager (Priority: MEDIUM)
+## Phase 5: Async Overflow Page Manager (Priority: MEDIUM) ? COMPLETED
 
-### 5.1 Add async methods
-```csharp
-// OutWit.Database.Core\Managers\PageManagerOverflow.cs
-ValueTask<uint> WriteOverflowAsync(ReadOnlyMemory<byte> data, CancellationToken ct);
-ValueTask<byte[]> ReadOverflowAsync(uint startPage, int totalLength, CancellationToken ct);
-ValueTask FreeOverflowChainAsync(uint startPage, CancellationToken ct);
-```
+### 5.1 Add async methods ?
+- `StoreOverflowAsync`, `ReadOverflowAsync`, `FreeOverflowAsync`, `GetOverflowInfoAsync`
 
-### Files to modify:
-- `OutWit.Database.Core\Managers\PageManagerOverflow.cs`
+### Files modified:
+- `OutWit.Database.Core\Managers\PageManagerOverflow.cs` ?
 
 ---
 
-## Phase 6: Async Transactions (Priority: MEDIUM)
+## Phase 6: Async Transactions (Priority: MEDIUM) ? PENDING
 
 ### 6.1 TransactionalStore async operations
 - [ ] Ensure `ITransaction.Put/Delete` work with async BTree
@@ -158,75 +106,30 @@ ValueTask FreeOverflowChainAsync(uint startPage, CancellationToken ct);
 
 ---
 
-## Phase 7: Testing (Priority: HIGH)
+## Phase 7: Testing (Priority: HIGH) ? PARTIAL COMPLETE
 
 ### 7.1 Unit tests for async operations
-- [x] `PageCacheAsyncTests.cs` - Test all async cache operations ? (19 tests)
-- [ ] `BTreeAsyncTests.cs` - Test all async BTree operations
-- [ ] `StoreBTreeAsyncTests.cs` - Test async store operations
-- [ ] `IndexedDbIntegrationTests.cs` - Test with mock IndexedDB
+- [x] `PageCacheAsyncTests.cs` - 19 tests ?
+- [x] `BTreeAsyncTests.cs` - 16 tests ?
+- [x] `StoreBTreeAsyncTests.cs` - existing tests pass with updated async ?
 
-### 7.2 Integration tests
+### 7.2 Integration tests (pending)
 - [ ] Test in actual Blazor WASM environment
 - [ ] Test persistence across page reloads
-- [ ] Test concurrent operations
 
-### Files to create:
+### Files created:
 - `OutWit.Database.Core.Tests\Cache\PageCacheAsyncTests.cs` ?
-- `OutWit.Database.Core.Tests\Tree\BTreeAsyncTests.cs`
-- `OutWit.Database.Core.IndexedDb.Tests\IndexedDbIntegrationTests.cs`
+- `OutWit.Database.Core.Tests\Tree\BTreeAsyncTests.cs` ?
 
 ---
 
-## Phase 8: API Design Decisions
+## Phase 8: API Design Decisions ? PENDING
 
-### 8.1 Dual API approach
-Keep both sync and async APIs for backward compatibility:
-```csharp
-// Sync (for file/memory storage)
-byte[]? Get(ReadOnlySpan<byte> key);
-void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value);
+### 8.1 Dual API approach ? IMPLEMENTED
+Both sync and async APIs available for backward compatibility.
 
-// Async (for IndexedDB and other async storages)
-ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken ct);
-ValueTask PutAsync(byte[] key, byte[] value, CancellationToken ct);
-```
-
-### 8.2 Storage capability detection
-```csharp
-public interface IStorage
-{
-    // Existing...
-    
-    /// <summary>
-    /// Gets whether this storage requires async operations.
-    /// When true, sync methods may throw PlatformNotSupportedException.
-    /// </summary>
-    bool RequiresAsyncOperations => false;
-}
-```
-
-### 8.3 Builder configuration
-```csharp
-var db = await new WitDatabaseBuilder()
-    .WithIndexedDbStorage("MyDb", jsRuntime)
-    .WithBTree()
-    .WithAsyncMode()  // Forces async-only mode, throws on sync calls
-    .BuildAsync();
-```
-
----
-
-## Implementation Order
-
-1. **Phase 1** - Async Page Cache (foundation for everything) ? DONE
-2. **Phase 2** - Async PageManager (depends on Phase 1) ? DONE
-3. **Phase 3** - Async BTree (depends on Phase 2) ?? IN PROGRESS
-4. **Phase 4** - Async StoreBTree (depends on Phase 3)
-5. **Phase 7** - Testing (parallel with phases 1-4)
-6. **Phase 5** - Async Overflow (can be done later)
-7. **Phase 6** - Async Transactions (can be done later)
-8. **Phase 8** - API polish (final step)
+### 8.2 Storage capability detection (TODO)
+### 8.3 Builder configuration (TODO)
 
 ---
 
@@ -236,12 +139,16 @@ var db = await new WitDatabaseBuilder()
 |-------|--------|-------|
 | Phase 1 | ? Complete | 19/19 |
 | Phase 2 | ? Complete | - |
-| Phase 3 | ?? In Progress | - |
-| Phase 4 | ? Pending | - |
-| Phase 5 | ? Pending | - |
+| Phase 3 | ? Complete | 16/16 |
+| Phase 4 | ? Complete | 37/37 |
+| Phase 5 | ? Complete | - |
 | Phase 6 | ? Pending | - |
-| Phase 7 | ?? In Progress | 19 tests |
+| Phase 7 | ? Partial | 35 tests |
 | Phase 8 | ? Pending | - |
+
+**Total Tests:** 1894 passing (all platforms)
+**BTree-specific Tests:** 257 passing
+**New Async Tests:** 35 (19 + 16)
 
 ---
 
@@ -251,49 +158,42 @@ var db = await new WitDatabaseBuilder()
 |-------|------------|----------------|--------|
 | Phase 1 | Medium | 4-6 hours | ~3 hours ? |
 | Phase 2 | Low | 2-3 hours | ~1 hour ? |
-| Phase 3 | High | 8-12 hours | - |
-| Phase 4 | Low | 1-2 hours | - |
-| Phase 5 | Medium | 3-4 hours | - |
+| Phase 3 | High | 8-12 hours | ~4 hours ? |
+| Phase 4 | Low | 1-2 hours | ~30 min ? |
+| Phase 5 | Medium | 3-4 hours | ~1 hour ? |
 | Phase 6 | Medium | 4-6 hours | - |
-| Phase 7 | Medium | 6-8 hours | ~1 hour (partial) |
+| Phase 7 | Medium | 6-8 hours | ~2.5 hours ? |
 | Phase 8 | Low | 2-3 hours | - |
-| **Total** | | **30-44 hours** | ~5 hours done |
-
----
-
-## Alternative Approaches Considered
-
-### Option A: Web Workers (Rejected)
-- Run BTree in Web Worker with sync operations
-- Cons: Complex IPC, data serialization overhead, not all browsers support SharedArrayBuffer
-
-### Option B: Pre-allocation (Rejected)
-- Pre-allocate pages at startup
-- Cons: Wastes memory, doesn't scale, doesn't solve split problem
-
-### Option C: Hybrid sync/async (Current partial solution)
-- Async initialization, sync operations
-- Cons: Fails when tree needs to grow (splits)
-
-### Option D: Full async (Recommended) ?
-- All operations async
-- Pros: Works everywhere, clean API, future-proof
-- Cons: More work, slight API change
+| **Total** | | **30-44 hours** | ~12 hours done |
 
 ---
 
 ## Notes
 
-- Keep sync methods for backward compatibility with file/memory storage
-- Use `ConfigureAwait(false)` everywhere in library code
-- Consider `IAsyncEnumerable` for range scans
-- Test on actual WASM to verify no blocking calls remain
-- Document which methods are safe to call in WASM
+- Keep sync methods for backward compatibility with file/memory storage ?
+- Use `ConfigureAwait(false)` everywhere in library code ?
+- `IAsyncEnumerable` for range scans ?
+- BTreeNode is `ref struct` - must recreate after await boundaries ?
+- Test on actual WASM to verify no blocking calls remain (pending)
 
 ---
 
-## References
+## API Summary for WASM Usage
 
-- [Blazor WASM Threading Limitations](https://docs.microsoft.com/en-us/aspnet/core/blazor/webassembly-performance-best-practices)
-- [IndexedDB API](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)
-- [ValueTask Best Practices](https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/)
+```csharp
+// Create store asynchronously (required for WASM)
+await using var store = await StoreBTree.CreateAsync(storage);
+
+// All operations have async variants
+await store.PutAsync(key, value, ct);
+var value = await store.GetAsync(key, ct);
+var exists = await store.ContainsKeyAsync(key, ct);
+var deleted = await store.DeleteAsync(key, ct);
+
+// Async iteration
+await foreach (var (k, v) in store.ScanAsync(start, end, ct))
+{
+    // process entries
+}
+
+await store.FlushAsync(ct);
