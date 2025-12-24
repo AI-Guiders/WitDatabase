@@ -51,9 +51,14 @@ public sealed class WitDatabaseBuilder
     /// <summary>
     /// Builds the database with the configured options.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the configured storage requires async operations (e.g., IndexedDB).
+    /// Use <see cref="BuildAsync"/> instead.
+    /// </exception>
     public WitDatabase Build()
     {
         ValidateConfiguration();
+        ValidateSyncBuildAllowed();
         
         var store = BuildStoreInternal();
         OnStoreBuilt?.Invoke(store);
@@ -96,9 +101,14 @@ public sealed class WitDatabaseBuilder
     /// <summary>
     /// Builds just the key-value store without transaction wrapper.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the configured storage requires async operations.
+    /// Use <see cref="BuildStoreAsync"/> instead.
+    /// </exception>
     public IKeyValueStore BuildStore()
     {
         ValidateConfiguration();
+        ValidateSyncBuildAllowed();
         return BuildStoreInternal();
     }
 
@@ -116,9 +126,14 @@ public sealed class WitDatabaseBuilder
     /// <summary>
     /// Builds a transactional store.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the configured storage requires async operations.
+    /// Use <see cref="BuildTransactionalStoreAsync"/> instead.
+    /// </exception>
     public ITransactionalStore BuildTransactionalStore()
     {
         ValidateConfiguration();
+        ValidateSyncBuildAllowed();
         var store = BuildStoreInternal();
         return BuildTransactionalStoreInternal(store);
     }
@@ -209,6 +224,18 @@ public sealed class WitDatabaseBuilder
 
         // Fire validation event for external validators
         OnValidating?.Invoke(Options);
+    }
+
+    private void ValidateSyncBuildAllowed()
+    {
+        // Check if storage requires async-only operations
+        if (Options.Storage is IAsyncOnlyStorage asyncOnly && asyncOnly.RequiresAsyncOperations)
+        {
+            throw new InvalidOperationException(
+                $"The configured storage ({Options.Storage.ProviderKey}) requires asynchronous operations. " +
+                "Use BuildAsync() instead of Build(). " +
+                "This is required for browser-based storage like IndexedDB in Blazor WASM.");
+        }
     }
 
     private static bool IsPowerOfTwo(int value)

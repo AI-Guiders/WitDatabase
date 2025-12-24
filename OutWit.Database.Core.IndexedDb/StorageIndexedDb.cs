@@ -21,7 +21,7 @@ namespace OutWit.Database.Core.IndexedDb;
 /// - File locking not applicable (single-tab access recommended)
 /// - Sync methods throw in uninitialized state (use async methods)
 /// </remarks>
-public sealed class StorageIndexedDb : IStorage, IAsyncInitializable, IAsyncDisposable
+public sealed class StorageIndexedDb : IStorage, IAsyncOnlyStorage, IAsyncInitializable, IAsyncDisposable
 {
     #region Constants
 
@@ -397,6 +397,14 @@ public sealed class StorageIndexedDb : IStorage, IAsyncInitializable, IAsyncDisp
 
     /// <inheritdoc/>
     public bool IsInitialized => m_initialized;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Always returns true for IndexedDB storage. In Blazor WASM,
+    /// synchronous I/O operations will deadlock, so async methods must be used.
+    /// Use <see cref="WitDatabaseBuilder.BuildAsync"/> for proper initialization.
+    /// </remarks>
+    public bool RequiresAsyncOperations => true;
 
     #endregion
 }

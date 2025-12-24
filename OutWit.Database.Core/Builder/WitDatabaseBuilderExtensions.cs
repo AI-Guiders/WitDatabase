@@ -11,6 +11,44 @@ namespace OutWit.Database.Core.Builder;
 /// </summary>
 public static class WitDatabaseBuilderExtensions
 {
+    #region Storage Capability Detection
+
+    /// <summary>
+    /// Checks if the configured storage requires async-only operations.
+    /// </summary>
+    /// <param name="builder">The database builder.</param>
+    /// <returns>True if storage requires async operations (e.g., IndexedDB in WASM).</returns>
+    /// <remarks>
+    /// When this returns true, you must use <see cref="WitDatabaseBuilder.BuildAsync"/>
+    /// instead of <see cref="WitDatabaseBuilder.Build"/>.
+    /// </remarks>
+    public static bool RequiresAsyncBuild(this WitDatabaseBuilder builder)
+    {
+        return builder.Options.Storage is IAsyncOnlyStorage asyncOnly && asyncOnly.RequiresAsyncOperations;
+    }
+
+    /// <summary>
+    /// Checks if the configured storage supports async initialization.
+    /// </summary>
+    /// <param name="builder">The database builder.</param>
+    /// <returns>True if storage implements IAsyncInitializable.</returns>
+    public static bool SupportsAsyncInitialization(this WitDatabaseBuilder builder)
+    {
+        return builder.Options.Storage is IAsyncInitializable;
+    }
+
+    /// <summary>
+    /// Gets the storage provider key, or null if no storage is configured.
+    /// </summary>
+    /// <param name="builder">The database builder.</param>
+    /// <returns>The provider key or null.</returns>
+    public static string? GetStorageProviderKey(this WitDatabaseBuilder builder)
+    {
+        return builder.Options.Storage?.ProviderKey;
+    }
+
+    #endregion
+
     #region Storage Configuration
 
     /// <summary>
