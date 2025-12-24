@@ -1,5 +1,6 @@
 using Microsoft.JSInterop;
 using OutWit.Database.Core.Builder;
+using OutWit.Database.Core.IndexedDb.Indexes;
 
 namespace OutWit.Database.Core.IndexedDb;
 
@@ -23,6 +24,7 @@ public static class WitDatabaseBuilderIndexedDbExtensions
     /// <remarks>
     /// IndexedDB storage is only compatible with B+Tree engine.
     /// File locking is automatically disabled as it's not applicable in browser.
+    /// Secondary index factory is automatically configured to use IndexedDB.
     /// 
     /// Example usage in Blazor component:
     /// <code>
@@ -80,6 +82,44 @@ public static class WitDatabaseBuilderIndexedDbExtensions
         builder.Options.UseMemoryStorage = false;
         builder.Options.FilePath = null;
         builder.Options.LsmDirectory = null;
+
+        // Auto-configure secondary index factory for IndexedDB
+        // Use database name with "_indexes" suffix to avoid conflicts
+        var indexDbName = databaseName + "_indexes";
+        builder.Options.SecondaryIndexFactory = new SecondaryIndexFactoryIndexedDb(jsRuntime, indexDbName);
+
+        return builder;
+    }
+
+    #endregion
+
+    #region Index Configuration
+
+    /// <summary>
+    /// Explicitly configures IndexedDB-based secondary indexes.
+    /// </summary>
+    /// <param name="builder">The database builder.</param>
+    /// <param name="jsRuntime">Blazor JS runtime.</param>
+    /// <param name="indexDatabaseName">Name of the IndexedDB database for indexes.</param>
+    /// <returns>The builder for chaining.</returns>
+    /// <remarks>
+    /// This method is typically not needed when using WithIndexedDbStorage,
+    /// as it automatically configures the index factory. Use this method
+    /// when you need to customize the index database name or when using
+    /// a different primary storage with IndexedDB indexes.
+    /// </remarks>
+    public static WitDatabaseBuilder WithIndexedDbIndexes(
+        this WitDatabaseBuilder builder,
+        IJSRuntime jsRuntime,
+        string indexDatabaseName)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(jsRuntime);
+        
+        if (string.IsNullOrWhiteSpace(indexDatabaseName))
+            throw new ArgumentException("Index database name cannot be empty", nameof(indexDatabaseName));
+
+        builder.Options.SecondaryIndexFactory = new SecondaryIndexFactoryIndexedDb(jsRuntime, indexDatabaseName);
 
         return builder;
     }

@@ -12,10 +12,11 @@ This package allows WitDatabase to run entirely in the browser with data persist
 <PackageReference Include="OutWit.Database.Core.IndexedDb" Version="1.0.0" />
 ```
 
-Add the JavaScript file to your `index.html`:
+Add the JavaScript files to your `index.html`:
 
 ```html
 <script src="_content/OutWit.Database.Core.IndexedDb/witdb-indexeddb.js"></script>
+<script src="_content/OutWit.Database.Core.IndexedDb/witdb-indexeddb-index.js"></script>
 ```
 
 ---
@@ -120,7 +121,7 @@ var db = new WitDatabaseBuilder()
 | MVCC | YES | All isolation levels |
 | Savepoints | YES | Full support |
 | Encryption | YES | AES-GCM, BouncyCastle |
-| Secondary Indexes | PARTIAL | Coming soon |
+| Secondary Indexes | YES | Full support via IndexedDB |
 | File Locking | NO | Not applicable |
 | WAL/Journal | NO | Single-file model |
 
@@ -135,16 +136,65 @@ var db = new WitDatabaseBuilder()
 
 ---
 
+## Secondary Indexes
+
+Secondary indexes are automatically configured when using `WithIndexedDbStorage()`. Each index uses a separate object store within a dedicated IndexedDB database.
+
+### Automatic Configuration
+
+```csharp
+// Indexes are automatically configured
+var db = new WitDatabaseBuilder()
+    .WithIndexedDbStorage("MyDatabase", JSRuntime)
+    .WithBTree()
+    .Build();
+
+// Index factory is automatically set up for IndexedDB
+// Indexes will use "MyDatabase_indexes" database
+```
+
+### Custom Index Database
+
+```csharp
+var db = new WitDatabaseBuilder()
+    .WithIndexedDbStorage("MyDatabase", JSRuntime)
+    .WithIndexedDbIndexes(JSRuntime, "CustomIndexDb")  // Override default
+    .WithBTree()
+    .Build();
+```
+
+### Using Indexes
+
+```csharp
+// Create index manager
+var indexFactory = new SecondaryIndexFactoryIndexedDb(JSRuntime, "MyDatabase_indexes");
+var indexManager = new IndexManager(indexFactory);
+
+// Create a secondary index
+var emailIndex = indexManager.CreateIndex("idx_email", isUnique: true);
+
+// Add entries
+emailIndex.Add(emailBytes, primaryKeyBytes);
+
+// Find by index
+var primaryKeys = emailIndex.Find(emailBytes);
+```
+
+---
+
 ## API Reference
 
 ### WitDatabaseBuilder Extensions
 
 ```csharp
-// Basic IndexedDB storage
+// Basic IndexedDB storage (auto-configures indexes)
 builder.WithIndexedDbStorage(string databaseName, IJSRuntime jsRuntime)
 
 // With custom page size
 builder.WithIndexedDbStorage(string databaseName, IJSRuntime jsRuntime, int pageSize)
+
+// Custom index database
+builder.WithIndexedDbIndexes(IJSRuntime jsRuntime, string indexDatabaseName)
 ```
 
 ### StorageIndexedDb
@@ -164,6 +214,20 @@ storage.DatabaseName    // IndexedDB database name
 storage.PageSize        // Page size in bytes
 storage.PageCount       // Total number of pages
 storage.IsInitialized   // Whether storage is initialized
+```
+
+### SecondaryIndexFactoryIndexedDb
+
+```csharp
+// Create index factory
+var factory = new SecondaryIndexFactoryIndexedDb(jsRuntime, "DatabaseName");
+
+// Create indexes
+var uniqueIndex = factory.CreateIndex("idx_unique", isUnique: true);
+var nonUniqueIndex = factory.CreateIndex("idx_category", isUnique: false);
+
+// Factory properties
+factory.ProviderKey  // "indexeddb"
 ```
 
 ### IndexedDbInterop
@@ -248,10 +312,10 @@ catch (InvalidOperationException ex)
 
 ### JavaScript Not Loaded
 
-If you see errors about `witDb` being undefined:
+If you see errors about `witDb` or `witDbIndex` being undefined:
 
-1. Ensure the script tag is in `index.html`
-2. Make sure it's loaded before your Blazor app starts
+1. Ensure both script tags are in `index.html`
+2. Make sure they're loaded before your Blazor app starts
 3. Check browser console for script loading errors
 
 ### IndexedDB Not Available
