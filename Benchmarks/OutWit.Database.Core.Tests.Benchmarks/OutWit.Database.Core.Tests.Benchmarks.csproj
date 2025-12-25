@@ -14,11 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OutWit.Database.Core\OutWit.Database.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Folder Include="Storage\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sources\Core\OutWit.Database.Core\OutWit.Database.Core.csproj" />
+  </ItemGroup>
+
 </Project>
+

@@ -16,7 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OutWit.Database.Core\OutWit.Database.Core.csproj" />
+    <ProjectReference Include="..\..\Core\OutWit.Database.Core\OutWit.Database.Core.csproj" />
   </ItemGroup>
 
 </Project>
+
