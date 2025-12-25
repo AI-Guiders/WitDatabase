@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+
 namespace OutWit.Database.Core.Comparers;
 
 /// <summary>
@@ -83,7 +85,7 @@ public sealed class ByteArrayComparer : IComparer<byte[]>, IEqualityComparer<byt
 
     /// <summary>
     /// Returns a hash code for the byte array.
-    /// Uses FNV-1a algorithm for good distribution.
+    /// Uses XxHash3 for high performance with SIMD acceleration.
     /// </summary>
     public int GetHashCode(byte[] obj)
     {
@@ -93,24 +95,13 @@ public sealed class ByteArrayComparer : IComparer<byte[]>, IEqualityComparer<byt
 
     /// <summary>
     /// Returns a hash code for the byte span.
-    /// Uses FNV-1a algorithm for good distribution.
+    /// Uses XxHash3 which automatically utilizes SIMD instructions when available.
     /// </summary>
     public static int GetHashCode(ReadOnlySpan<byte> data)
     {
-        // FNV-1a hash algorithm
-        unchecked
-        {
-            const int fnvPrime = 16777619;
-            int hash = unchecked((int)2166136261);
-            
-            foreach (byte b in data)
-            {
-                hash ^= b;
-                hash *= fnvPrime;
-            }
-            
-            return hash;
-        }
+        // XxHash3 is significantly faster than FNV-1a, especially for larger data
+        // It automatically uses SIMD (SSE2/AVX2) when available
+        return unchecked((int)XxHash3.HashToUInt64(data));
     }
 
     #endregion

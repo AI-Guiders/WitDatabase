@@ -600,6 +600,32 @@ public sealed class WitDatabase : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Creates a new secondary index asynchronously.
+    /// Use this in WASM/IndexedDB scenarios where sync I/O is not available.
+    /// </summary>
+    /// <param name="name">The unique name of the index.</param>
+    /// <param name="isUnique">Whether the index should enforce uniqueness.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The created index.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if index manager is not available.</exception>
+    public async ValueTask<ISecondaryIndex> CreateIndexAsync(string name, bool isUnique = false, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (m_indexManager == null)
+            throw new InvalidOperationException("Index manager is not available.");
+        
+        var index = m_indexManager.CreateIndex(name, isUnique);
+        
+        // Persist metadata asynchronously
+        if (m_indexMetadataStore != null)
+        {
+            await m_indexMetadataStore.SaveIndexAsync(name, isUnique, cancellationToken).ConfigureAwait(false);
+        }
+        
+        return index;
+    }
+
+    /// <summary>
     /// Gets an existing index by name.
     /// </summary>
     /// <param name="name">The name of the index.</param>
@@ -625,6 +651,28 @@ public sealed class WitDatabase : IDisposable, IAsyncDisposable
         {
             // Remove metadata
             m_indexMetadataStore?.RemoveIndex(name);
+        }
+        
+        return dropped;
+    }
+
+    /// <summary>
+    /// Drops (removes) an index asynchronously.
+    /// Use this in WASM/IndexedDB scenarios where sync I/O is not available.
+    /// </summary>
+    /// <param name="name">The name of the index to drop.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the index was dropped; false if it didn't exist.</returns>
+    public async ValueTask<bool> DropIndexAsync(string name, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        
+        var dropped = m_indexManager?.DropIndex(name) ?? false;
+        
+        if (dropped && m_indexMetadataStore != null)
+        {
+            // Remove metadata asynchronously
+            await m_indexMetadataStore.RemoveIndexAsync(name, cancellationToken).ConfigureAwait(false);
         }
         
         return dropped;

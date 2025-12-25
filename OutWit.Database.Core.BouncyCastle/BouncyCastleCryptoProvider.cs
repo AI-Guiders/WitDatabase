@@ -1,4 +1,5 @@
-﻿using OutWit.Database.Core.Interfaces;
+﻿using System.Buffers;
+using OutWit.Database.Core.Interfaces;
 using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -9,6 +10,7 @@ namespace OutWit.Database.Core.BouncyCastle
     /// <summary>
     /// ChaCha20-Poly1305 crypto provider using BouncyCastle.
     /// Good alternative when AES-NI is not available.
+    /// Uses ArrayPool for temporary buffers to reduce GC pressure.
     /// </summary>
     public sealed class BouncyCastleCryptoProvider : ICryptoProvider
     {
@@ -63,26 +65,40 @@ namespace OutWit.Database.Core.BouncyCastle
             var cipher = new ChaCha20Poly1305();
             var keyParam = new KeyParameter(m_key);
 
-            // Copy nonce to array once (BouncyCastle requires array)
-            var nonceArray = new byte[nonce.Length];
-            nonce.CopyTo(nonceArray);
+            // Rent arrays from pool instead of allocating
+            var nonceArray = ArrayPool<byte>.Shared.Rent(nonce.Length);
+            var plaintextArray = ArrayPool<byte>.Shared.Rent(plaintext.Length);
+            var outputArray = ArrayPool<byte>.Shared.Rent(plaintext.Length + TagSize);
 
-            var parameters = new AeadParameters(keyParam, TagSize * 8, nonceArray);
-            cipher.Init(true, parameters);
+            try
+            {
+                // Copy nonce (BouncyCastle requires array)
+                nonce.CopyTo(nonceArray);
 
-            // Use shared buffer for output
-            var output = new byte[plaintext.Length + TagSize];
+                var parameters = new AeadParameters(keyParam, TagSize * 8, nonceArray[..nonce.Length]);
+                cipher.Init(true, parameters);
 
-            // Process directly from span (requires copy for BouncyCastle API)
-            var plaintextArray = new byte[plaintext.Length];
-            plaintext.CopyTo(plaintextArray);
+                // Copy plaintext (BouncyCastle requires array)
+                plaintext.CopyTo(plaintextArray);
 
-            var len = cipher.ProcessBytes(plaintextArray, 0, plaintextArray.Length, output, 0);
-            len += cipher.DoFinal(output, len);
+                var len = cipher.ProcessBytes(plaintextArray, 0, plaintext.Length, outputArray, 0);
+                len += cipher.DoFinal(outputArray, len);
 
-            // Copy results to output spans
-            output.AsSpan(0, plaintext.Length).CopyTo(ciphertext);
-            output.AsSpan(plaintext.Length, TagSize).CopyTo(tag);
+                // Copy results to output spans
+                outputArray.AsSpan(0, plaintext.Length).CopyTo(ciphertext);
+                outputArray.AsSpan(plaintext.Length, TagSize).CopyTo(tag);
+            }
+            finally
+            {
+                // Clear sensitive data and return to pool
+                CryptographicOperations.ZeroMemory(nonceArray.AsSpan(0, nonce.Length));
+                CryptographicOperations.ZeroMemory(plaintextArray.AsSpan(0, plaintext.Length));
+                CryptographicOperations.ZeroMemory(outputArray.AsSpan(0, plaintext.Length + TagSize));
+                
+                ArrayPool<byte>.Shared.Return(nonceArray);
+                ArrayPool<byte>.Shared.Return(plaintextArray);
+                ArrayPool<byte>.Shared.Return(outputArray);
+            }
         }
 
         /// <inheritdoc/>
@@ -90,33 +106,48 @@ namespace OutWit.Database.Core.BouncyCastle
         {
             ThrowIfDisposed();
 
+            // Rent arrays from pool instead of allocating
+            var nonceArray = ArrayPool<byte>.Shared.Rent(nonce.Length);
+            var inputArray = ArrayPool<byte>.Shared.Rent(ciphertext.Length + TagSize);
+            var outputArray = ArrayPool<byte>.Shared.Rent(ciphertext.Length);
+
             try
             {
                 var cipher = new ChaCha20Poly1305();
                 var keyParam = new KeyParameter(m_key);
 
-                // Copy nonce to array once
-                var nonceArray = new byte[nonce.Length];
+                // Copy nonce (BouncyCastle requires array)
                 nonce.CopyTo(nonceArray);
 
-                var parameters = new AeadParameters(keyParam, TagSize * 8, nonceArray);
+                var parameters = new AeadParameters(keyParam, TagSize * 8, nonceArray[..nonce.Length]);
                 cipher.Init(false, parameters);
 
-                // Combine ciphertext + tag for BouncyCastle (requires single array)
-                var input = new byte[ciphertext.Length + TagSize];
-                ciphertext.CopyTo(input);
-                tag.CopyTo(input.AsSpan(ciphertext.Length));
+                // Combine ciphertext + tag (BouncyCastle requires single array)
+                ciphertext.CopyTo(inputArray);
+                tag.CopyTo(inputArray.AsSpan(ciphertext.Length));
 
-                var output = new byte[ciphertext.Length];
-                var len = cipher.ProcessBytes(input, 0, input.Length, output, 0);
-                len += cipher.DoFinal(output, len);
+                var len = cipher.ProcessBytes(inputArray, 0, ciphertext.Length + TagSize, outputArray, 0);
+                len += cipher.DoFinal(outputArray, len);
 
-                output.AsSpan(0, len).CopyTo(plaintext);
+                outputArray.AsSpan(0, len).CopyTo(plaintext);
                 return true;
             }
             catch (InvalidCipherTextException)
             {
+                // Clear partial output on failure for security
+                plaintext[..ciphertext.Length].Clear();
                 return false;
+            }
+            finally
+            {
+                // Clear sensitive data and return to pool
+                CryptographicOperations.ZeroMemory(nonceArray.AsSpan(0, nonce.Length));
+                CryptographicOperations.ZeroMemory(inputArray.AsSpan(0, ciphertext.Length + TagSize));
+                CryptographicOperations.ZeroMemory(outputArray.AsSpan(0, ciphertext.Length));
+                
+                ArrayPool<byte>.Shared.Return(nonceArray);
+                ArrayPool<byte>.Shared.Return(inputArray);
+                ArrayPool<byte>.Shared.Return(outputArray);
             }
         }
 

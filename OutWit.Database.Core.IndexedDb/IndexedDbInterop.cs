@@ -37,16 +37,6 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
             throw new ArgumentException("Database name cannot be empty", nameof(databaseName));
         
         m_databaseName = databaseName;
-        Log($"IndexedDbInterop created for database: {databaseName}");
-    }
-
-    #endregion
-
-    #region Debug Logging
-
-    private static void Log(string message)
-    {
-        StorageIndexedDb.DebugLog?.Invoke($"[JS Interop] {message}");
     }
 
     #endregion
@@ -59,9 +49,7 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     public async ValueTask OpenAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        Log($"Opening database: {m_databaseName}");
         await m_jsRuntime.InvokeVoidAsync($"{JS_NAMESPACE}.open", cancellationToken, m_databaseName);
-        Log($"Database opened: {m_databaseName}");
     }
 
     /// <summary>
@@ -73,13 +61,11 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
         
         try
         {
-            Log($"Closing database: {m_databaseName}");
             await m_jsRuntime.InvokeVoidAsync($"{JS_NAMESPACE}.close", cancellationToken, m_databaseName);
-            Log($"Database closed: {m_databaseName}");
         }
         catch (JSDisconnectedException)
         {
-            Log("JSDisconnectedException during close (Blazor circuit disconnected)");
+            // Blazor circuit disconnected - ignore
         }
     }
 
@@ -97,15 +83,11 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log($"ReadPage: {pageNumber}");
-        var result = await m_jsRuntime.InvokeAsync<byte[]?>(
+        return await m_jsRuntime.InvokeAsync<byte[]?>(
             $"{JS_NAMESPACE}.readPage", 
             cancellationToken, 
             m_databaseName, 
             pageNumber);
-        Log($"ReadPage: {pageNumber} returned {result?.Length ?? 0} bytes");
-        
-        return result;
     }
 
     #endregion
@@ -122,14 +104,12 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log($"WritePage: {pageNumber}, size={data.Length}");
         await m_jsRuntime.InvokeVoidAsync(
             $"{JS_NAMESPACE}.writePage", 
             cancellationToken, 
             m_databaseName, 
             pageNumber, 
             data);
-        Log($"WritePage: {pageNumber} complete");
     }
 
     /// <summary>
@@ -142,14 +122,12 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
         ThrowIfDisposed();
         
         var pagesArray = pages.Select(p => new { pageNumber = p.PageNumber, data = p.Data }).ToArray();
-        Log($"WritePages: {pagesArray.Length} pages");
         
         await m_jsRuntime.InvokeVoidAsync(
             $"{JS_NAMESPACE}.writePages", 
             cancellationToken, 
             m_databaseName, 
             pagesArray);
-        Log($"WritePages: complete");
     }
 
     #endregion
@@ -163,14 +141,10 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log("GetPageCount...");
-        var result = await m_jsRuntime.InvokeAsync<long>(
+        return await m_jsRuntime.InvokeAsync<long>(
             $"{JS_NAMESPACE}.getPageCount", 
             cancellationToken, 
             m_databaseName);
-        Log($"GetPageCount: {result}");
-        
-        return result;
     }
 
     /// <summary>
@@ -180,13 +154,11 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log($"SetPageCount: {count}");
         await m_jsRuntime.InvokeVoidAsync(
             $"{JS_NAMESPACE}.setPageCount", 
             cancellationToken, 
             m_databaseName, 
             count);
-        Log($"SetPageCount: complete");
     }
 
     /// <summary>
@@ -197,14 +169,10 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log("GetPageSize...");
-        var result = await m_jsRuntime.InvokeAsync<int>(
+        return await m_jsRuntime.InvokeAsync<int>(
             $"{JS_NAMESPACE}.getPageSize", 
             cancellationToken, 
             m_databaseName);
-        Log($"GetPageSize: {result}");
-        
-        return result;
     }
 
     /// <summary>
@@ -214,13 +182,11 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log($"SetPageSize: {pageSize}");
         await m_jsRuntime.InvokeVoidAsync(
             $"{JS_NAMESPACE}.setPageSize", 
             cancellationToken, 
             m_databaseName, 
             pageSize);
-        Log($"SetPageSize: complete");
     }
 
     /// <summary>
@@ -230,13 +196,11 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log($"TruncatePages: {newPageCount}");
         await m_jsRuntime.InvokeVoidAsync(
             $"{JS_NAMESPACE}.truncatePages", 
             cancellationToken, 
             m_databaseName, 
             newPageCount);
-        Log($"TruncatePages: complete");
     }
 
     #endregion
@@ -250,14 +214,10 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log("DatabaseExists...");
-        var result = await m_jsRuntime.InvokeAsync<bool>(
+        return await m_jsRuntime.InvokeAsync<bool>(
             $"{JS_NAMESPACE}.databaseExists", 
             cancellationToken, 
             m_databaseName);
-        Log($"DatabaseExists: {result}");
-        
-        return result;
     }
 
     /// <summary>
@@ -267,12 +227,10 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
     {
         ThrowIfDisposed();
         
-        Log("DeleteDatabase...");
         await m_jsRuntime.InvokeVoidAsync(
             $"{JS_NAMESPACE}.deleteDatabase", 
             cancellationToken, 
             m_databaseName);
-        Log("DeleteDatabase: complete");
     }
 
     #endregion
@@ -294,14 +252,13 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
         if (m_disposed) return;
         m_disposed = true;
 
-        Log("Dispose (sync) - attempting async close...");
         try
         {
             CloseAsync().AsTask().GetAwaiter().GetResult();
         }
-        catch (Exception ex)
+        catch
         {
-            Log($"Dispose error: {ex.Message}");
+            // Best effort cleanup
         }
     }
 
@@ -315,7 +272,6 @@ public sealed class IndexedDbInterop : IDisposable, IAsyncDisposable
         if (m_disposed) return;
         m_disposed = true;
 
-        Log("DisposeAsync");
         await CloseAsync();
     }
 

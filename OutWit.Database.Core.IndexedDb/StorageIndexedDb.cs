@@ -29,12 +29,6 @@ public sealed class StorageIndexedDb : IStorage, IAsyncOnlyStorage, IAsyncInitia
     private long m_pageCount;
     private bool m_initialized;
     private bool m_disposed;
-    
-    /// <summary>
-    /// Debug logging action. Set externally for debugging purposes.
-    /// When null (default), no logging occurs.
-    /// </summary>
-    public static Action<string>? DebugLog { get; set; }
 
     #endregion
 
@@ -68,15 +62,6 @@ public sealed class StorageIndexedDb : IStorage, IAsyncOnlyStorage, IAsyncInitia
         m_interop = interop ?? throw new ArgumentNullException(nameof(interop));
         m_pageSize = pageSize;
         m_ownsInterop = ownsInterop;
-    }
-
-    #endregion
-
-    #region Debug Logging
-
-    private static void Log(string message)
-    {
-        DebugLog?.Invoke($"[IndexedDb] {message}");
     }
 
     #endregion
@@ -133,7 +118,6 @@ public sealed class StorageIndexedDb : IStorage, IAsyncOnlyStorage, IAsyncInitia
         }
         
         m_initialized = true;
-        Log($"Initialized: db={m_interop.DatabaseName}, pageSize={m_pageSize}, pageCount={m_pageCount}");
     }
 
     private void ThrowIfNotInitialized()

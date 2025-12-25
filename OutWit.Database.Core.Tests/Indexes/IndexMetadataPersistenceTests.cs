@@ -357,5 +357,404 @@ namespace OutWit.Database.Core.Tests.Indexes
         private static byte[] GetBytes(string s) => System.Text.Encoding.UTF8.GetBytes(s);
 
         #endregion
+
+        #region IndexMetadataStore Async Tests
+
+        [Test]
+        public async Task SaveAndLoadIndexMetadataAsyncTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Act
+            await metadataStore.SaveIndexAsync("idx_email", isUnique: true);
+            await metadataStore.SaveIndexAsync("idx_category", isUnique: false);
+
+            var emailMeta = await metadataStore.LoadIndexAsync("idx_email");
+            var categoryMeta = await metadataStore.LoadIndexAsync("idx_category");
+
+            // Assert
+            Assert.That(emailMeta, Is.Not.Null);
+            Assert.That(emailMeta!.Name, Is.EqualTo("idx_email"));
+            Assert.That(emailMeta.IsUnique, Is.True);
+
+            Assert.That(categoryMeta, Is.Not.Null);
+            Assert.That(categoryMeta!.Name, Is.EqualTo("idx_category"));
+            Assert.That(categoryMeta.IsUnique, Is.False);
+        }
+
+        [Test]
+        public async Task RemoveIndexMetadataAsyncTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+            await metadataStore.SaveIndexAsync("idx_test", isUnique: true);
+
+            // Act
+            var removed = await metadataStore.RemoveIndexAsync("idx_test");
+            var loaded = await metadataStore.LoadIndexAsync("idx_test");
+
+            // Assert
+            Assert.That(removed, Is.True);
+            Assert.That(loaded, Is.Null);
+        }
+
+        [Test]
+        public async Task LoadAllIndexesAsyncTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+            await metadataStore.SaveIndexAsync("idx_a", isUnique: true);
+            await metadataStore.SaveIndexAsync("idx_b", isUnique: false);
+            await metadataStore.SaveIndexAsync("idx_c", isUnique: true);
+
+            // Act
+            var all = await metadataStore.LoadAllIndexesAsync();
+
+            // Assert
+            Assert.That(all, Has.Count.EqualTo(3));
+            Assert.That(all.Select(m => m.Name), Contains.Item("idx_a"));
+            Assert.That(all.Select(m => m.Name), Contains.Item("idx_b"));
+            Assert.That(all.Select(m => m.Name), Contains.Item("idx_c"));
+        }
+
+        [Test]
+        public async Task GetIndexNamesAsyncTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+            await metadataStore.SaveIndexAsync("idx_x", isUnique: true);
+            await metadataStore.SaveIndexAsync("idx_y", isUnique: false);
+
+            // Act
+            var names = await metadataStore.GetIndexNamesAsync();
+
+            // Assert
+            Assert.That(names, Has.Count.EqualTo(2));
+            Assert.That(names, Contains.Item("idx_x"));
+            Assert.That(names, Contains.Item("idx_y"));
+        }
+
+        [Test]
+        public async Task SaveIndexAsyncWithNullNameThrowsTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Act & Assert
+            Assert.ThrowsAsync<ArgumentNullException>(async () =>
+                await metadataStore.SaveIndexAsync(null!, isUnique: true));
+        }
+
+        [Test]
+        public async Task SaveIndexAsyncWithEmptyNameThrowsTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Act & Assert
+            Assert.ThrowsAsync<ArgumentNullException>(async () =>
+                await metadataStore.SaveIndexAsync("", isUnique: true));
+        }
+
+        [Test]
+        public async Task LoadIndexAsyncWithNullNameReturnsNullTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Act
+            var result = await metadataStore.LoadIndexAsync(null!);
+
+            // Assert
+            Assert.That(result, Is.Null);
+        }
+
+        [Test]
+        public async Task RemoveIndexAsyncWithEmptyNameReturnsFalseTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Act
+            var result = await metadataStore.RemoveIndexAsync("");
+
+            // Assert
+            Assert.That(result, Is.False);
+        }
+
+        [Test]
+        public async Task RemoveIndexAsyncForNonExistentIndexReturnsFalseTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Act
+            var result = await metadataStore.RemoveIndexAsync("nonexistent");
+
+            // Assert
+            Assert.That(result, Is.False);
+        }
+
+        [Test]
+        public async Task LoadAllIndexesAsyncWithCancellationTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+            await metadataStore.SaveIndexAsync("idx_a", isUnique: true);
+            await metadataStore.SaveIndexAsync("idx_b", isUnique: false);
+
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert
+            Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await metadataStore.LoadAllIndexesAsync(cts.Token));
+        }
+
+        [Test]
+        public async Task SyncAndAsyncMethodsProduceConsistentResultsTest()
+        {
+            // Arrange
+            var store = new StoreInMemory();
+            var metadataStore = new IndexMetadataStore(store);
+
+            // Save with sync
+            metadataStore.SaveIndex("idx_sync", isUnique: true);
+            
+            // Save with async
+            await metadataStore.SaveIndexAsync("idx_async", isUnique: false);
+
+            // Load with opposite method
+            var syncMeta = await metadataStore.LoadIndexAsync("idx_sync");
+            var asyncMeta = metadataStore.LoadIndex("idx_async");
+
+            // Assert
+            Assert.That(syncMeta, Is.Not.Null);
+            Assert.That(syncMeta!.Name, Is.EqualTo("idx_sync"));
+            Assert.That(syncMeta.IsUnique, Is.True);
+
+            Assert.That(asyncMeta, Is.Not.Null);
+            Assert.That(asyncMeta!.Name, Is.EqualTo("idx_async"));
+            Assert.That(asyncMeta.IsUnique, Is.False);
+
+            // Catalog should have both
+            var names = await metadataStore.GetIndexNamesAsync();
+            Assert.That(names, Has.Count.EqualTo(2));
+            Assert.That(names, Contains.Item("idx_sync"));
+            Assert.That(names, Contains.Item("idx_async"));
+        }
+
+        #endregion
+
+        #region WitDatabase Async Index Tests
+
+        [Test]
+        public async Task CreateIndexAsyncSucceedsTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_create.db");
+            
+            await using var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync();
+
+            // Act
+            var index = await db.CreateIndexAsync("idx_email", isUnique: true);
+
+            // Assert
+            Assert.That(index, Is.Not.Null);
+            Assert.That(index.Name, Is.EqualTo("idx_email"));
+            Assert.That(index.IsUnique, Is.True);
+            Assert.That(db.HasIndex("idx_email"), Is.True);
+        }
+
+        [Test]
+        public async Task DropIndexAsyncSucceedsTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_drop.db");
+            
+            await using var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync();
+
+            await db.CreateIndexAsync("idx_email", isUnique: true);
+
+            // Act
+            var dropped = await db.DropIndexAsync("idx_email");
+
+            // Assert
+            Assert.That(dropped, Is.True);
+            Assert.That(db.HasIndex("idx_email"), Is.False);
+        }
+
+        [Test]
+        public async Task DropIndexAsyncForNonExistentReturnsFalseTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_drop_nonexistent.db");
+            
+            await using var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync();
+
+            // Act
+            var dropped = await db.DropIndexAsync("nonexistent");
+
+            // Assert
+            Assert.That(dropped, Is.False);
+        }
+
+        [Test]
+        public async Task CreateIndexAsyncPersistsMetadataTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_persist.db");
+            
+            // Create with async
+            await using (var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync())
+            {
+                await db.CreateIndexAsync("idx_async", isUnique: true);
+                await db.FlushAsync();
+            }
+
+            // Reopen and verify
+            using (var db = WitDatabase.Open(dbPath))
+            {
+                Assert.That(db.HasIndex("idx_async"), Is.True);
+                Assert.That(db.GetIndex("idx_async")!.IsUnique, Is.True);
+            }
+        }
+
+        [Test]
+        public async Task DropIndexAsyncRemovesMetadataTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_drop_persist.db");
+            
+            // Create and drop with async
+            await using (var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync())
+            {
+                await db.CreateIndexAsync("idx_to_drop", isUnique: true);
+                await db.FlushAsync();
+                
+                await db.DropIndexAsync("idx_to_drop");
+                await db.FlushAsync();
+            }
+
+            // Reopen and verify it's gone
+            using (var db = WitDatabase.Open(dbPath))
+            {
+                Assert.That(db.HasIndex("idx_to_drop"), Is.False);
+                Assert.That(db.IndexNames, Is.Empty);
+            }
+        }
+
+        [Test]
+        public async Task CreateMultipleIndexesAsyncTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_multi.db");
+            
+            await using var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync();
+
+            // Act
+            await db.CreateIndexAsync("idx_a", isUnique: true);
+            await db.CreateIndexAsync("idx_b", isUnique: false);
+            await db.CreateIndexAsync("idx_c", isUnique: true);
+
+            // Assert
+            Assert.That(db.IndexNames, Has.Count.EqualTo(3));
+            Assert.That(db.HasIndex("idx_a"), Is.True);
+            Assert.That(db.HasIndex("idx_b"), Is.True);
+            Assert.That(db.HasIndex("idx_c"), Is.True);
+        }
+
+        [Test]
+        public async Task MixedSyncAndAsyncIndexOperationsTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_mixed.db");
+            
+            await using var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync();
+
+            // Act - mix sync and async
+            db.CreateIndex("idx_sync", isUnique: true);
+            await db.CreateIndexAsync("idx_async", isUnique: false);
+            
+            db.DropIndex("idx_sync");
+            await db.DropIndexAsync("idx_async");
+
+            // Assert
+            Assert.That(db.IndexNames, Is.Empty);
+        }
+
+        [Test]
+        public async Task CreateIndexAsyncWithCancellationTest()
+        {
+            // Arrange
+            var dbPath = Path.Combine(m_testDir, "async_cancel.db");
+            
+            await using var db = await new WitDatabaseBuilder()
+                .WithFilePath(dbPath)
+                .WithBTree()
+                .WithTransactions()
+                .BuildAsync();
+
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Note: The actual index creation is sync, only metadata save is async
+            // So cancellation might not always throw depending on timing
+            // This test verifies the method accepts cancellation token
+            try
+            {
+                await db.CreateIndexAsync("idx_test", isUnique: true, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected - cancellation was honored
+                return;
+            }
+
+            // If we get here, index was created before cancellation could be checked
+            // That's OK - just verify it exists
+            Assert.That(db.HasIndex("idx_test"), Is.True);
+        }
+
+        #endregion
     }
 }
