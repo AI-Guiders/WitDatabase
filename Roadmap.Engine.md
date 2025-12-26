@@ -2,7 +2,7 @@
 
 **Version:** 2.0  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-20
+**Last Updated:** 2025-01-21
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: ~15% - Expression Evaluator Complete**
+**Current Status: ~35% - Query Execution Infrastructure Complete**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -43,6 +43,10 @@ The Engine component (`OutWit.Database`) is responsible for:
 - ? `WitSqlColumnInfo` - Column schema information
 - ? `WitDataType` - Storage type enumeration
 - ? `ExpressionEvaluator` - Full expression evaluation (except subqueries)
+- ? `AggregateExpressionEvaluator` - Aggregate function evaluation in GROUP BY context
+- ? `StatementExecutor` - DDL/DML execution with triggers and validation
+- ? `QueryPlanner` - Query plan building with iterator model
+- ? All iterator types (Filter, Project, Sort, Limit, Distinct, Join, GroupBy, Union, Intersect, Except)
 
 ---
 
@@ -50,9 +54,10 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| Query executor interface | [ ] | P0 | v1 | - |
-| AST to execution plan converter | [ ] | P0 | v1 | - |
+| Query executor interface | [x] | P0 | v1 | - |
+| AST to execution plan converter | [x] | P0 | v1 | - |
 | Expression evaluator | [x] | P0 | v1 | SS4 |
+| Aggregate expression evaluator | [x] | P0 | v1 | SS4 |
 | Type coercion system | [x] | P0 | v1 | SS1 |
 | Result set builder | [x] | P0 | v1 | - |
 | Query context with AffectedRows, LastInsertId | [x] | P0 | v1 | SS5.8 |
@@ -111,26 +116,26 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| `CREATE TABLE` execution | [ ] | P0 | v1 | SS2.1 |
-| `CREATE TABLE IF NOT EXISTS` | [ ] | P0 | v1 | SS2.1 |
-| Column constraints validation | [ ] | P0 | v1 | SS2.1 |
-| Primary key handling | [ ] | P0 | v1 | SS2.1 |
-| AUTOINCREMENT support | [ ] | P0 | v1 | SS2.1 |
-| Foreign key constraints | [ ] | P1 | v1 | SS2.1 |
-| CHECK constraints | [ ] | P1 | v1 | SS2.1 |
-| DEFAULT values | [ ] | P0 | v1 | SS2.1 |
-| `DROP TABLE` execution | [ ] | P0 | v1 | SS2.2 |
-| `ALTER TABLE` execution | [ ] | P1 | v1 | SS2.3 |
+| `CREATE TABLE` execution | [x] | P0 | v1 | SS2.1 |
+| `CREATE TABLE IF NOT EXISTS` | [x] | P0 | v1 | SS2.1 |
+| Column constraints validation | [x] | P0 | v1 | SS2.1 |
+| Primary key handling | [x] | P0 | v1 | SS2.1 |
+| AUTOINCREMENT support | [x] | P0 | v1 | SS2.1 |
+| Foreign key constraints | [x] | P1 | v1 | SS2.1 |
+| CHECK constraints | [x] | P1 | v1 | SS2.1 |
+| DEFAULT values | [x] | P0 | v1 | SS2.1 |
+| `DROP TABLE` execution | [x] | P0 | v1 | SS2.2 |
+| `ALTER TABLE` execution | [x] | P1 | v1 | SS2.3 |
 
 ### 3.2 Index Operations
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| `CREATE INDEX` execution | [ ] | P0 | v1 | SS2.4 |
-| `CREATE UNIQUE INDEX` | [ ] | P0 | v1 | SS2.4 |
+| `CREATE INDEX` execution | [x] | P0 | v1 | SS2.4 |
+| `CREATE UNIQUE INDEX` | [x] | P0 | v1 | SS2.4 |
 | Index building from existing data | [ ] | P0 | v1 | SS2.4 |
 | Index auto-update on DML | [ ] | P0 | v1 | SS2.4 |
-| `DROP INDEX` execution | [ ] | P0 | v1 | SS2.5 |
+| `DROP INDEX` execution | [x] | P0 | v1 | SS2.5 |
 | Partial indexes | [ ] | P1 | v1 | SS19.1 |
 | Expression indexes | [ ] | P1 | v1 | SS19.2 |
 | Covering indexes | [ ] | P1 | v1 | SS19.3 |
@@ -139,27 +144,28 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| `CREATE VIEW` execution | [ ] | P1 | v1 | SS2.6 |
-| View query substitution | [ ] | P1 | v1 | SS2.6 |
-| `DROP VIEW` execution | [ ] | P1 | v1 | SS2.7 |
+| `CREATE VIEW` execution | [x] | P1 | v1 | SS2.6 |
+| View query substitution | [x] | P1 | v1 | SS2.6 |
+| `DROP VIEW` execution | [x] | P1 | v1 | SS2.7 |
 
 ### 3.4 Trigger Operations
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| `CREATE TRIGGER` execution | [ ] | P1 | v1 | SS2.8 |
-| BEFORE/AFTER/INSTEAD OF timing | [ ] | P1 | v1 | SS2.8 |
+| `CREATE TRIGGER` execution | [x] | P1 | v1 | SS2.8 |
+| BEFORE/AFTER/INSTEAD OF timing | [x] | P1 | v1 | SS2.8 |
 | OLD/NEW pseudo-tables | [x] | P1 | v1 | SS2.8 |
-| Trigger firing on DML | [ ] | P1 | v1 | SS2.8 |
-| `DROP TRIGGER` execution | [ ] | P1 | v1 | SS2.9 |
+| Trigger firing on DML | [x] | P1 | v1 | SS2.8 |
+| WHEN condition in triggers | [x] | P1 | v1 | SS2.8 |
+| `DROP TRIGGER` execution | [x] | P1 | v1 | SS2.9 |
 
 ### 3.5 Sequence Operations
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| `CREATE SEQUENCE` execution | [ ] | P0 | v1 | SS5.5 |
-| `ALTER SEQUENCE` execution | [ ] | P0 | v1 | SS5.5 |
-| `DROP SEQUENCE` execution | [ ] | P0 | v1 | SS5.5 |
+| `CREATE SEQUENCE` execution | [x] | P0 | v1 | SS5.5 |
+| `ALTER SEQUENCE` execution | [x] | P0 | v1 | SS5.5 |
+| `DROP SEQUENCE` execution | [x] | P0 | v1 | SS5.5 |
 | `INCREMENT()` function | [x] | P0 | v1 | SS5.5 |
 | `LASTINCREMENT()` function | [x] | P0 | v1 | SS5.5 |
 
@@ -171,16 +177,16 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| Basic SELECT from table | [ ] | P0 | v1 | SS3.1 |
-| Column projection | [ ] | P0 | v1 | SS3.1 |
-| WHERE filtering | [ ] | P0 | v1 | SS3.1 |
-| Expression evaluation in SELECT | [ ] | P0 | v1 | SS3.1 |
-| DISTINCT handling | [ ] | P0 | v1 | SS3.1 |
-| ORDER BY sorting | [ ] | P0 | v1 | SS3.1 |
-| LIMIT/OFFSET | [ ] | P0 | v1 | SS3.1 |
-| GROUP BY aggregation | [ ] | P0 | v1 | SS3.1 |
-| HAVING filtering | [ ] | P0 | v1 | SS3.1 |
-| Table aliases | [ ] | P0 | v1 | SS3.1 |
+| Basic SELECT from table | [x] | P0 | v1 | SS3.1 |
+| Column projection | [x] | P0 | v1 | SS3.1 |
+| WHERE filtering | [x] | P0 | v1 | SS3.1 |
+| Expression evaluation in SELECT | [x] | P0 | v1 | SS3.1 |
+| DISTINCT handling | [x] | P0 | v1 | SS3.1 |
+| ORDER BY sorting | [x] | P0 | v1 | SS3.1 |
+| LIMIT/OFFSET | [x] | P0 | v1 | SS3.1 |
+| GROUP BY aggregation | [x] | P0 | v1 | SS3.1 |
+| HAVING filtering | [x] | P0 | v1 | SS3.1 |
+| Table aliases | [x] | P0 | v1 | SS3.1 |
 | Subqueries in SELECT | [ ] | P0 | v1 | SS3.1 |
 | Subqueries in FROM | [ ] | P0 | v1 | SS3.1 |
 | Subqueries in WHERE | [ ] | P0 | v1 | SS3.1 |
@@ -189,26 +195,26 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| INNER JOIN | [ ] | P0 | v1 | SS3.1 |
-| LEFT OUTER JOIN | [ ] | P0 | v1 | SS3.1 |
-| RIGHT OUTER JOIN | [ ] | P1 | v1 | SS3.1 |
-| FULL OUTER JOIN | [ ] | P1 | v1 | SS3.1 |
-| CROSS JOIN | [ ] | P1 | v1 | SS3.1 |
-| Multiple table joins | [ ] | P0 | v1 | SS3.1 |
+| INNER JOIN | [x] | P0 | v1 | SS3.1 |
+| LEFT OUTER JOIN | [x] | P0 | v1 | SS3.1 |
+| RIGHT OUTER JOIN | [x] | P1 | v1 | SS3.1 |
+| FULL OUTER JOIN | [x] | P1 | v1 | SS3.1 |
+| CROSS JOIN | [x] | P1 | v1 | SS3.1 |
+| Multiple table joins | [x] | P0 | v1 | SS3.1 |
 | Join optimization (index usage) | [ ] | P1 | v1 | - |
 
 ### 4.3 INSERT Execution
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| Basic INSERT | [ ] | P0 | v1 | SS3.2 |
-| INSERT with column list | [ ] | P0 | v1 | SS3.2 |
-| Multi-row INSERT | [ ] | P0 | v1 | SS3.2 |
-| INSERT ... SELECT | [ ] | P0 | v1 | SS3.2 |
+| Basic INSERT | [x] | P0 | v1 | SS3.2 |
+| INSERT with column list | [x] | P0 | v1 | SS3.2 |
+| Multi-row INSERT | [x] | P0 | v1 | SS3.2 |
+| INSERT ... SELECT | [x] | P0 | v1 | SS3.2 |
 | INSERT ... RETURNING | [ ] | P0 | v1 | SS3.2 |
-| DEFAULT value handling | [ ] | P0 | v1 | SS3.2 |
-| AUTOINCREMENT handling | [ ] | P0 | v1 | SS3.2 |
-| Constraint validation | [ ] | P0 | v1 | SS3.2 |
+| DEFAULT value handling | [x] | P0 | v1 | SS3.2 |
+| AUTOINCREMENT handling | [x] | P0 | v1 | SS3.2 |
+| Constraint validation | [x] | P0 | v1 | SS3.2 |
 | INSERT OR REPLACE | [ ] | P0 | v1 | SS16.1 |
 | INSERT ... ON CONFLICT | [ ] | P0 | v1 | SS16.2 |
 
@@ -216,20 +222,21 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| Basic UPDATE | [ ] | P0 | v1 | SS3.3 |
-| UPDATE with WHERE | [ ] | P0 | v1 | SS3.3 |
+| Basic UPDATE | [x] | P0 | v1 | SS3.3 |
+| UPDATE with WHERE | [x] | P0 | v1 | SS3.3 |
 | UPDATE ... RETURNING | [ ] | P0 | v1 | SS3.3 |
-| Multi-column UPDATE | [ ] | P0 | v1 | SS3.3 |
-| UPDATE with expressions | [ ] | P0 | v1 | SS3.3 |
+| Multi-column UPDATE | [x] | P0 | v1 | SS3.3 |
+| UPDATE with expressions | [x] | P0 | v1 | SS3.3 |
 | Index update on modification | [ ] | P0 | v1 | SS3.3 |
+| NOT NULL validation on UPDATE | [x] | P0 | v1 | SS3.3 |
 | UPDATE ... FROM | [ ] | P1 | v1 | SS17.2 |
 
 ### 4.5 DELETE Execution
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| Basic DELETE | [ ] | P0 | v1 | SS3.4 |
-| DELETE with WHERE | [ ] | P0 | v1 | SS3.4 |
+| Basic DELETE | [x] | P0 | v1 | SS3.4 |
+| DELETE with WHERE | [x] | P0 | v1 | SS3.4 |
 | DELETE ... RETURNING | [ ] | P0 | v1 | SS3.4 |
 | Index cleanup on delete | [ ] | P0 | v1 | SS3.4 |
 | Cascading deletes | [ ] | P1 | v1 | SS2.1 |
@@ -276,10 +283,10 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| EXISTS evaluation | [ ] | P0 | v1 | SS18.1 |
-| NOT EXISTS evaluation | [ ] | P0 | v1 | SS18.1 |
-| ANY / SOME evaluation | [ ] | P0 | v1 | SS18.2 |
-| ALL evaluation | [ ] | P0 | v1 | SS18.2 |
+| EXISTS evaluation | [x] | P0 | v1 | SS18.1 |
+| NOT EXISTS evaluation | [x] | P0 | v1 | SS18.1 |
+| ANY / SOME evaluation | [x] | P0 | v1 | SS18.2 |
+| ALL evaluation | [x] | P0 | v1 | SS18.2 |
 
 ---
 
@@ -289,14 +296,14 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Function | Status | Priority | Version | Spec |
 |----------|--------|----------|---------|------|
-| COUNT(*) | [ ] | P0 | v1 | SS5.1 |
-| COUNT(expr) | [ ] | P0 | v1 | SS5.1 |
-| COUNT(DISTINCT expr) | [ ] | P0 | v1 | SS5.1 |
-| SUM | [ ] | P0 | v1 | SS5.1 |
-| AVG | [ ] | P0 | v1 | SS5.1 |
-| MIN | [ ] | P0 | v1 | SS5.1 |
-| MAX | [ ] | P0 | v1 | SS5.1 |
-| GROUP_CONCAT | [ ] | P1 | v1 | SS5.1 |
+| COUNT(*) | [x] | P0 | v1 | SS5.1 |
+| COUNT(expr) | [x] | P0 | v1 | SS5.1 |
+| COUNT(DISTINCT expr) | [x] | P0 | v1 | SS5.1 |
+| SUM | [x] | P0 | v1 | SS5.1 |
+| AVG | [x] | P0 | v1 | SS5.1 |
+| MIN | [x] | P0 | v1 | SS5.1 |
+| MAX | [x] | P0 | v1 | SS5.1 |
+| GROUP_CONCAT | [x] | P1 | v1 | SS5.1 |
 
 ### 6.2 String Functions
 
@@ -612,4 +619,4 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-**Last Updated:** 2025-01-20
+**Last Updated:** 2025-01-21
