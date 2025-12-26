@@ -1,30 +1,34 @@
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
 using OutWit.Database.Model;
 using OutWit.Database.Values;
-using System.ComponentModel.DataAnnotations;
-using System.Text;
 
 namespace OutWit.Database.Types;
 
 /// <summary>
-/// Provides conversion between WitDataType (storage types) and WitSqlType (runtime types).
-/// Centralizes all type mapping logic to ensure consistency across the codebase.
+/// Centralized type conversion and metadata for WitDB types.
+/// Handles all conversions between WitDataType (storage), WitSqlType (runtime), and CLR types.
 /// </summary>
+/// <remarks>
+/// This is the single source of truth for type-related operations.
+/// When adding new types, update this class and the corresponding tests.
+/// </remarks>
 public static class WitTypeConverter
 {
-    #region WitDataType -> WitSqlType
+    #region WitDataType <-> WitSqlType
 
     /// <summary>
     /// Converts a storage data type to a runtime SQL type.
     /// </summary>
-    /// <param name="me">The storage data type.</param>
-    /// <returns>The corresponding runtime SQL type.</returns>
     public static WitSqlType ToSqlType(this WitDataType me)
     {
         return me switch
         {
             WitDataType.Null => WitSqlType.Null,
 
-            // Integers -> Integer
+            // All integer types -> Integer
             WitDataType.Int8 or WitDataType.UInt8 or
             WitDataType.Int16 or WitDataType.UInt16 or
             WitDataType.Int32 or WitDataType.UInt32 or
@@ -56,15 +60,18 @@ public static class WitTypeConverter
             // JSON
             WitDataType.Json => WitSqlType.Json,
 
-            // Default fallback
             _ => WitSqlType.Text
         };
     }
 
+    /// <summary>
+    /// Converts a runtime SQL type to a default storage data type.
+    /// </summary>
     public static WitDataType ToDataType(this WitSqlType me)
     {
         return me switch
         {
+            WitSqlType.Null => WitDataType.Null,
             WitSqlType.Integer => WitDataType.Int64,
             WitSqlType.Real => WitDataType.Float64,
             WitSqlType.Text => WitDataType.StringVariable,
@@ -76,6 +83,7 @@ public static class WitTypeConverter
             WitSqlType.TimeOnly => WitDataType.TimeOnly,
             WitSqlType.TimeSpan => WitDataType.TimeSpan,
             WitSqlType.Guid => WitDataType.Guid,
+            WitSqlType.DateTimeOffset => WitDataType.DateTimeOffset,
             WitSqlType.Json => WitDataType.Json,
             _ => WitDataType.StringVariable
         };
@@ -83,14 +91,411 @@ public static class WitTypeConverter
 
     #endregion
 
-    #region Read WitSqlValue from SpanReader
+    #region CLR Type <-> WitDataType
+
+    private static readonly Dictionary<Type, WitDataType> s_clrToDataType = new()
+    {
+        // Integers
+        [typeof(sbyte)] = WitDataType.Int8,
+        [typeof(byte)] = WitDataType.UInt8,
+        [typeof(short)] = WitDataType.Int16,
+        [typeof(ushort)] = WitDataType.UInt16,
+        [typeof(int)] = WitDataType.Int32,
+        [typeof(uint)] = WitDataType.UInt32,
+        [typeof(long)] = WitDataType.Int64,
+        [typeof(ulong)] = WitDataType.UInt64,
+
+        // Floating point
+        [typeof(Half)] = WitDataType.Float16,
+        [typeof(float)] = WitDataType.Float32,
+        [typeof(double)] = WitDataType.Float64,
+        [typeof(decimal)] = WitDataType.Decimal,
+
+        // Boolean
+        [typeof(bool)] = WitDataType.Boolean,
+
+        // Date/Time
+        [typeof(DateOnly)] = WitDataType.DateOnly,
+        [typeof(TimeOnly)] = WitDataType.TimeOnly,
+        [typeof(DateTime)] = WitDataType.DateTime,
+        [typeof(DateTimeOffset)] = WitDataType.DateTimeOffset,
+        [typeof(TimeSpan)] = WitDataType.TimeSpan,
+
+        // Identifiers
+        [typeof(Guid)] = WitDataType.Guid,
+
+        // Strings and Binary
+        [typeof(string)] = WitDataType.StringVariable,
+        [typeof(byte[])] = WitDataType.BinaryVariable,
+
+        // JSON
+        [typeof(JsonDocument)] = WitDataType.Json,
+        [typeof(JsonElement)] = WitDataType.Json,
+    };
+
+    private static readonly Dictionary<WitDataType, Type> s_dataTypeToClr;
+
+    static WitTypeConverter()
+    {
+        s_dataTypeToClr = new Dictionary<WitDataType, Type>();
+        foreach (var (clrType, witDataType) in s_clrToDataType)
+        {
+            s_dataTypeToClr.TryAdd(witDataType, clrType);
+        }
+        s_dataTypeToClr[WitDataType.Null] = typeof(DBNull);
+        s_dataTypeToClr[WitDataType.StringFixed] = typeof(string);
+        s_dataTypeToClr[WitDataType.BinaryFixed] = typeof(byte[]);
+        s_dataTypeToClr[WitDataType.RowVersion] = typeof(byte[]);
+    }
+
+    /// <summary>
+    /// Gets the WitDataType for a CLR type.
+    /// </summary>
+    public static WitDataType GetDataType(Type clrType)
+    {
+        var underlying = Nullable.GetUnderlyingType(clrType) ?? clrType;
+        if (underlying.IsEnum)
+            underlying = Enum.GetUnderlyingType(underlying);
+
+        return s_clrToDataType.TryGetValue(underlying, out var result)
+            ? result
+            : throw new NotSupportedException($"Type {clrType.FullName} is not supported");
+    }
+
+    /// <summary>
+    /// Gets the WitDataType for a CLR type.
+    /// </summary>
+    public static WitDataType GetDataType<T>() => GetDataType(typeof(T));
+
+    /// <summary>
+    /// Gets the CLR type for a WitDataType.
+    /// </summary>
+    public static Type GetClrType(WitDataType dataType)
+    {
+        return s_dataTypeToClr.TryGetValue(dataType, out var result)
+            ? result
+            : typeof(object);
+    }
+
+    /// <summary>
+    /// Checks if a CLR type is supported.
+    /// </summary>
+    public static bool IsSupported(Type clrType)
+    {
+        var underlying = Nullable.GetUnderlyingType(clrType) ?? clrType;
+        return underlying.IsEnum || s_clrToDataType.ContainsKey(underlying);
+    }
+
+    #endregion
+
+    #region CLR Type <-> WitSqlType
+
+    /// <summary>
+    /// Gets the WitSqlType for a CLR type.
+    /// </summary>
+    public static WitSqlType GetSqlType(Type clrType)
+    {
+        if (clrType == typeof(DBNull) || clrType == typeof(void))
+            return WitSqlType.Null;
+
+        var underlying = Nullable.GetUnderlyingType(clrType) ?? clrType;
+
+        return underlying switch
+        {
+            _ when underlying == typeof(bool) => WitSqlType.Boolean,
+            _ when underlying == typeof(sbyte) => WitSqlType.Integer,
+            _ when underlying == typeof(byte) => WitSqlType.Integer,
+            _ when underlying == typeof(short) => WitSqlType.Integer,
+            _ when underlying == typeof(ushort) => WitSqlType.Integer,
+            _ when underlying == typeof(int) => WitSqlType.Integer,
+            _ when underlying == typeof(uint) => WitSqlType.Integer,
+            _ when underlying == typeof(long) => WitSqlType.Integer,
+            _ when underlying == typeof(ulong) => WitSqlType.Integer,
+            _ when underlying == typeof(Half) => WitSqlType.Real,
+            _ when underlying == typeof(float) => WitSqlType.Real,
+            _ when underlying == typeof(double) => WitSqlType.Real,
+            _ when underlying == typeof(decimal) => WitSqlType.Decimal,
+            _ when underlying == typeof(string) => WitSqlType.Text,
+            _ when underlying == typeof(byte[]) => WitSqlType.Blob,
+            _ when underlying == typeof(DateTime) => WitSqlType.DateTime,
+            _ when underlying == typeof(DateOnly) => WitSqlType.DateOnly,
+            _ when underlying == typeof(TimeOnly) => WitSqlType.TimeOnly,
+            _ when underlying == typeof(TimeSpan) => WitSqlType.TimeSpan,
+            _ when underlying == typeof(Guid) => WitSqlType.Guid,
+            _ when underlying == typeof(DateTimeOffset) => WitSqlType.DateTimeOffset,
+            _ when underlying == typeof(JsonDocument) => WitSqlType.Json,
+            _ when underlying == typeof(JsonElement) => WitSqlType.Json,
+            _ => WitSqlType.Text
+        };
+    }
+
+    /// <summary>
+    /// Gets the CLR type for a WitSqlType.
+    /// </summary>
+    public static Type GetClrType(WitSqlType sqlType) => sqlType switch
+    {
+        WitSqlType.Null => typeof(DBNull),
+        WitSqlType.Integer => typeof(long),
+        WitSqlType.Real => typeof(double),
+        WitSqlType.Text => typeof(string),
+        WitSqlType.Blob => typeof(byte[]),
+        WitSqlType.Boolean => typeof(bool),
+        WitSqlType.Decimal => typeof(decimal),
+        WitSqlType.DateTime => typeof(DateTime),
+        WitSqlType.DateOnly => typeof(DateOnly),
+        WitSqlType.TimeOnly => typeof(TimeOnly),
+        WitSqlType.TimeSpan => typeof(TimeSpan),
+        WitSqlType.Guid => typeof(Guid),
+        WitSqlType.DateTimeOffset => typeof(DateTimeOffset),
+        WitSqlType.Json => typeof(JsonDocument),
+        _ => typeof(object)
+    };
+
+    #endregion
+
+    #region SQL Type Name Parsing
+
+    /// <summary>
+    /// Parses a SQL type name string to WitSqlType.
+    /// </summary>
+    public static WitSqlType ParseSqlTypeName(string typeName)
+    {
+        return typeName.ToUpperInvariant() switch
+        {
+            // Integer types
+            "TINYINT" or "INT8" or "UTINYINT" or "UINT8" or "BYTE" => WitSqlType.Integer,
+            "SMALLINT" or "INT16" or "SHORT" or "USMALLINT" or "UINT16" or "USHORT" => WitSqlType.Integer,
+            "INT" or "INT32" or "INTEGER" or "UINT" or "UINT32" => WitSqlType.Integer,
+            "BIGINT" or "INT64" or "LONG" or "UBIGINT" or "UINT64" or "ULONG" => WitSqlType.Integer,
+
+            // Real types
+            "FLOAT16" or "HALF" => WitSqlType.Real,
+            "FLOAT" or "FLOAT32" or "REAL" => WitSqlType.Real,
+            "DOUBLE" or "FLOAT64" => WitSqlType.Real,
+
+            // Decimal
+            "DECIMAL" or "NUMERIC" or "MONEY" => WitSqlType.Decimal,
+
+            // Boolean
+            "BOOLEAN" or "BOOL" or "BIT" => WitSqlType.Boolean,
+
+            // Date/Time
+            "DATE" or "DATEONLY" => WitSqlType.DateOnly,
+            "TIME" or "TIMEONLY" => WitSqlType.TimeOnly,
+            "DATETIME" or "TIMESTAMP" or "DATETIME2" => WitSqlType.DateTime,
+            "DATETIMEOFFSET" => WitSqlType.DateTimeOffset,
+            "TIMESPAN" or "DURATION" or "INTERVAL" => WitSqlType.TimeSpan,
+
+            // Identifiers
+            "GUID" or "UUID" or "UNIQUEIDENTIFIER" => WitSqlType.Guid,
+
+            // Strings
+            "CHAR" or "NCHAR" or "VARCHAR" or "NVARCHAR" or "TEXT" or "NTEXT" or "STRING" => WitSqlType.Text,
+
+            // Binary
+            "BINARY" or "VARBINARY" or "BLOB" => WitSqlType.Blob,
+
+            // JSON
+            "JSON" or "JSONB" => WitSqlType.Json,
+
+            _ => WitSqlType.Text
+        };
+    }
+
+    /// <summary>
+    /// Gets the SQL type name for display purposes.
+    /// </summary>
+    public static string GetSqlTypeName(this WitSqlType type) => type switch
+    {
+        WitSqlType.Null => "NULL",
+        WitSqlType.Integer => "INTEGER",
+        WitSqlType.Real => "REAL",
+        WitSqlType.Text => "TEXT",
+        WitSqlType.Blob => "BLOB",
+        WitSqlType.Boolean => "BOOLEAN",
+        WitSqlType.Decimal => "DECIMAL",
+        WitSqlType.DateTime => "DATETIME",
+        WitSqlType.DateOnly => "DATE",
+        WitSqlType.TimeOnly => "TIME",
+        WitSqlType.TimeSpan => "INTERVAL",
+        WitSqlType.Guid => "GUID",
+        WitSqlType.DateTimeOffset => "DATETIMEOFFSET",
+        WitSqlType.Json => "JSON",
+        _ => "UNKNOWN"
+    };
+
+    #endregion
+
+    #region Value Conversion
+
+    /// <summary>
+    /// Converts a WitSqlValue to the specified target WitSqlType.
+    /// This is the central conversion method.
+    /// </summary>
+    public static WitSqlValue Convert(WitSqlValue value, WitSqlType targetType)
+    {
+        if (value.IsNull)
+            return WitSqlValue.Null;
+
+        if (value.Type == targetType)
+            return value;
+
+        return targetType switch
+        {
+            WitSqlType.Null => WitSqlValue.Null,
+            WitSqlType.Integer => WitSqlValue.FromInt(value.AsInt64()),
+            WitSqlType.Real => WitSqlValue.FromReal(value.AsDouble()),
+            WitSqlType.Text => WitSqlValue.FromText(value.AsString()),
+            WitSqlType.Blob => WitSqlValue.FromBlob(value.AsBlob()),
+            WitSqlType.Boolean => WitSqlValue.FromBool(value.AsBool()),
+            WitSqlType.Decimal => WitSqlValue.FromDecimal(value.AsDecimal()),
+            WitSqlType.DateTime => WitSqlValue.FromDateTime(value.AsDateTime()),
+            WitSqlType.DateOnly => WitSqlValue.FromDateOnly(value.AsDateOnly()),
+            WitSqlType.TimeOnly => WitSqlValue.FromTimeOnly(value.AsTimeOnly()),
+            WitSqlType.TimeSpan => WitSqlValue.FromTimeSpan(value.AsTimeSpan()),
+            WitSqlType.Guid => WitSqlValue.FromGuid(value.AsGuid()),
+            WitSqlType.DateTimeOffset => WitSqlValue.FromDateTimeOffset(value.AsDateTimeOffset()),
+            WitSqlType.Json => WitSqlValue.FromJson(value.AsJsonElement()),
+            _ => throw new InvalidCastException($"Cannot convert to {targetType}")
+        };
+    }
+
+    /// <summary>
+    /// Converts a WitSqlValue to the specified target WitDataType.
+    /// </summary>
+    public static WitSqlValue Convert(WitSqlValue value, WitDataType targetDataType)
+    {
+        return Convert(value, targetDataType.ToSqlType());
+    }
+
+    /// <summary>
+    /// Checks if conversion from source to target type is possible.
+    /// </summary>
+    public static bool CanConvert(WitSqlType sourceType, WitSqlType targetType)
+    {
+        if (sourceType == targetType || sourceType == WitSqlType.Null)
+            return true;
+
+        return targetType switch
+        {
+            WitSqlType.Integer => sourceType is WitSqlType.Boolean or WitSqlType.Real or WitSqlType.Text or WitSqlType.Decimal,
+            WitSqlType.Real => sourceType is WitSqlType.Integer or WitSqlType.Boolean or WitSqlType.Text or WitSqlType.Decimal,
+            WitSqlType.Text => true,
+            WitSqlType.Blob => sourceType is WitSqlType.Text or WitSqlType.Guid,
+            WitSqlType.Boolean => sourceType is WitSqlType.Integer or WitSqlType.Real or WitSqlType.Text,
+            WitSqlType.Decimal => sourceType is WitSqlType.Integer or WitSqlType.Real or WitSqlType.Text,
+            WitSqlType.DateTime => sourceType is WitSqlType.Text or WitSqlType.Integer or WitSqlType.DateTimeOffset or WitSqlType.DateOnly,
+            WitSqlType.DateOnly => sourceType is WitSqlType.DateTime or WitSqlType.Text or WitSqlType.DateTimeOffset,
+            WitSqlType.TimeOnly => sourceType is WitSqlType.DateTime or WitSqlType.TimeSpan or WitSqlType.Text,
+            WitSqlType.TimeSpan => sourceType is WitSqlType.TimeOnly or WitSqlType.Integer or WitSqlType.Text,
+            WitSqlType.Guid => sourceType is WitSqlType.Text or WitSqlType.Blob,
+            WitSqlType.DateTimeOffset => sourceType is WitSqlType.DateTime or WitSqlType.Text,
+            WitSqlType.Json => sourceType is WitSqlType.Text,
+            WitSqlType.Null => true,
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// Gets the default value for a WitSqlType.
+    /// </summary>
+    public static WitSqlValue GetDefaultValue(WitSqlType type) => type switch
+    {
+        WitSqlType.Null => WitSqlValue.Null,
+        WitSqlType.Integer => WitSqlValue.FromInt(0),
+        WitSqlType.Real => WitSqlValue.FromReal(0.0),
+        WitSqlType.Text => WitSqlValue.FromText(string.Empty),
+        WitSqlType.Blob => WitSqlValue.FromBlob([]),
+        WitSqlType.Boolean => WitSqlValue.False,
+        WitSqlType.Decimal => WitSqlValue.FromDecimal(0m),
+        WitSqlType.DateTime => WitSqlValue.FromDateTime(DateTime.MinValue),
+        WitSqlType.DateOnly => WitSqlValue.FromDateOnly(DateOnly.MinValue),
+        WitSqlType.TimeOnly => WitSqlValue.FromTimeOnly(TimeOnly.MinValue),
+        WitSqlType.TimeSpan => WitSqlValue.FromTimeSpan(TimeSpan.Zero),
+        WitSqlType.Guid => WitSqlValue.FromGuid(Guid.Empty),
+        WitSqlType.DateTimeOffset => WitSqlValue.FromDateTimeOffset(DateTimeOffset.MinValue),
+        WitSqlType.Json => WitSqlValue.Null,
+        _ => WitSqlValue.Null
+    };
+
+    #endregion
+
+    #region Type Categories
+
+    /// <summary>
+    /// Checks if the type is numeric (can be used in arithmetic).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsNumeric(this WitSqlType type) => type is
+        WitSqlType.Integer or WitSqlType.Real or WitSqlType.Decimal or WitSqlType.Boolean;
+
+    /// <summary>
+    /// Checks if the type is a date/time type.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsDateTimeType(this WitSqlType type) => type is
+        WitSqlType.DateTime or WitSqlType.DateOnly or WitSqlType.TimeOnly or
+        WitSqlType.TimeSpan or WitSqlType.DateTimeOffset;
+
+    /// <summary>
+    /// Checks if the type is a string-like type.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsStringType(this WitSqlType type) => type is WitSqlType.Text or WitSqlType.Json;
+
+    /// <summary>
+    /// Checks if the type stores value in int field (m_intValue).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool UsesIntStorage(this WitSqlType type) => type is
+        WitSqlType.Integer or WitSqlType.Boolean or WitSqlType.DateTime or
+        WitSqlType.DateOnly or WitSqlType.TimeOnly or WitSqlType.TimeSpan;
+
+    /// <summary>
+    /// Checks if the type stores value in real field (m_realValue).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool UsesRealStorage(this WitSqlType type) => type is WitSqlType.Real;
+
+    /// <summary>
+    /// Checks if the type stores value in object field (m_objectValue).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool UsesObjectStorage(this WitSqlType type) => type is
+        WitSqlType.Text or WitSqlType.Blob or WitSqlType.Decimal or
+        WitSqlType.Guid or WitSqlType.DateTimeOffset or WitSqlType.Json;
+
+    /// <summary>
+    /// Checks if a WitDataType is fixed-size.
+    /// </summary>
+    public static bool IsFixedSize(this WitDataType type) => type switch
+    {
+        WitDataType.Null or WitDataType.Int8 or WitDataType.UInt8 or WitDataType.Boolean => true,
+        WitDataType.Int16 or WitDataType.UInt16 or WitDataType.Float16 => true,
+        WitDataType.Float32 or WitDataType.DateOnly => true,
+        WitDataType.Float64 or WitDataType.DateTime or WitDataType.TimeOnly or WitDataType.TimeSpan => true,
+        WitDataType.DateTimeOffset or WitDataType.Decimal or WitDataType.Guid => true,
+        WitDataType.StringFixed or WitDataType.BinaryFixed or WitDataType.RowVersion => true,
+        _ => false
+    };
+
+    /// <summary>
+    /// Checks if a WitDataType is variable-size.
+    /// </summary>
+    public static bool IsVariableSize(this WitDataType type) => type switch
+    {
+        WitDataType.Int32 or WitDataType.UInt32 or WitDataType.Int64 or WitDataType.UInt64 => true,
+        WitDataType.StringVariable or WitDataType.BinaryVariable or WitDataType.Json => true,
+        _ => false
+    };
+
+    #endregion
+
+    #region Read/Write Values
 
     /// <summary>
     /// Reads a WitSqlValue from a SpanReader based on the storage data type.
     /// </summary>
-    /// <param name="reader">The span reader positioned at the value data.</param>
-    /// <param name="dataType">The storage data type.</param>
-    /// <returns>The read SQL value.</returns>
     public static WitSqlValue ReadValue(ref SpanReader reader, WitDataType dataType)
     {
         return dataType switch
@@ -133,10 +538,9 @@ public static class WitTypeConverter
             WitDataType.BinaryFixed or WitDataType.BinaryVariable => WitSqlValue.FromBlob(reader.ReadBlob()),
             WitDataType.RowVersion => WitSqlValue.FromBlob(reader.ReadBytes(8).ToArray()),
 
-            // JSON - stored as string, parsed on demand
+            // JSON
             WitDataType.Json => WitSqlValue.FromText(reader.ReadString()),
 
-            // Default fallback
             _ => WitSqlValue.FromText(reader.ReadString())
         };
     }
@@ -148,29 +552,77 @@ public static class WitTypeConverter
         return WitSqlValue.FromDateTimeOffset(new DateTimeOffset(ticks, TimeSpan.FromMinutes(offsetMinutes)));
     }
 
-    #endregion
-
-
-    #region Write Value
-
+    /// <summary>
+    /// Writes a WitSqlValue to a BinaryWriter based on the storage data type.
+    /// </summary>
     public static void WriteValue(BinaryWriter writer, WitDataType type, WitSqlValue value)
     {
         switch (type)
         {
+            case WitDataType.Int8:
+                writer.Write((sbyte)value.AsInt64());
+                break;
+            case WitDataType.UInt8:
+                writer.Write((byte)value.AsInt64());
+                break;
+            case WitDataType.Int16:
+                writer.Write((short)value.AsInt64());
+                break;
+            case WitDataType.UInt16:
+                writer.Write((ushort)value.AsInt64());
+                break;
             case WitDataType.Int32:
                 writer.Write((int)value.AsInt64());
+                break;
+            case WitDataType.UInt32:
+                writer.Write((uint)value.AsInt64());
                 break;
             case WitDataType.Int64:
                 writer.Write(value.AsInt64());
                 break;
+            case WitDataType.UInt64:
+                writer.Write((ulong)value.AsInt64());
+                break;
+            case WitDataType.Float16:
+                writer.Write((Half)value.AsDouble());
+                break;
+            case WitDataType.Float32:
+                writer.Write((float)value.AsDouble());
+                break;
             case WitDataType.Float64:
                 writer.Write(value.AsDouble());
+                break;
+            case WitDataType.Decimal:
+                var bits = decimal.GetBits(value.AsDecimal());
+                foreach (var b in bits)
+                    writer.Write(b);
                 break;
             case WitDataType.Boolean:
                 writer.Write(value.AsBool());
                 break;
+            case WitDataType.DateOnly:
+                writer.Write(value.AsDateOnly().DayNumber);
+                break;
+            case WitDataType.TimeOnly:
+                writer.Write(value.AsTimeOnly().Ticks);
+                break;
+            case WitDataType.DateTime:
+                writer.Write(value.AsDateTime().Ticks);
+                break;
+            case WitDataType.DateTimeOffset:
+                var dto = value.AsDateTimeOffset();
+                writer.Write(dto.Ticks);
+                writer.Write((short)dto.Offset.TotalMinutes);
+                break;
+            case WitDataType.TimeSpan:
+                writer.Write(value.AsTimeSpan().Ticks);
+                break;
+            case WitDataType.Guid:
+                writer.Write(value.AsGuid().ToByteArray());
+                break;
             case WitDataType.StringVariable:
             case WitDataType.StringFixed:
+            case WitDataType.Json:
                 var str = value.AsString();
                 var strBytes = Encoding.UTF8.GetBytes(str);
                 writer.Write(strBytes.Length);
@@ -178,32 +630,12 @@ public static class WitTypeConverter
                 break;
             case WitDataType.BinaryVariable:
             case WitDataType.BinaryFixed:
+            case WitDataType.RowVersion:
                 var blob = value.AsBlob();
                 writer.Write(blob.Length);
                 writer.Write(blob);
                 break;
-            case WitDataType.Guid:
-                writer.Write(value.AsGuid().ToByteArray());
-                break;
-            case WitDataType.DateTime:
-                writer.Write(value.AsDateTime().Ticks);
-                break;
-            case WitDataType.DateOnly:
-                writer.Write((int)value.AsInt64());
-                break;
-            case WitDataType.TimeOnly:
-                writer.Write(value.AsInt64());
-                break;
-            case WitDataType.TimeSpan:
-                writer.Write(value.AsInt64());
-                break;
-            case WitDataType.Decimal:
-                var bits = decimal.GetBits(value.AsDecimal());
-                foreach (var b in bits)
-                    writer.Write(b);
-                break;
             default:
-                // Default to string
                 var s = value.AsString();
                 var sBytes = Encoding.UTF8.GetBytes(s);
                 writer.Write(sBytes.Length);
@@ -211,6 +643,26 @@ public static class WitTypeConverter
                 break;
         }
     }
+
+    #endregion
+
+    #region All Types Enumeration
+
+    /// <summary>
+    /// All defined WitSqlType values. Update when adding new types!
+    /// </summary>
+    public static IReadOnlyList<WitSqlType> AllSqlTypes { get; } =
+    [
+        WitSqlType.Null, WitSqlType.Integer, WitSqlType.Real, WitSqlType.Text,
+        WitSqlType.Blob, WitSqlType.Boolean, WitSqlType.Decimal, WitSqlType.DateTime,
+        WitSqlType.DateOnly, WitSqlType.TimeOnly, WitSqlType.TimeSpan, WitSqlType.Guid,
+        WitSqlType.DateTimeOffset, WitSqlType.Json
+    ];
+
+    /// <summary>
+    /// Number of WitSqlType values. Update when adding new types!
+    /// </summary>
+    public const int SqlTypeCount = 14;
 
     #endregion
 }

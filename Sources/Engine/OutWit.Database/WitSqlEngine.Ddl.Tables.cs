@@ -191,11 +191,11 @@ public sealed partial class WitSqlEngine
             var rowId = SchemaCatalog.ParseRowId(key, tableName);
             var existingRow = oldTable.DeserializeRow(value);
 
-            // Convert the value in the specific column
+            // Convert the value in the specific column using centralized converter
             var newValues = existingRow.Values.ToArray();
             if (!newValues[columnIndex].IsNull)
             {
-                newValues[columnIndex] = ConvertValue(newValues[columnIndex], newType);
+                newValues[columnIndex] = WitTypeConverter.Convert(newValues[columnIndex], newType);
             }
             rowsToUpdate.Add((rowId, newValues));
         }
@@ -339,30 +339,6 @@ public sealed partial class WitSqlEngine
             next[i] = 0;
         }
         return next;
-    }
-
-    private static WitSqlValue ConvertValue(WitSqlValue value, WitDataType targetType)
-    {
-        if (value.IsNull)
-            return WitSqlValue.Null;
-
-        return targetType.ToSqlType() switch
-        {
-            WitSqlType.Integer => WitSqlValue.FromInt(value.AsInt64()),
-            WitSqlType.Real => WitSqlValue.FromReal(value.AsDouble()),
-            WitSqlType.Text => WitSqlValue.FromText(value.AsString()),
-            WitSqlType.Boolean => WitSqlValue.FromBool(value.AsBool()),
-            WitSqlType.Decimal => WitSqlValue.FromDecimal(value.AsDecimal()),
-            WitSqlType.DateTime => WitSqlValue.FromDateTime(value.AsDateTime()),
-            WitSqlType.DateTimeOffset => WitSqlValue.FromDateTimeOffset(value.AsDateTimeOffset()),
-            WitSqlType.DateOnly => WitSqlValue.FromDateOnly(DateOnly.FromDateTime(value.AsDateTime())),
-            WitSqlType.TimeOnly => WitSqlValue.FromTimeOnly(TimeOnly.FromDateTime(value.AsDateTime())),
-            WitSqlType.Guid => WitSqlValue.FromGuid(value.AsGuid()),
-            WitSqlType.Blob => WitSqlValue.FromBlob(value.AsBlob()),
-            WitSqlType.TimeSpan => WitSqlValue.FromTimeSpan(value.AsTimeSpan()),
-            WitSqlType.Json => WitSqlValue.FromJson(value.AsJsonElement()),
-            _ => value
-        };
     }
 
     #endregion

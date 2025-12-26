@@ -45,46 +45,46 @@ public class WitDataTypeRegistryTest
     #region Basic Type Mapping Tests
 
     [Test]
-    public void GetWitDataTypeForPrimitivesTest()
+    public void GetDataTypeForPrimitivesTest()
     {
-        Assert.That(WitDataTypeRegistry.GetWitDataType<sbyte>(), Is.EqualTo(WitDataType.Int8));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<byte>(), Is.EqualTo(WitDataType.UInt8));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<short>(), Is.EqualTo(WitDataType.Int16));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<ushort>(), Is.EqualTo(WitDataType.UInt16));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<int>(), Is.EqualTo(WitDataType.Int32));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<uint>(), Is.EqualTo(WitDataType.UInt32));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<long>(), Is.EqualTo(WitDataType.Int64));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<ulong>(), Is.EqualTo(WitDataType.UInt64));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<Half>(), Is.EqualTo(WitDataType.Float16));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<float>(), Is.EqualTo(WitDataType.Float32));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<double>(), Is.EqualTo(WitDataType.Float64));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<bool>(), Is.EqualTo(WitDataType.Boolean));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<DateOnly>(), Is.EqualTo(WitDataType.DateOnly));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<TimeOnly>(), Is.EqualTo(WitDataType.TimeOnly));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<DateTime>(), Is.EqualTo(WitDataType.DateTime));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<DateTimeOffset>(), Is.EqualTo(WitDataType.DateTimeOffset));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<TimeSpan>(), Is.EqualTo(WitDataType.TimeSpan));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<Guid>(), Is.EqualTo(WitDataType.Guid));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<string>(), Is.EqualTo(WitDataType.StringVariable));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<byte[]>(), Is.EqualTo(WitDataType.BinaryVariable));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<decimal>(), Is.EqualTo(WitDataType.Decimal));
+        Assert.That(WitTypeConverter.GetDataType<sbyte>(), Is.EqualTo(WitDataType.Int8));
+        Assert.That(WitTypeConverter.GetDataType<byte>(), Is.EqualTo(WitDataType.UInt8));
+        Assert.That(WitTypeConverter.GetDataType<short>(), Is.EqualTo(WitDataType.Int16));
+        Assert.That(WitTypeConverter.GetDataType<ushort>(), Is.EqualTo(WitDataType.UInt16));
+        Assert.That(WitTypeConverter.GetDataType<int>(), Is.EqualTo(WitDataType.Int32));
+        Assert.That(WitTypeConverter.GetDataType<uint>(), Is.EqualTo(WitDataType.UInt32));
+        Assert.That(WitTypeConverter.GetDataType<long>(), Is.EqualTo(WitDataType.Int64));
+        Assert.That(WitTypeConverter.GetDataType<ulong>(), Is.EqualTo(WitDataType.UInt64));
+        Assert.That(WitTypeConverter.GetDataType<Half>(), Is.EqualTo(WitDataType.Float16));
+        Assert.That(WitTypeConverter.GetDataType<float>(), Is.EqualTo(WitDataType.Float32));
+        Assert.That(WitTypeConverter.GetDataType<double>(), Is.EqualTo(WitDataType.Float64));
+        Assert.That(WitTypeConverter.GetDataType<bool>(), Is.EqualTo(WitDataType.Boolean));
+        Assert.That(WitTypeConverter.GetDataType<DateOnly>(), Is.EqualTo(WitDataType.DateOnly));
+        Assert.That(WitTypeConverter.GetDataType<TimeOnly>(), Is.EqualTo(WitDataType.TimeOnly));
+        Assert.That(WitTypeConverter.GetDataType<DateTime>(), Is.EqualTo(WitDataType.DateTime));
+        Assert.That(WitTypeConverter.GetDataType<DateTimeOffset>(), Is.EqualTo(WitDataType.DateTimeOffset));
+        Assert.That(WitTypeConverter.GetDataType<TimeSpan>(), Is.EqualTo(WitDataType.TimeSpan));
+        Assert.That(WitTypeConverter.GetDataType<Guid>(), Is.EqualTo(WitDataType.Guid));
+        Assert.That(WitTypeConverter.GetDataType<string>(), Is.EqualTo(WitDataType.StringVariable));
+        Assert.That(WitTypeConverter.GetDataType<byte[]>(), Is.EqualTo(WitDataType.BinaryVariable));
+        Assert.That(WitTypeConverter.GetDataType<decimal>(), Is.EqualTo(WitDataType.Decimal));
     }
 
     [Test]
-    public void GetWitDataTypeForJsonTypesTest()
+    public void GetDataTypeForJsonTypesTest()
     {
-        Assert.That(WitDataTypeRegistry.GetWitDataType<JsonDocument>(), Is.EqualTo(WitDataType.Json));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<JsonElement>(), Is.EqualTo(WitDataType.Json));
+        Assert.That(WitTypeConverter.GetDataType<JsonDocument>(), Is.EqualTo(WitDataType.Json));
+        Assert.That(WitTypeConverter.GetDataType<JsonElement>(), Is.EqualTo(WitDataType.Json));
     }
 
     [Test]
-    public void GetWitDataTypeForNullablesTest()
+    public void GetDataTypeForNullablesTest()
     {
-        Assert.That(WitDataTypeRegistry.GetWitDataType<int?>(), Is.EqualTo(WitDataType.Int32));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<DateTime?>(), Is.EqualTo(WitDataType.DateTime));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<Guid?>(), Is.EqualTo(WitDataType.Guid));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<bool?>(), Is.EqualTo(WitDataType.Boolean));
-        Assert.That(WitDataTypeRegistry.GetWitDataType<decimal?>(), Is.EqualTo(WitDataType.Decimal));
+        Assert.That(WitTypeConverter.GetDataType<int?>(), Is.EqualTo(WitDataType.Int32));
+        Assert.That(WitTypeConverter.GetDataType<DateTime?>(), Is.EqualTo(WitDataType.DateTime));
+        Assert.That(WitTypeConverter.GetDataType<Guid?>(), Is.EqualTo(WitDataType.Guid));
+        Assert.That(WitTypeConverter.GetDataType<bool?>(), Is.EqualTo(WitDataType.Boolean));
+        Assert.That(WitTypeConverter.GetDataType<decimal?>(), Is.EqualTo(WitDataType.Decimal));
     }
 
     #endregion
@@ -92,34 +92,34 @@ public class WitDataTypeRegistryTest
     #region GetClrType Tests
 
     [Test]
-    public void GetClrTypeTest()
+    public void GetClrTypeFromDataTypeTest()
     {
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Int8), Is.EqualTo(typeof(sbyte)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.UInt8), Is.EqualTo(typeof(byte)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Int16), Is.EqualTo(typeof(short)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.UInt16), Is.EqualTo(typeof(ushort)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Int32), Is.EqualTo(typeof(int)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.UInt32), Is.EqualTo(typeof(uint)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Int64), Is.EqualTo(typeof(long)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.UInt64), Is.EqualTo(typeof(ulong)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Float16), Is.EqualTo(typeof(Half)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Float32), Is.EqualTo(typeof(float)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Float64), Is.EqualTo(typeof(double)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Decimal), Is.EqualTo(typeof(decimal)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Boolean), Is.EqualTo(typeof(bool)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.DateOnly), Is.EqualTo(typeof(DateOnly)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.TimeOnly), Is.EqualTo(typeof(TimeOnly)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.DateTime), Is.EqualTo(typeof(DateTime)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.DateTimeOffset), Is.EqualTo(typeof(DateTimeOffset)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.TimeSpan), Is.EqualTo(typeof(TimeSpan)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Guid), Is.EqualTo(typeof(Guid)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.StringVariable), Is.EqualTo(typeof(string)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.StringFixed), Is.EqualTo(typeof(string)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.BinaryVariable), Is.EqualTo(typeof(byte[])));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.BinaryFixed), Is.EqualTo(typeof(byte[])));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Null), Is.EqualTo(typeof(DBNull)));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.RowVersion), Is.EqualTo(typeof(byte[])));
-        Assert.That(WitDataTypeRegistry.GetClrType(WitDataType.Json), Is.EqualTo(typeof(JsonDocument)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Int8), Is.EqualTo(typeof(sbyte)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.UInt8), Is.EqualTo(typeof(byte)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Int16), Is.EqualTo(typeof(short)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.UInt16), Is.EqualTo(typeof(ushort)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Int32), Is.EqualTo(typeof(int)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.UInt32), Is.EqualTo(typeof(uint)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Int64), Is.EqualTo(typeof(long)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.UInt64), Is.EqualTo(typeof(ulong)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Float16), Is.EqualTo(typeof(Half)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Float32), Is.EqualTo(typeof(float)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Float64), Is.EqualTo(typeof(double)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Decimal), Is.EqualTo(typeof(decimal)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Boolean), Is.EqualTo(typeof(bool)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.DateOnly), Is.EqualTo(typeof(DateOnly)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.TimeOnly), Is.EqualTo(typeof(TimeOnly)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.DateTime), Is.EqualTo(typeof(DateTime)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.DateTimeOffset), Is.EqualTo(typeof(DateTimeOffset)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.TimeSpan), Is.EqualTo(typeof(TimeSpan)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Guid), Is.EqualTo(typeof(Guid)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.StringVariable), Is.EqualTo(typeof(string)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.StringFixed), Is.EqualTo(typeof(string)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.BinaryVariable), Is.EqualTo(typeof(byte[])));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.BinaryFixed), Is.EqualTo(typeof(byte[])));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Null), Is.EqualTo(typeof(DBNull)));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.RowVersion), Is.EqualTo(typeof(byte[])));
+        Assert.That(WitTypeConverter.GetClrType(WitDataType.Json), Is.EqualTo(typeof(JsonDocument)));
     }
 
     #endregion
@@ -127,70 +127,52 @@ public class WitDataTypeRegistryTest
     #region Enum Tests
 
     [Test]
-    public void GetWitDataTypeForIntEnumTest()
+    public void GetDataTypeForIntEnumTest()
     {
         // Int-based enum should map to Int32
-        var witDataType = WitDataTypeRegistry.GetWitDataType<TestIntEnum>();
+        var witDataType = WitTypeConverter.GetDataType<TestIntEnum>();
         Assert.That(witDataType, Is.EqualTo(WitDataType.Int32));
     }
 
     [Test]
-    public void GetWitDataTypeForByteEnumTest()
+    public void GetDataTypeForByteEnumTest()
     {
         // Byte-based enum should map to UInt8
-        var witDataType = WitDataTypeRegistry.GetWitDataType<TestByteEnum>();
+        var witDataType = WitTypeConverter.GetDataType<TestByteEnum>();
         Assert.That(witDataType, Is.EqualTo(WitDataType.UInt8));
     }
 
     [Test]
-    public void GetWitDataTypeForLongEnumTest()
+    public void GetDataTypeForLongEnumTest()
     {
         // Long-based enum should map to Int64
-        var witDataType = WitDataTypeRegistry.GetWitDataType<TestLongEnum>();
+        var witDataType = WitTypeConverter.GetDataType<TestLongEnum>();
         Assert.That(witDataType, Is.EqualTo(WitDataType.Int64));
     }
 
     [Test]
-    public void GetWitDataTypeForFlagsEnumTest()
+    public void GetDataTypeForFlagsEnumTest()
     {
         // Flags enum should work the same as regular enum
-        var witDataType = WitDataTypeRegistry.GetWitDataType<TestFlagsEnum>();
+        var witDataType = WitTypeConverter.GetDataType<TestFlagsEnum>();
         Assert.That(witDataType, Is.EqualTo(WitDataType.Int32));
     }
 
     [Test]
-    public void GetWitDataTypeForNullableEnumTest()
+    public void GetDataTypeForNullableEnumTest()
     {
-        var witDataType = WitDataTypeRegistry.GetWitDataType<TestIntEnum?>();
+        var witDataType = WitTypeConverter.GetDataType<TestIntEnum?>();
         Assert.That(witDataType, Is.EqualTo(WitDataType.Int32));
     }
 
     [Test]
     public void IsSupportedForEnumsTest()
     {
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(TestIntEnum)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(TestByteEnum)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(TestLongEnum)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(TestFlagsEnum)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(TestIntEnum?)), Is.True);
-    }
-
-    [Test]
-    public void IsEnumTest()
-    {
-        Assert.That(WitDataTypeRegistry.IsEnum(typeof(TestIntEnum)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsEnum(typeof(TestIntEnum?)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsEnum(typeof(int)), Is.False);
-        Assert.That(WitDataTypeRegistry.IsEnum(typeof(string)), Is.False);
-    }
-
-    [Test]
-    public void GetEnumUnderlyingTypeTest()
-    {
-        Assert.That(WitDataTypeRegistry.GetEnumUnderlyingType(typeof(TestIntEnum)), Is.EqualTo(typeof(int)));
-        Assert.That(WitDataTypeRegistry.GetEnumUnderlyingType(typeof(TestByteEnum)), Is.EqualTo(typeof(byte)));
-        Assert.That(WitDataTypeRegistry.GetEnumUnderlyingType(typeof(TestLongEnum)), Is.EqualTo(typeof(long)));
-        Assert.That(WitDataTypeRegistry.GetEnumUnderlyingType(typeof(int)), Is.EqualTo(typeof(int))); // Not an enum, returns itself
+        Assert.That(WitTypeConverter.IsSupported(typeof(TestIntEnum)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(TestByteEnum)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(TestLongEnum)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(TestFlagsEnum)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(TestIntEnum?)), Is.True);
     }
 
     #endregion
@@ -246,115 +228,52 @@ public class WitDataTypeRegistryTest
     [Test]
     public void IsFixedSizeTest()
     {
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Null), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Int8), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.UInt8), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Int16), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.UInt16), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Float16), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Float32), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Float64), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Decimal), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Boolean), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.DateOnly), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.TimeOnly), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.DateTime), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.DateTimeOffset), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.TimeSpan), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Guid), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.StringFixed), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.BinaryFixed), Is.True);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.RowVersion), Is.True);
+        Assert.That(WitDataType.Null.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Int8.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.UInt8.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Int16.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.UInt16.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Float16.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Float32.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Float64.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Decimal.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Boolean.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.DateOnly.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.TimeOnly.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.DateTime.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.DateTimeOffset.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.TimeSpan.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.Guid.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.StringFixed.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.BinaryFixed.IsFixedSize(), Is.True);
+        Assert.That(WitDataType.RowVersion.IsFixedSize(), Is.True);
 
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Int32), Is.False); // VarInt
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.UInt32), Is.False);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Int64), Is.False);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.UInt64), Is.False);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.StringVariable), Is.False);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.BinaryVariable), Is.False);
-        Assert.That(WitDataTypeRegistry.IsFixedSize(WitDataType.Json), Is.False);
+        Assert.That(WitDataType.Int32.IsFixedSize(), Is.False); // VarInt
+        Assert.That(WitDataType.UInt32.IsFixedSize(), Is.False);
+        Assert.That(WitDataType.Int64.IsFixedSize(), Is.False);
+        Assert.That(WitDataType.UInt64.IsFixedSize(), Is.False);
+        Assert.That(WitDataType.StringVariable.IsFixedSize(), Is.False);
+        Assert.That(WitDataType.BinaryVariable.IsFixedSize(), Is.False);
+        Assert.That(WitDataType.Json.IsFixedSize(), Is.False);
     }
 
     [Test]
     public void IsVariableSizeTest()
     {
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.Int32), Is.True);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.UInt32), Is.True);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.Int64), Is.True);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.UInt64), Is.True);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.StringVariable), Is.True);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.BinaryVariable), Is.True);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.Json), Is.True);
+        Assert.That(WitDataType.Int32.IsVariableSize(), Is.True);
+        Assert.That(WitDataType.UInt32.IsVariableSize(), Is.True);
+        Assert.That(WitDataType.Int64.IsVariableSize(), Is.True);
+        Assert.That(WitDataType.UInt64.IsVariableSize(), Is.True);
+        Assert.That(WitDataType.StringVariable.IsVariableSize(), Is.True);
+        Assert.That(WitDataType.BinaryVariable.IsVariableSize(), Is.True);
+        Assert.That(WitDataType.Json.IsVariableSize(), Is.True);
 
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.Int8), Is.False);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.DateTime), Is.False);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.Guid), Is.False);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.StringFixed), Is.False);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.BinaryFixed), Is.False);
-        Assert.That(WitDataTypeRegistry.IsVariableSize(WitDataType.RowVersion), Is.False);
-    }
-
-    #endregion
-
-    #region Nullable Tests
-
-    [Test]
-    public void IsNullableTest()
-    {
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(int?)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(DateTime?)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(string)), Is.True); // Reference type
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(byte[])), Is.True); // Reference type
-
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(int)), Is.False);
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(DateTime)), Is.False);
-        Assert.That(WitDataTypeRegistry.IsNullable(typeof(Guid)), Is.False);
-    }
-
-    #endregion
-
-    #region RequiresPrecisionScale Tests
-
-    [Test]
-    public void RequiresPrecisionScaleTest()
-    {
-        Assert.That(WitDataTypeRegistry.RequiresPrecisionScale(WitDataType.Decimal), Is.True);
-
-        Assert.That(WitDataTypeRegistry.RequiresPrecisionScale(WitDataType.Int32), Is.False);
-        Assert.That(WitDataTypeRegistry.RequiresPrecisionScale(WitDataType.Float64), Is.False);
-        Assert.That(WitDataTypeRegistry.RequiresPrecisionScale(WitDataType.StringVariable), Is.False);
-    }
-
-    #endregion
-
-    #region RequiresMaxLength Tests
-
-    [Test]
-    public void RequiresMaxLengthTest()
-    {
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.StringFixed), Is.True);
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.StringVariable), Is.True);
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.BinaryFixed), Is.True);
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.BinaryVariable), Is.True);
-
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.Int32), Is.False);
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.Decimal), Is.False);
-        Assert.That(WitDataTypeRegistry.RequiresMaxLength(WitDataType.Json), Is.False);
-    }
-
-    #endregion
-
-    #region SupportsCollation Tests
-
-    [Test]
-    public void SupportsCollationTest()
-    {
-        Assert.That(WitDataTypeRegistry.SupportsCollation(WitDataType.StringFixed), Is.True);
-        Assert.That(WitDataTypeRegistry.SupportsCollation(WitDataType.StringVariable), Is.True);
-
-        Assert.That(WitDataTypeRegistry.SupportsCollation(WitDataType.Int32), Is.False);
-        Assert.That(WitDataTypeRegistry.SupportsCollation(WitDataType.BinaryVariable), Is.False);
-        Assert.That(WitDataTypeRegistry.SupportsCollation(WitDataType.Json), Is.False);
+        Assert.That(WitDataType.Int8.IsVariableSize(), Is.False);
+        Assert.That(WitDataType.DateTime.IsVariableSize(), Is.False);
+        Assert.That(WitDataType.Guid.IsVariableSize(), Is.False);
+        Assert.That(WitDataType.StringFixed.IsVariableSize(), Is.False);
+        Assert.That(WitDataType.BinaryFixed.IsVariableSize(), Is.False);
+        Assert.That(WitDataType.RowVersion.IsVariableSize(), Is.False);
     }
 
     #endregion
@@ -366,24 +285,24 @@ public class WitDataTypeRegistryTest
     [Test]
     public void UnsupportedTypeThrowsTest()
     {
-        Assert.Throws<NotSupportedException>(() => WitDataTypeRegistry.GetWitDataType<UnsupportedType>());
+        Assert.Throws<NotSupportedException>(() => WitTypeConverter.GetDataType<UnsupportedType>());
     }
 
     [Test]
     public void IsSupportedForPrimitivesTest()
     {
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(int)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(string)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(DateTime)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(Guid)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(decimal)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(bool)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(byte[])), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(JsonDocument)), Is.True);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(JsonElement)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(int)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(string)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(DateTime)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(Guid)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(decimal)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(bool)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(byte[])), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(JsonDocument)), Is.True);
+        Assert.That(WitTypeConverter.IsSupported(typeof(JsonElement)), Is.True);
 
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(UnsupportedType)), Is.False);
-        Assert.That(WitDataTypeRegistry.IsSupported(typeof(object)), Is.False);
+        Assert.That(WitTypeConverter.IsSupported(typeof(UnsupportedType)), Is.False);
+        Assert.That(WitTypeConverter.IsSupported(typeof(object)), Is.False);
     }
 
     #endregion

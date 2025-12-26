@@ -212,6 +212,10 @@ public sealed partial class ExpressionEvaluator
             WitSqlType.Real => value.AsDouble().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
             WitSqlType.Decimal => value.AsDecimal().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
             WitSqlType.DateTime => value.AsDateTime().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
+            WitSqlType.DateOnly => value.AsDateOnly().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
+            WitSqlType.TimeOnly => value.AsTimeOnly().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
+            WitSqlType.DateTimeOffset => value.AsDateTimeOffset().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
+            WitSqlType.TimeSpan => value.AsTimeSpan().ToString(format, System.Globalization.CultureInfo.InvariantCulture),
             _ => value.AsString()
         });
     }
@@ -220,22 +224,11 @@ public sealed partial class ExpressionEvaluator
     {
         // CONVERT(value, type_name)
         var value = args[0];
-        var typeName = args[1].AsString().ToUpperInvariant();
+        var typeName = args[1].AsString();
 
-        return typeName switch
-        {
-            "INT" or "INTEGER" => WitSqlValue.FromInt(value.AsInt64()),
-            "REAL" or "FLOAT" or "DOUBLE" => WitSqlValue.FromReal(value.AsDouble()),
-            "TEXT" or "VARCHAR" or "STRING" => WitSqlValue.FromText(value.AsString()),
-            "DECIMAL" => WitSqlValue.FromDecimal(value.AsDecimal()),
-            "DATETIME" => WitSqlValue.FromDateTime(value.AsDateTime()),
-            "DATE" => WitSqlValue.FromDateOnly(DateOnly.FromDateTime(value.AsDateTime())),
-            "TIME" => WitSqlValue.FromTimeOnly(TimeOnly.FromDateTime(value.AsDateTime())),
-            "BOOL" or "BOOLEAN" => WitSqlValue.FromBool(value.AsBool()),
-            "BLOB" => WitSqlValue.FromBlob(value.AsBlob()),
-            "GUID" or "UUID" => WitSqlValue.FromGuid(value.AsGuid()),
-            _ => value
-        };
+        // Use centralized type name parsing and conversion
+        var targetType = WitTypeConverter.ParseSqlTypeName(typeName);
+        return WitTypeConverter.Convert(value, targetType);
     }
 
     #endregion
