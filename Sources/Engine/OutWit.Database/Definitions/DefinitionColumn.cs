@@ -1,3 +1,4 @@
+using MemoryPack;
 using OutWit.Common.Abstract;
 using OutWit.Common.Values;
 using OutWit.Database.Types;
@@ -7,7 +8,8 @@ namespace OutWit.Database.Definitions;
 /// <summary>
 /// Defines a column in a database table.
 /// </summary>
-public sealed class DefinitionColumn : ModelBase
+[MemoryPackable]
+public sealed partial class DefinitionColumn : ModelBase
 {
     #region Model Base
 
@@ -61,51 +63,61 @@ public sealed class DefinitionColumn : ModelBase
     /// <summary>
     /// Gets the column name.
     /// </summary>
+    [MemoryPackOrder(0)]
     public required string Name { get; init; }
 
     /// <summary>
     /// Gets the column type.
     /// </summary>
+    [MemoryPackOrder(1)]
     public required WitDataType Type { get; init; }
 
     /// <summary>
     /// Gets whether this column allows NULL values.
     /// </summary>
+    [MemoryPackOrder(2)]
     public bool Nullable { get; init; } = true;
 
     /// <summary>
     /// Gets whether this column is part of the primary key.
     /// </summary>
+    [MemoryPackOrder(3)]
     public bool IsPrimaryKey { get; init; }
 
     /// <summary>
     /// Gets whether this column auto-increments.
     /// </summary>
+    [MemoryPackOrder(4)]
     public bool IsAutoIncrement { get; init; }
 
     /// <summary>
     /// Gets whether this column has a UNIQUE constraint.
     /// </summary>
+    [MemoryPackOrder(5)]
     public bool IsUnique { get; init; }
 
     /// <summary>
     /// Gets the default value expression (if any).
     /// </summary>
+    [MemoryPackOrder(6)]
     public string? DefaultValue { get; init; }
 
     /// <summary>
     /// Gets the column ordinal (0-based position).
     /// </summary>
+    [MemoryPackOrder(7)]
     public int Ordinal { get; init; }
 
     /// <summary>
     /// Gets the CHECK constraint expression as SQL text (if any).
     /// </summary>
+    [MemoryPackOrder(8)]
     public string? CheckExpression { get; init; }
 
     /// <summary>
     /// Gets the foreign key definition (if this column references another table).
     /// </summary>
+    [MemoryPackOrder(9)]
     public DefinitionForeignKey? ForeignKey { get; init; }
 
     #endregion

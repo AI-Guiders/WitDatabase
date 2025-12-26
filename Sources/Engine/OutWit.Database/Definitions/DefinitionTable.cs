@@ -1,13 +1,16 @@
+using MemoryPack;
 using OutWit.Common.Abstract;
-using OutWit.Common.Values;
 using OutWit.Common.Collections;
+using OutWit.Common.Values;
+using OutWit.Database.Attributes;
 
 namespace OutWit.Database.Definitions
 {
     /// <summary>
     /// Defines a database table.
     /// </summary>
-    public sealed class DefinitionTable : ModelBase
+    [MemoryPackable]
+    public sealed partial class DefinitionTable : ModelBase
     {
         #region Constants
 
@@ -89,41 +92,50 @@ namespace OutWit.Database.Definitions
         /// <summary>
         /// Gets the table name.
         /// </summary>
+        [MemoryPackOrder(0)]
         public required string Name { get; init; }
 
         /// <summary>
         /// Gets the columns in this table.
         /// </summary>
+        [MemoryPackOrder(1)]
         public required IReadOnlyList<DefinitionColumn> Columns { get; init; }
 
         /// <summary>
         /// Gets the primary key columns (if any).
         /// </summary>
+        [MemoryPackOrder(2)]
         public IReadOnlyList<string>? PrimaryKey { get; init; }
 
         /// <summary>
         /// Gets the row ID column name (auto-generated if not specified).
         /// </summary>
+        [MemoryPackOrder(3)]
         public string RowIdColumn { get; init; } = ROW_ID_COLUMN;
 
         /// <summary>
         /// Gets whether the table uses auto-incrementing row IDs.
         /// </summary>
+        [MemoryPackOrder(4)]
         public bool AutoIncrementRowId { get; init; } = true;
 
         /// <summary>
         /// Gets the table-level CHECK constraint expressions as SQL text.
         /// </summary>
+        [MemoryPackOrder(5)]
         public IReadOnlyList<string>? CheckExpressions { get; init; }
 
         /// <summary>
         /// Gets the table-level foreign key constraints.
         /// </summary>
+        [MemoryPackOrder(6)]
         public IReadOnlyList<DefinitionForeignKey>? ForeignKeys { get; init; }
 
         /// <summary>
         /// Gets the table-level UNIQUE constraints (each is a list of column names).
         /// </summary>
+        [MemoryPackOrder(7)]
+        [ReadOnlyStringMatrixFormatter]
         public IReadOnlyList<IReadOnlyList<string>>? UniqueConstraints { get; init; }
 
         #endregion

@@ -1,3 +1,4 @@
+using MemoryPack;
 using OutWit.Common.Abstract;
 using OutWit.Common.Values;
 using OutWit.Common.Collections;
@@ -7,7 +8,8 @@ namespace OutWit.Database.Definitions
     /// <summary>
     /// Defines an index on a table.
     /// </summary>
-    public sealed class DefinitionIndex : ModelBase
+    [MemoryPackable]
+    public sealed partial class DefinitionIndex : ModelBase
     {
         #region Model Base
 
@@ -51,26 +53,31 @@ namespace OutWit.Database.Definitions
         /// <summary>
         /// Gets the index name.
         /// </summary>
+        [MemoryPackOrder(0)]
         public required string Name { get; init; }
 
         /// <summary>
         /// Gets the table this index belongs to.
         /// </summary>
+        [MemoryPackOrder(1)]
         public required string TableName { get; init; }
 
         /// <summary>
         /// Gets the columns in this index.
         /// </summary>
+        [MemoryPackOrder(2)]
         public required IReadOnlyList<string> Columns { get; init; }
 
         /// <summary>
         /// Gets whether this is a unique index.
         /// </summary>
+        [MemoryPackOrder(3)]
         public bool IsUnique { get; init; }
 
         /// <summary>
         /// Gets whether this is the primary key index.
         /// </summary>
+        [MemoryPackOrder(4)]
         public bool IsPrimaryKey { get; init; }
 
         #endregion

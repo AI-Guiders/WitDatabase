@@ -1,5 +1,5 @@
 using System.Text;
-using OutWit.Common.Json;
+using OutWit.Common.MemoryPack;
 using OutWit.Database.Definitions;
 
 namespace OutWit.Database.Schema;
@@ -195,7 +195,7 @@ public sealed partial class SchemaCatalog
     private void SaveSequence(DefinitionSequence sequence)
     {
         var key = $"{SEQUENCE_PREFIX}{sequence.Name}:def";
-        m_store.Put(Encoding.UTF8.GetBytes(key).AsSpan(), sequence.ToJsonBytes());
+        m_store.Put(Encoding.UTF8.GetBytes(key).AsSpan(), sequence.ToMemoryPackBytes());
     }
 
     /// <summary>
@@ -215,7 +215,7 @@ public sealed partial class SchemaCatalog
     private void SaveSequencesList()
     {
         var names = m_sequences.Keys.ToList();
-        m_store.Put(SEQUENCES_KEY_BYTES.AsSpan(), names.ToJsonBytes());
+        m_store.Put(SEQUENCES_KEY_BYTES.AsSpan(), names.ToMemoryPackBytes());
     }
 
     private void LoadSequences()
@@ -225,7 +225,7 @@ public sealed partial class SchemaCatalog
         if (namesData == null || namesData.Length == 0)
             return;
 
-        var names = namesData.FromJsonBytes<List<string>>();
+        var names = namesData.FromMemoryPackBytes<List<string>>();
         if (names == null)
             return;
 
@@ -237,7 +237,7 @@ public sealed partial class SchemaCatalog
             if (defData == null)
                 continue;
 
-            var sequence = defData.FromJsonBytes<DefinitionSequence>();
+            var sequence = defData.FromMemoryPackBytes<DefinitionSequence>();
             if (sequence == null)
                 continue;
 

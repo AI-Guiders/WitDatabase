@@ -1,6 +1,5 @@
 using System.Text;
-using System.Text.Json;
-using OutWit.Common.Json;
+using OutWit.Common.MemoryPack;
 using OutWit.Database.Definitions;
 
 namespace OutWit.Database.Schema;
@@ -18,7 +17,7 @@ public sealed partial class SchemaCatalog
         var tablesData = m_store.Get(TABLES_KEY_BYTES.AsSpan());
         if (tablesData != null)
         {
-            var tableList = tablesData.FromJsonBytes<List<DefinitionTable>>();
+            var tableList = tablesData.FromMemoryPackBytes<List<DefinitionTable>>();
             if (tableList != null)
             {
                 foreach (var table in tableList)
@@ -33,7 +32,7 @@ public sealed partial class SchemaCatalog
         var indexesData = m_store.Get(INDEXES_KEY_BYTES.AsSpan());
         if (indexesData != null)
         {
-            var indexList = indexesData.FromJsonBytes<List<DefinitionIndex>>();
+            var indexList = indexesData.FromMemoryPackBytes<List<DefinitionIndex>>();
             if (indexList != null)
             {
                 foreach (var index in indexList)
@@ -57,11 +56,11 @@ public sealed partial class SchemaCatalog
     {
         // Save tables
         var tableList = m_tables.Values.ToList();
-        m_store.Put(TABLES_KEY_BYTES.AsSpan(), tableList.ToJsonBytes());
+        m_store.Put(TABLES_KEY_BYTES.AsSpan(), tableList.ToMemoryPackBytes());
 
         // Save indexes
         var indexList = m_indexes.Values.ToList();
-        m_store.Put(INDEXES_KEY_BYTES.AsSpan(), indexList.ToJsonBytes());
+        m_store.Put(INDEXES_KEY_BYTES.AsSpan(), indexList.ToMemoryPackBytes());
     }
 
     #endregion

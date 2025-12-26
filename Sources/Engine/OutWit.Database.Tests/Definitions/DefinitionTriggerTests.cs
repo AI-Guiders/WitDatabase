@@ -1,11 +1,12 @@
 using NUnit.Framework.Legacy;
+using OutWit.Common.Collections;
+using OutWit.Common.MemoryPack;
 using OutWit.Common.NUnit;
+using OutWit.Common.Utils;
 using OutWit.Database.Definitions;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using OutWit.Common.Collections;
-using OutWit.Common.Utils;
 
 namespace OutWit.Database.Tests.Definitions
 {
@@ -112,7 +113,7 @@ namespace OutWit.Database.Tests.Definitions
         }
 
         [Test]
-        public void JsonCloneTest()
+        public void MemoryPackCloneTest()
         {
             var definition = new DefinitionTrigger
             {
@@ -126,7 +127,7 @@ namespace OutWit.Database.Tests.Definitions
                 Body = "BEGIN UPDATE AuditLog SET UpdatedAt = NOW(); END"
             };
 
-            var clone = definition.Clone();
+            var clone = definition.MemoryPackClone();
 
             Assert.That(clone, Is.Not.Null);
             Assert.That(clone, Is.Not.SameAs(definition));

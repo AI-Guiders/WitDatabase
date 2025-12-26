@@ -1,5 +1,5 @@
 using System.Text;
-using OutWit.Common.Json;
+using OutWit.Common.MemoryPack;
 using OutWit.Database.Definitions;
 
 namespace OutWit.Database.Schema;
@@ -90,7 +90,7 @@ public sealed partial class SchemaCatalog
     private void SaveViews()
     {
         List<DefinitionView> views = m_views.Values.ToList();
-        m_store.Put(VIEWS_KEY_BYTES.AsSpan(), views.ToJsonBytes());
+        m_store.Put(VIEWS_KEY_BYTES.AsSpan(), views.ToMemoryPackBytes());
     }
 
     private void LoadViews()
@@ -99,7 +99,7 @@ public sealed partial class SchemaCatalog
         if (viewsData == null || viewsData.Length == 0)
             return;
 
-        var views = viewsData.FromJsonBytes<List<DefinitionView>>();
+        var views = viewsData.FromMemoryPackBytes<List<DefinitionView>>();
         if (views == null)
             return;
 

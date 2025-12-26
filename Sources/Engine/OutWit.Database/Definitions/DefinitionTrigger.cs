@@ -1,3 +1,4 @@
+using MemoryPack;
 using OutWit.Common.Abstract;
 using OutWit.Common.Collections;
 using OutWit.Common.Values;
@@ -7,7 +8,8 @@ namespace OutWit.Database.Definitions
     /// <summary>
     /// Defines a database trigger.
     /// </summary>
-    public sealed class DefinitionTrigger : ModelBase
+    [MemoryPackable]
+    public sealed partial class DefinitionTrigger : ModelBase
     {
         #region Model Base
 
@@ -57,41 +59,49 @@ namespace OutWit.Database.Definitions
         /// <summary>
         /// Gets the trigger name.
         /// </summary>
+        [MemoryPackOrder(0)]
         public required string Name { get; init; }
 
         /// <summary>
         /// Gets the table this trigger is attached to.
         /// </summary>
+        [MemoryPackOrder(1)]
         public required string TableName { get; init; }
 
         /// <summary>
         /// Gets when the trigger fires relative to the operation.
         /// </summary>
+        [MemoryPackOrder(2)]
         public required TriggerTime Time { get; init; }
 
         /// <summary>
         /// Gets the event that fires the trigger.
         /// </summary>
+        [MemoryPackOrder(3)]
         public required TriggerEvent Event { get; init; }
 
         /// <summary>
         /// Gets the columns for UPDATE OF triggers. Null means all columns.
         /// </summary>
+        [MemoryPackOrder(4)]
         public IReadOnlyList<string>? UpdateColumns { get; init; }
 
         /// <summary>
         /// Gets whether this is a FOR EACH ROW trigger.
         /// </summary>
+        [MemoryPackOrder(5)]
         public bool ForEachRow { get; init; }
 
         /// <summary>
         /// Gets the optional WHEN condition (SQL expression).
         /// </summary>
+        [MemoryPackOrder(6)]
         public string? WhenCondition { get; init; }
 
         /// <summary>
         /// Gets the trigger body (SQL statements).
         /// </summary>
+        [MemoryPackOrder(7)]
         public required string Body { get; init; }
 
         #endregion

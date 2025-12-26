@@ -1,3 +1,4 @@
+using MemoryPack;
 using OutWit.Common.Abstract;
 using OutWit.Common.Attributes;
 using OutWit.Common.Collections;
@@ -8,7 +9,8 @@ namespace OutWit.Database.Definitions
     /// <summary>
     /// Defines a foreign key constraint.
     /// </summary>
-    public sealed class DefinitionForeignKey : ModelBase
+    [MemoryPackable]
+    public sealed partial class DefinitionForeignKey : ModelBase
     {
         #region Model Base
 
@@ -43,27 +45,32 @@ namespace OutWit.Database.Definitions
         /// <summary>
         /// Local column names involved in this FK.
         /// </summary>
+        [MemoryPackOrder(0)]
         public required IReadOnlyList<string> Columns { get; init; }
 
         /// <summary>
         /// Referenced table name.
         /// </summary>
         [ToString]
+        [MemoryPackOrder(1)]
         public required string ForeignTable { get; init; }
 
         /// <summary>
         /// Referenced column names (if null, defaults to PK of foreign table).
         /// </summary>
+        [MemoryPackOrder(2)]
         public IReadOnlyList<string>? ForeignColumns { get; init; }
 
         /// <summary>
         /// Action on delete of referenced row.
         /// </summary>
+        [MemoryPackOrder(3)]
         public ReferenceAction OnDelete { get; init; }
 
         /// <summary>
         /// Action on update of referenced row.
         /// </summary>
+        [MemoryPackOrder(4)]
         public ReferenceAction OnUpdate { get; init; }
 
         #endregion

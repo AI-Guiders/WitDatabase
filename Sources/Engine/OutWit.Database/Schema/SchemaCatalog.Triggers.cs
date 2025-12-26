@@ -1,5 +1,5 @@
 using System.Text;
-using OutWit.Common.Json;
+using OutWit.Common.MemoryPack;
 using OutWit.Database.Definitions;
 
 namespace OutWit.Database.Schema;
@@ -94,7 +94,7 @@ public sealed partial class SchemaCatalog
     private void SaveTriggers()
     {
         List<DefinitionTrigger> triggers = m_triggers.Values.ToList();
-        m_store.Put(TRIGGERS_KEY_BYTES.AsSpan(), triggers.ToJsonBytes());
+        m_store.Put(TRIGGERS_KEY_BYTES.AsSpan(), triggers.ToMemoryPackBytes());
     }
 
     private void LoadTriggers()
@@ -103,7 +103,7 @@ public sealed partial class SchemaCatalog
         if (triggersData == null || triggersData.Length == 0)
             return;
 
-        var triggers = triggersData.FromJsonBytes<List<DefinitionTrigger>>();
+        var triggers = triggersData.FromMemoryPackBytes<List<DefinitionTrigger>>();
         if (triggers == null)
             return;
 

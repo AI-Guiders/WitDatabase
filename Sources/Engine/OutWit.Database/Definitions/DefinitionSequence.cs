@@ -1,3 +1,4 @@
+using MemoryPack;
 using OutWit.Common.Abstract;
 using OutWit.Common.Attributes;
 using OutWit.Common.Values;
@@ -7,7 +8,8 @@ namespace OutWit.Database.Definitions
     /// <summary>
     /// Represents a database sequence for generating sequential values.
     /// </summary>
-    public sealed class DefinitionSequence : ModelBase
+    [MemoryPackable]
+    public sealed partial class DefinitionSequence : ModelBase
     {
         #region Model Base
 
@@ -44,12 +46,25 @@ namespace OutWit.Database.Definitions
         #region Properties
 
         [ToString]
+        [MemoryPackOrder(0)]
         public required string Name { get; init; }
+
+        [MemoryPackOrder(1)]
         public long StartWith { get; init; } = 1;
+
+        [MemoryPackOrder(2)]
         public long IncrementBy { get; init; } = 1;
+
+        [MemoryPackOrder(3)]
         public long CurrentValue { get; set; }
+
+        [MemoryPackOrder(4)]
         public long? MinValue { get; init; }
+
+        [MemoryPackOrder(5)]
         public long? MaxValue { get; init; }
+
+        [MemoryPackOrder(6)]
         public bool Cycle { get; init; } = false;
 
         #endregion
