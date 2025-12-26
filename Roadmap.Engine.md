@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: 0% - Not Started**
+**Current Status: ~5% - Foundation Started**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -34,6 +34,14 @@ The Engine component (`OutWit.Database`) is responsible for:
 - Type system implementation
 - Function evaluation
 - ADO.NET provider implementation
+
+### Completed Components
+- ? `WitSqlType` - Runtime SQL type enumeration
+- ? `WitSqlValue` - Variant type for SQL values with type coercion
+- ? `WitSqlRow` - Row representation with column lookup
+- ? `WitSqlResult` - Query result container
+- ? `WitSqlColumnInfo` - Column schema information
+- ? `WitDataType` - Storage type enumeration
 
 ---
 
@@ -44,8 +52,8 @@ The Engine component (`OutWit.Database`) is responsible for:
 | Query executor interface | [ ] | P0 | v1 | - |
 | AST to execution plan converter | [ ] | P0 | v1 | - |
 | Expression evaluator | [ ] | P0 | v1 | SS4 |
-| Type coercion system | [ ] | P0 | v1 | SS1 |
-| Result set builder | [ ] | P0 | v1 | - |
+| Type coercion system | [x] | P0 | v1 | SS1 |
+| Result set builder | [x] | P0 | v1 | - |
 | Query context with AffectedRows, LastInsertId | [ ] | P0 | v1 | SS5.8 |
 | Parameter binding | [ ] | P0 | v1 | SS11 |
 | Query timeout support | [ ] | P0 | v1 | - |
@@ -59,40 +67,40 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Type | Status | Priority | Version | Spec |
 |------|--------|----------|---------|------|
-| `NULL` handling | [ ] | P0 | v1 | SS1.1 |
-| `TINYINT` / `UTINYINT` | [ ] | P0 | v1 | SS1.2 |
-| `SMALLINT` / `USMALLINT` | [ ] | P0 | v1 | SS1.2 |
-| `INT` / `UINT` | [ ] | P0 | v1 | SS1.2 |
-| `BIGINT` / `UBIGINT` | [ ] | P0 | v1 | SS1.2 |
-| `FLOAT16` / `FLOAT` / `DOUBLE` | [ ] | P0 | v1 | SS1.3 |
-| `DECIMAL` with precision/scale | [ ] | P0 | v1 | SS1.3 |
-| `BOOLEAN` | [ ] | P0 | v1 | SS1.4 |
+| `NULL` handling | [x] | P0 | v1 | SS1.1 |
+| `TINYINT` / `UTINYINT` | [x] | P0 | v1 | SS1.2 |
+| `SMALLINT` / `USMALLINT` | [x] | P0 | v1 | SS1.2 |
+| `INT` / `UINT` | [x] | P0 | v1 | SS1.2 |
+| `BIGINT` / `UBIGINT` | [x] | P0 | v1 | SS1.2 |
+| `FLOAT16` / `FLOAT` / `DOUBLE` | [x] | P0 | v1 | SS1.3 |
+| `DECIMAL` with precision/scale | [x] | P0 | v1 | SS1.3 |
+| `BOOLEAN` | [x] | P0 | v1 | SS1.4 |
 
 ### 2.2 Date/Time Types
 
 | Type | Status | Priority | Version | Spec |
 |------|--------|----------|---------|------|
-| `DATE` (DateOnly) | [ ] | P0 | v1 | SS1.5 |
-| `TIME` (TimeOnly) | [ ] | P0 | v1 | SS1.5 |
-| `DATETIME` | [ ] | P0 | v1 | SS1.5 |
-| `DATETIMEOFFSET` | [ ] | P0 | v1 | SS1.5 |
-| `INTERVAL` (TimeSpan) | [ ] | P0 | v1 | SS1.5 |
+| `DATE` (DateOnly) | [x] | P0 | v1 | SS1.5 |
+| `TIME` (TimeOnly) | [x] | P0 | v1 | SS1.5 |
+| `DATETIME` | [x] | P0 | v1 | SS1.5 |
+| `DATETIMEOFFSET` | [x] | P0 | v1 | SS1.5 |
+| `INTERVAL` (TimeSpan) | [x] | P0 | v1 | SS1.5 |
 
 ### 2.3 String/Binary Types
 
 | Type | Status | Priority | Version | Spec |
 |------|--------|----------|---------|------|
-| `CHAR(n)` / `VARCHAR(n)` / `TEXT` | [ ] | P0 | v1 | SS1.7 |
-| `BINARY(n)` / `VARBINARY(n)` / `BLOB` | [ ] | P0 | v1 | SS1.8 |
-| UTF-8 encoding | [ ] | P0 | v1 | SS1.7 |
+| `CHAR(n)` / `VARCHAR(n)` / `TEXT` | [x] | P0 | v1 | SS1.7 |
+| `BINARY(n)` / `VARBINARY(n)` / `BLOB` | [x] | P0 | v1 | SS1.8 |
+| UTF-8 encoding | [x] | P0 | v1 | SS1.7 |
 
 ### 2.4 Special Types
 
 | Type | Status | Priority | Version | Spec |
 |------|--------|----------|---------|------|
-| `GUID` | [ ] | P0 | v1 | SS1.6 |
+| `GUID` | [x] | P0 | v1 | SS1.6 |
 | `ROWVERSION` | [ ] | P1 | v1 | SS15.1 |
-| `JSON` / `JSONB` | [ ] | P1 | v1 | SS21.1 |
+| `JSON` / `JSONB` | [x] | P1 | v1 | SS21.1 |
 
 ---
 
@@ -241,17 +249,17 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| Comparison operators | [ ] | P0 | v1 | SS4.1 |
-| Logical operators (AND, OR, NOT) | [ ] | P0 | v1 | SS4.2 |
-| Arithmetic operators | [ ] | P0 | v1 | SS4.3 |
-| String concatenation | [ ] | P0 | v1 | SS4.4 |
+| Comparison operators | [x] | P0 | v1 | SS4.1 |
+| Logical operators (AND, OR, NOT) | [x] | P0 | v1 | SS4.2 |
+| Arithmetic operators | [x] | P0 | v1 | SS4.3 |
+| String concatenation | [x] | P0 | v1 | SS4.4 |
 | Bitwise operators | [ ] | P1 | v1 | SS4.5 |
 | BETWEEN evaluation | [ ] | P0 | v1 | SS4.1 |
 | IN list evaluation | [ ] | P0 | v1 | SS4.1 |
 | IN subquery evaluation | [ ] | P0 | v1 | SS4.1 |
 | LIKE pattern matching | [ ] | P0 | v1 | SS4.1 |
 | GLOB pattern matching | [ ] | P1 | v1 | SS4.1 |
-| IS NULL / IS NOT NULL | [ ] | P0 | v1 | SS4.1 |
+| IS NULL / IS NOT NULL | [x] | P0 | v1 | SS4.1 |
 
 ### 5.2 Conditional Expressions
 
@@ -365,9 +373,11 @@ The Engine component (`OutWit.Database`) is responsible for:
 | Function | Status | Priority | Version | Spec |
 |----------|--------|----------|---------|------|
 | JSON_VALUE / JSON_QUERY | [ ] | P1 | v1 | SS21.2 |
-| JSON_EXTRACT | [ ] | P1 | v1 | SS21.2 |
+| JSON_EXTRACT | [x] | P1 | v1 | SS21.2 |
 | JSON_SET / JSON_INSERT | [ ] | P1 | v1 | SS21.2 |
 | JSON_ARRAY / JSON_OBJECT | [ ] | P1 | v1 | SS21.2 |
+| JSON_TYPE | [x] | P1 | v1 | SS21.2 |
+| JSON_ARRAY_LENGTH | [x] | P1 | v1 | SS21.2 |
 
 ---
 
