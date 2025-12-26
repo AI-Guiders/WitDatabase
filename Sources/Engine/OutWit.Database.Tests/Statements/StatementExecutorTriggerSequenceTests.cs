@@ -1,7 +1,7 @@
 using NSubstitute;
+using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
 using OutWit.Database.Statements;
-using DbDefinitions = OutWit.Database.Definitions;
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -16,7 +16,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void CreateTriggerAfterInsertTest()
     {
-        m_database.GetTrigger("trg_users_insert").Returns((DbDefinitions.DefinitionTrigger?)null);
+        m_database.GetTrigger("trg_users_insert").Returns((DefinitionTrigger?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement(@"
@@ -29,18 +29,18 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTrigger(Arg.Is<DbDefinitions.DefinitionTrigger>(t =>
+        m_database.Received(1).CreateTrigger(Arg.Is<DefinitionTrigger>(t =>
             t.Name == "trg_users_insert" &&
             t.TableName == "Users" &&
-            t.Time == DbDefinitions.TriggerTime.After &&
-            t.Event == DbDefinitions.TriggerEvent.Insert
+            t.Time == TriggerTime.After &&
+            t.Event == TriggerEvent.Insert
         ));
     }
 
     [Test]
     public void CreateTriggerBeforeUpdateTest()
     {
-        m_database.GetTrigger("trg_users_update").Returns((DbDefinitions.DefinitionTrigger?)null);
+        m_database.GetTrigger("trg_users_update").Returns((DefinitionTrigger?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement(@"
@@ -53,16 +53,16 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTrigger(Arg.Is<DbDefinitions.DefinitionTrigger>(t =>
-            t.Time == DbDefinitions.TriggerTime.Before &&
-            t.Event == DbDefinitions.TriggerEvent.Update
+        m_database.Received(1).CreateTrigger(Arg.Is<DefinitionTrigger>(t =>
+            t.Time == TriggerTime.Before &&
+            t.Event == TriggerEvent.Update
         ));
     }
 
     [Test]
     public void CreateTriggerInsteadOfDeleteTest()
     {
-        m_database.GetTrigger("trg_users_delete").Returns((DbDefinitions.DefinitionTrigger?)null);
+        m_database.GetTrigger("trg_users_delete").Returns((DefinitionTrigger?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement(@"
@@ -75,16 +75,16 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTrigger(Arg.Is<DbDefinitions.DefinitionTrigger>(t =>
-            t.Time == DbDefinitions.TriggerTime.InsteadOf &&
-            t.Event == DbDefinitions.TriggerEvent.Delete
+        m_database.Received(1).CreateTrigger(Arg.Is<DefinitionTrigger>(t =>
+            t.Time == TriggerTime.InsteadOf &&
+            t.Event == TriggerEvent.Delete
         ));
     }
 
     [Test]
     public void CreateTriggerWithWhenConditionTest()
     {
-        m_database.GetTrigger("trg_conditional").Returns((DbDefinitions.DefinitionTrigger?)null);
+        m_database.GetTrigger("trg_conditional").Returns((DefinitionTrigger?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement(@"
@@ -98,7 +98,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTrigger(Arg.Is<DbDefinitions.DefinitionTrigger>(t =>
+        m_database.Received(1).CreateTrigger(Arg.Is<DefinitionTrigger>(t =>
             t.WhenCondition != null
         ));
     }
@@ -106,7 +106,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void CreateTriggerForEachRowTest()
     {
-        m_database.GetTrigger("trg_row").Returns((DbDefinitions.DefinitionTrigger?)null);
+        m_database.GetTrigger("trg_row").Returns((DefinitionTrigger?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement(@"
@@ -120,7 +120,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTrigger(Arg.Is<DbDefinitions.DefinitionTrigger>(t =>
+        m_database.Received(1).CreateTrigger(Arg.Is<DefinitionTrigger>(t =>
             t.ForEachRow
         ));
     }
@@ -128,12 +128,12 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void CreateTriggerIfNotExistsAlreadyExistsTest()
     {
-        m_database.GetTrigger("existing_trigger").Returns(new DbDefinitions.DefinitionTrigger
+        m_database.GetTrigger("existing_trigger").Returns(new DefinitionTrigger
         {
             Name = "existing_trigger",
             TableName = "Users",
-            Time = DbDefinitions.TriggerTime.After,
-            Event = DbDefinitions.TriggerEvent.Insert,
+            Time = TriggerTime.After,
+            Event = TriggerEvent.Insert,
             Body = "SELECT 1"
         });
 
@@ -148,7 +148,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.DidNotReceive().CreateTrigger(Arg.Any<DbDefinitions.DefinitionTrigger>());
+        m_database.DidNotReceive().CreateTrigger(Arg.Any<DefinitionTrigger>());
     }
 
     #endregion
@@ -158,12 +158,12 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void DropTriggerTest()
     {
-        m_database.GetTrigger("trg_test").Returns(new DbDefinitions.DefinitionTrigger
+        m_database.GetTrigger("trg_test").Returns(new DefinitionTrigger
         {
             Name = "trg_test",
             TableName = "Users",
-            Time = DbDefinitions.TriggerTime.After,
-            Event = DbDefinitions.TriggerEvent.Insert,
+            Time = TriggerTime.After,
+            Event = TriggerEvent.Insert,
             Body = "SELECT 1"
         });
 
@@ -178,7 +178,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void DropTriggerIfExistsNotFoundTest()
     {
-        m_database.GetTrigger("non_existent").Returns((DbDefinitions.DefinitionTrigger?)null);
+        m_database.GetTrigger("non_existent").Returns((DefinitionTrigger?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP TRIGGER IF EXISTS non_existent");
@@ -196,7 +196,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void CreateSequenceTest()
     {
-        m_database.GetSequence("seq_order_id").Returns((DbDefinitions.DefinitionSequence?)null);
+        m_database.GetSequence("seq_order_id").Returns((DefinitionSequence?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE SEQUENCE seq_order_id");
@@ -209,7 +209,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void CreateSequenceWithStartValueTest()
     {
-        m_database.GetSequence("seq_order_id").Returns((DbDefinitions.DefinitionSequence?)null);
+        m_database.GetSequence("seq_order_id").Returns((DefinitionSequence?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE SEQUENCE seq_order_id START WITH 1000");
@@ -222,7 +222,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void CreateSequenceIfNotExistsAlreadyExistsTest()
     {
-        m_database.GetSequence("existing_seq").Returns(new DbDefinitions.DefinitionSequence { Name = "existing_seq", CurrentValue = 1 });
+        m_database.GetSequence("existing_seq").Returns(new DefinitionSequence { Name = "existing_seq", CurrentValue = 1 });
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE SEQUENCE IF NOT EXISTS existing_seq");
@@ -239,7 +239,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void DropSequenceTest()
     {
-        m_database.GetSequence("seq_test").Returns(new DbDefinitions.DefinitionSequence { Name = "seq_test", CurrentValue = 1 });
+        m_database.GetSequence("seq_test").Returns(new DefinitionSequence { Name = "seq_test", CurrentValue = 1 });
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP SEQUENCE seq_test");
@@ -252,7 +252,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void DropSequenceIfExistsNotFoundTest()
     {
-        m_database.GetSequence("non_existent").Returns((DbDefinitions.DefinitionSequence?)null);
+        m_database.GetSequence("non_existent").Returns((DefinitionSequence?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP SEQUENCE IF EXISTS non_existent");
@@ -270,7 +270,7 @@ public class StatementExecutorTriggerSequenceTests : StatementExecutorTestsBase
     [Test]
     public void AlterSequenceRestartTest()
     {
-        m_database.GetSequence("seq_test").Returns(new DbDefinitions.DefinitionSequence { Name = "seq_test", CurrentValue = 100 });
+        m_database.GetSequence("seq_test").Returns(new DefinitionSequence { Name = "seq_test", CurrentValue = 100 });
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("ALTER SEQUENCE seq_test RESTART WITH 1");

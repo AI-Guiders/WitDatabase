@@ -1,9 +1,9 @@
 using NSubstitute;
+using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
 using OutWit.Database.Statements;
+using OutWit.Database.Types;
 using OutWit.Database.Values;
-using DbDefinitions = OutWit.Database.Definitions;
-using DbTypes = OutWit.Database.Types;
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -71,14 +71,14 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void InsertDuplicateCompositePrimaryKeyThrowsTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "OrderItems",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "OrderId", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "ProductId", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Quantity", Type = DbTypes.WitDataType.Int32, Ordinal = 2 }
+                new DefinitionColumn { Name = "OrderId", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "ProductId", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 1 },
+                new DefinitionColumn { Name = "Quantity", Type = WitDataType.Int32, Ordinal = 2 }
             ],
             PrimaryKey = ["OrderId", "ProductId"]
         };
@@ -102,14 +102,14 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void InsertPartiallyMatchingCompositePrimaryKeySucceedsTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "OrderItems",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "OrderId", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "ProductId", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Quantity", Type = DbTypes.WitDataType.Int32, Ordinal = 2 }
+                new DefinitionColumn { Name = "OrderId", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "ProductId", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 1 },
+                new DefinitionColumn { Name = "Quantity", Type = WitDataType.Int32, Ordinal = 2 }
             ],
             PrimaryKey = ["OrderId", "ProductId"]
         };
@@ -138,14 +138,14 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void InsertViolatesCompositeUniqueThrowsTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Employees",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "DepartmentId", Type = DbTypes.WitDataType.Int64, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "EmployeeNumber", Type = DbTypes.WitDataType.StringVariable, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "DepartmentId", Type = WitDataType.Int64, Ordinal = 1 },
+                new DefinitionColumn { Name = "EmployeeNumber", Type = WitDataType.StringVariable, Ordinal = 2 }
             ],
             UniqueConstraints = [["DepartmentId", "EmployeeNumber"]]
         };
@@ -174,14 +174,14 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void InsertViolatesTableLevelCheckThrowsTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Dates",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "StartDate", Type = DbTypes.WitDataType.Int32, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "EndDate", Type = DbTypes.WitDataType.Int32, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "StartDate", Type = WitDataType.Int32, Ordinal = 1 },
+                new DefinitionColumn { Name = "EndDate", Type = WitDataType.Int32, Ordinal = 2 }
             ],
             CheckExpressions = ["EndDate >= StartDate"]
         };
@@ -199,14 +199,14 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void InsertPassesTableLevelCheckTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Dates",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "StartDate", Type = DbTypes.WitDataType.Int32, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "EndDate", Type = DbTypes.WitDataType.Int32, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "StartDate", Type = WitDataType.Int32, Ordinal = 1 },
+                new DefinitionColumn { Name = "EndDate", Type = WitDataType.Int32, Ordinal = 2 }
             ],
             CheckExpressions = ["EndDate >= StartDate"]
         };
@@ -228,30 +228,30 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void InsertViolatesCompositeForeignKeyThrowsTest()
     {
-        var parentTable = new DbDefinitions.DefinitionTable
+        var parentTable = new DefinitionTable
         {
             Name = "Categories",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "TenantId", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "CategoryId", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Name", Type = DbTypes.WitDataType.StringVariable, Ordinal = 2 }
+                new DefinitionColumn { Name = "TenantId", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "CategoryId", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 1 },
+                new DefinitionColumn { Name = "Name", Type = WitDataType.StringVariable, Ordinal = 2 }
             ],
             PrimaryKey = ["TenantId", "CategoryId"]
         };
 
-        var childTable = new DbDefinitions.DefinitionTable
+        var childTable = new DefinitionTable
         {
             Name = "Products",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "TenantId", Type = DbTypes.WitDataType.Int64, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "CategoryId", Type = DbTypes.WitDataType.Int64, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "TenantId", Type = WitDataType.Int64, Ordinal = 1 },
+                new DefinitionColumn { Name = "CategoryId", Type = WitDataType.Int64, Ordinal = 2 }
             ],
             ForeignKeys =
             [
-                new DbDefinitions.DefinitionForeignKey
+                new DefinitionForeignKey
                 {
                     Columns = ["TenantId", "CategoryId"],
                     ForeignTable = "Categories",
@@ -288,13 +288,13 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void CheckConstraintSkippedForNullValueTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Products",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "Price", Type = DbTypes.WitDataType.Decimal, Nullable = true, CheckExpression = "Price > 0", Ordinal = 1 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Price", Type = WitDataType.Decimal, Nullable = true, CheckExpression = "Price > 0", Ordinal = 1 }
             ]
         };
         m_database.GetTable("Products").Returns(table);
@@ -312,13 +312,13 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     [Test]
     public void UniqueConstraintAllowsMultipleNullsTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Products",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "SKU", Type = DbTypes.WitDataType.StringVariable, IsUnique = true, Nullable = true, Ordinal = 1 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "SKU", Type = WitDataType.StringVariable, IsUnique = true, Nullable = true, Ordinal = 1 }
             ]
         };
         m_database.GetTable("Products").Returns(table);

@@ -1,9 +1,9 @@
 using NSubstitute;
+using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
 using OutWit.Database.Statements;
+using OutWit.Database.Types;
 using OutWit.Database.Values;
-using DbDefinitions = OutWit.Database.Definitions;
-using DbTypes = OutWit.Database.Types;
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -150,8 +150,8 @@ public class StatementExecutorDeleteTests : StatementExecutorTestsBase
     public void DeleteWithBetweenTest()
     {
         var table = CreateTableDef("Orders",
-            ("Id", DbTypes.WitDataType.Int64, true),
-            ("Total", DbTypes.WitDataType.Decimal, false));
+            ("Id", WitDataType.Int64, true),
+            ("Total", WitDataType.Decimal, false));
         m_database.GetTable("Orders").Returns(table);
         m_database.CreateTableScan("Orders").Returns(CreateMockIterator(
             CreateRow(("_rowid", WitSqlValue.FromInt(1)), ("Id", WitSqlValue.FromInt(1)), ("Total", WitSqlValue.FromDecimal(50m))),
@@ -241,7 +241,7 @@ public class StatementExecutorDeleteTests : StatementExecutorTestsBase
     [Test]
     public void DeleteFromNonExistentTableTest()
     {
-        m_database.GetTable("NonExistent").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NonExistent").Returns((DefinitionTable?)null);
         m_database.CreateTableScan("NonExistent").Returns(CreateEmptyIterator());
 
         var executor = new StatementExecutor(m_context);

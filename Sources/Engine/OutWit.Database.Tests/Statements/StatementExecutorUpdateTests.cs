@@ -1,9 +1,9 @@
 using NSubstitute;
+using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
 using OutWit.Database.Statements;
+using OutWit.Database.Types;
 using OutWit.Database.Values;
-using DbDefinitions = OutWit.Database.Definitions;
-using DbTypes = OutWit.Database.Types;
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -103,8 +103,8 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     public void UpdateWithExpressionTest()
     {
         var table = CreateTableDef("Products",
-            ("Id", DbTypes.WitDataType.Int64, true),
-            ("Price", DbTypes.WitDataType.Decimal, false));
+            ("Id", WitDataType.Int64, true),
+            ("Price", WitDataType.Decimal, false));
         m_database.GetTable("Products").Returns(table);
         m_database.CreateTableScan("Products").Returns(CreateMockIterator(
             CreateRow(("_rowid", WitSqlValue.FromInt(1)), ("Id", WitSqlValue.FromInt(1)), ("Price", WitSqlValue.FromDecimal(100.0m)))
@@ -123,14 +123,14 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     [Test]
     public void UpdateWithColumnReferenceTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Items",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "Value1", Type = DbTypes.WitDataType.Int32, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Value2", Type = DbTypes.WitDataType.Int32, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Value1", Type = WitDataType.Int32, Ordinal = 1 },
+                new DefinitionColumn { Name = "Value2", Type = WitDataType.Int32, Ordinal = 2 }
             ]
         };
         m_database.GetTable("Items").Returns(table);
@@ -310,7 +310,7 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     [Test]
     public void UpdateNonExistentTableThrowsTest()
     {
-        m_database.GetTable("NonExistent").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NonExistent").Returns((DefinitionTable?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("UPDATE NonExistent SET Name = 'Test'");

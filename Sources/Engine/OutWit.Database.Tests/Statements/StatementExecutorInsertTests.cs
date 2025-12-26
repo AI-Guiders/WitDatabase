@@ -1,9 +1,9 @@
 using NSubstitute;
+using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
 using OutWit.Database.Statements;
+using OutWit.Database.Types;
 using OutWit.Database.Values;
-using DbDefinitions = OutWit.Database.Definitions;
-using DbTypes = OutWit.Database.Types;
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -114,14 +114,14 @@ public class StatementExecutorInsertTests : StatementExecutorTestsBase
     [Test]
     public void InsertWithDefaultValueTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Items",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "Name", Type = DbTypes.WitDataType.StringVariable, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Status", Type = DbTypes.WitDataType.StringVariable, DefaultValue = "'active'", Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Name", Type = WitDataType.StringVariable, Ordinal = 1 },
+                new DefinitionColumn { Name = "Status", Type = WitDataType.StringVariable, DefaultValue = "'active'", Ordinal = 2 }
             ]
         };
         m_database.GetTable("Items").Returns(table);
@@ -141,14 +141,14 @@ public class StatementExecutorInsertTests : StatementExecutorTestsBase
     [Test]
     public void InsertNullForMissingNullableColumnTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Items",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "Name", Type = DbTypes.WitDataType.StringVariable, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Description", Type = DbTypes.WitDataType.StringVariable, Nullable = true, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Name", Type = WitDataType.StringVariable, Ordinal = 1 },
+                new DefinitionColumn { Name = "Description", Type = WitDataType.StringVariable, Nullable = true, Ordinal = 2 }
             ]
         };
         m_database.GetTable("Items").Returns(table);
@@ -230,13 +230,13 @@ public class StatementExecutorInsertTests : StatementExecutorTestsBase
     [Test]
     public void InsertNullDoesNotViolateUniqueTest()
     {
-        var table = new DbDefinitions.DefinitionTable
+        var table = new DefinitionTable
         {
             Name = "Items",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "Code", Type = DbTypes.WitDataType.StringVariable, IsUnique = true, Nullable = true, Ordinal = 1 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Code", Type = WitDataType.StringVariable, IsUnique = true, Nullable = true, Ordinal = 1 }
             ]
         };
         m_database.GetTable("Items").Returns(table);
@@ -337,18 +337,18 @@ public class StatementExecutorInsertTests : StatementExecutorTestsBase
     public void InsertNullForeignKeyIsAllowedTest()
     {
         var usersTable = CreateUsersTable();
-        var ordersTable = new DbDefinitions.DefinitionTable
+        var ordersTable = new DefinitionTable
         {
             Name = "Orders",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "UserId", Type = DbTypes.WitDataType.Int64, Nullable = true, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Total", Type = DbTypes.WitDataType.Decimal, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "UserId", Type = WitDataType.Int64, Nullable = true, Ordinal = 1 },
+                new DefinitionColumn { Name = "Total", Type = WitDataType.Decimal, Ordinal = 2 }
             ],
             ForeignKeys =
             [
-                new DbDefinitions.DefinitionForeignKey
+                new DefinitionForeignKey
                 {
                     Columns = ["UserId"],
                     ForeignTable = "Users",
@@ -377,14 +377,14 @@ public class StatementExecutorInsertTests : StatementExecutorTestsBase
     public void InsertFromSelectTest()
     {
         var sourceTable = CreateUsersTable();
-        var targetTable = new DbDefinitions.DefinitionTable
+        var targetTable = new DefinitionTable
         {
             Name = "UsersArchive",
             Columns =
             [
-                new DbDefinitions.DefinitionColumn { Name = "Id", Type = DbTypes.WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
-                new DbDefinitions.DefinitionColumn { Name = "Name", Type = DbTypes.WitDataType.StringVariable, Ordinal = 1 },
-                new DbDefinitions.DefinitionColumn { Name = "Email", Type = DbTypes.WitDataType.StringVariable, Ordinal = 2 }
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Name", Type = WitDataType.StringVariable, Ordinal = 1 },
+                new DefinitionColumn { Name = "Email", Type = WitDataType.StringVariable, Ordinal = 2 }
             ]
         };
 
@@ -413,7 +413,7 @@ public class StatementExecutorInsertTests : StatementExecutorTestsBase
     [Test]
     public void InsertIntoNonExistentTableThrowsTest()
     {
-        m_database.GetTable("NonExistent").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NonExistent").Returns((DefinitionTable?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("INSERT INTO NonExistent (Name) VALUES ('Test')");

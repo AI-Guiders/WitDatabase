@@ -1,8 +1,8 @@
 using NSubstitute;
+using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
 using OutWit.Database.Statements;
-using DbDefinitions = OutWit.Database.Definitions;
-using DbTypes = OutWit.Database.Types;
+using OutWit.Database.Types;
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -28,7 +28,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.Name == "Users" &&
             t.Columns.Count == 3 &&
             t.Columns[0].Name == "Id" &&
@@ -64,7 +64,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.Name == "DataTypes" &&
             t.Columns.Count == 14
         ));
@@ -84,7 +84,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.Name == "Items" &&
             t.Columns[1].DefaultValue == "'active'" &&
             t.Columns[2].DefaultValue == "0"
@@ -104,7 +104,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.Columns[1].IsUnique
         ));
     }
@@ -122,7 +122,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.Columns[1].CheckExpression != null
         ));
     }
@@ -140,7 +140,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.Columns[1].ForeignKey != null &&
             t.Columns[1].ForeignKey.ForeignTable == "Users" &&
             t.Columns[1].ForeignKey.ForeignColumns![0] == "Id"
@@ -162,7 +162,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.PrimaryKey != null &&
             t.PrimaryKey.Count == 2 &&
             t.PrimaryKey.Contains("OrderId") &&
@@ -186,7 +186,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t =>
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t =>
             t.CheckExpressions != null &&
             t.CheckExpressions.Count > 0 &&
             t.ForeignKeys != null &&
@@ -205,20 +205,20 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
         var result = executor.Execute(stmt);
 
         // Should not call CreateTable since table exists
-        m_database.DidNotReceive().CreateTable(Arg.Any<DbDefinitions.DefinitionTable>());
+        m_database.DidNotReceive().CreateTable(Arg.Any<DefinitionTable>());
     }
 
     [Test]
     public void CreateTableIfNotExistsDoesNotExistTest()
     {
-        m_database.GetTable("NewTable").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NewTable").Returns((DefinitionTable?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE TABLE IF NOT EXISTS NewTable (Id INTEGER PRIMARY KEY)");
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateTable(Arg.Is<DbDefinitions.DefinitionTable>(t => t.Name == "NewTable"));
+        m_database.Received(1).CreateTable(Arg.Is<DefinitionTable>(t => t.Name == "NewTable"));
     }
 
     #endregion
@@ -241,7 +241,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void DropTableNotFoundThrowsTest()
     {
-        m_database.GetTable("NonExistent").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NonExistent").Returns((DefinitionTable?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP TABLE NonExistent");
@@ -253,7 +253,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void DropTableIfExistsNotFoundTest()
     {
-        m_database.GetTable("NonExistent").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NonExistent").Returns((DefinitionTable?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP TABLE IF EXISTS NonExistent");
@@ -291,9 +291,9 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).AddColumn("Users", Arg.Is<DbDefinitions.DefinitionColumn>(c =>
+        m_database.Received(1).AddColumn("Users", Arg.Is<DefinitionColumn>(c =>
             c.Name == "Age" &&
-            c.Type == DbTypes.WitDataType.Int32
+            c.Type == WitDataType.Int32
         ));
     }
 
@@ -307,7 +307,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).AddColumn("Users", Arg.Is<DbDefinitions.DefinitionColumn>(c =>
+        m_database.Received(1).AddColumn("Users", Arg.Is<DefinitionColumn>(c =>
             c.Name == "Status" &&
             !c.Nullable &&
             c.DefaultValue == "'active'"
@@ -367,7 +367,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateIndex(Arg.Is<DbDefinitions.DefinitionIndex>(i =>
+        m_database.Received(1).CreateIndex(Arg.Is<DefinitionIndex>(i =>
             i.Name == "IX_Users_Email" &&
             i.TableName == "Users" &&
             i.Columns.Contains("Email") &&
@@ -385,7 +385,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateIndex(Arg.Is<DbDefinitions.DefinitionIndex>(i =>
+        m_database.Received(1).CreateIndex(Arg.Is<DefinitionIndex>(i =>
             i.IsUnique
         ));
     }
@@ -400,7 +400,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateIndex(Arg.Is<DbDefinitions.DefinitionIndex>(i =>
+        m_database.Received(1).CreateIndex(Arg.Is<DefinitionIndex>(i =>
             i.Columns.Count == 2 &&
             i.Columns[0] == "Name" &&
             i.Columns[1] == "Email"
@@ -417,7 +417,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
 
         executor.Execute(stmt);
 
-        m_database.Received(1).CreateIndex(Arg.Is<DbDefinitions.DefinitionIndex>(i =>
+        m_database.Received(1).CreateIndex(Arg.Is<DefinitionIndex>(i =>
             i.ColumnDescending != null &&
             i.ColumnDescending[0] == true
         ));
@@ -426,7 +426,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void CreateIndexIfNotExistsTableNotFoundThrowsTest()
     {
-        m_database.GetTable("NonExistent").Returns((DbDefinitions.DefinitionTable?)null);
+        m_database.GetTable("NonExistent").Returns((DefinitionTable?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE INDEX IF NOT EXISTS IX_Test ON NonExistent (Col)");
@@ -457,7 +457,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void CreateViewTest()
     {
-        m_database.GetView("ActiveUsers").Returns((DbDefinitions.DefinitionView?)null);
+        m_database.GetView("ActiveUsers").Returns((DefinitionView?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE VIEW ActiveUsers AS SELECT * FROM Users WHERE Status = 'active'");
@@ -470,7 +470,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void CreateViewWithColumnAliasesTest()
     {
-        m_database.GetView("UserSummary").Returns((DbDefinitions.DefinitionView?)null);
+        m_database.GetView("UserSummary").Returns((DefinitionView?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE VIEW UserSummary (UserId, UserName) AS SELECT Id, Name FROM Users");
@@ -484,7 +484,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void CreateViewAlreadyExistsThrowsTest()
     {
-        m_database.GetView("ExistingView").Returns(new DbDefinitions.DefinitionView { Name = "ExistingView", SelectSql = "SELECT 1" });
+        m_database.GetView("ExistingView").Returns(new DefinitionView { Name = "ExistingView", SelectSql = "SELECT 1" });
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE VIEW ExistingView AS SELECT 1");
@@ -496,7 +496,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void CreateViewIfNotExistsAlreadyExistsTest()
     {
-        m_database.GetView("ExistingView").Returns(new DbDefinitions.DefinitionView { Name = "ExistingView", SelectSql = "SELECT 1" });
+        m_database.GetView("ExistingView").Returns(new DefinitionView { Name = "ExistingView", SelectSql = "SELECT 1" });
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("CREATE VIEW IF NOT EXISTS ExistingView AS SELECT 1");
@@ -514,7 +514,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void DropViewTest()
     {
-        m_database.GetView("MyView").Returns(new DbDefinitions.DefinitionView { Name = "MyView", SelectSql = "SELECT 1" });
+        m_database.GetView("MyView").Returns(new DefinitionView { Name = "MyView", SelectSql = "SELECT 1" });
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP VIEW MyView");
@@ -527,7 +527,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void DropViewNotFoundThrowsTest()
     {
-        m_database.GetView("NonExistent").Returns((DbDefinitions.DefinitionView?)null);
+        m_database.GetView("NonExistent").Returns((DefinitionView?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP VIEW NonExistent");
@@ -539,7 +539,7 @@ public class StatementExecutorDdlTests : StatementExecutorTestsBase
     [Test]
     public void DropViewIfExistsNotFoundTest()
     {
-        m_database.GetView("NonExistent").Returns((DbDefinitions.DefinitionView?)null);
+        m_database.GetView("NonExistent").Returns((DefinitionView?)null);
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("DROP VIEW IF EXISTS NonExistent");
