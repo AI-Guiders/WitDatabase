@@ -1,7 +1,7 @@
 # ALTER TABLE Implementation TODO
 
 **Created:** 2025-01-29  
-**Status:** Not Started  
+**Status:** In Progress  
 **Priority:** P0 (Required for EF Core migrations)
 
 ---
@@ -12,7 +12,7 @@ ALTER TABLE is critical for EF Core migrations. Three main features need impleme
 
 1. **ADD CONSTRAINT** - Add named constraints to existing table
 2. **DROP CONSTRAINT** - Remove named constraints
-3. **ADD COLUMN with DEFAULT** - Populate existing rows with default value
+3. ~~**ADD COLUMN with DEFAULT** - Populate existing rows with default value~~ ? COMPLETED
 
 ---
 
@@ -115,68 +115,43 @@ ALTER TABLE is critical for EF Core migrations. Three main features need impleme
 
 ---
 
-## 3. ALTER TABLE ADD COLUMN with DEFAULT (P0)
+## 3. ALTER TABLE ADD COLUMN with DEFAULT (P0) ? COMPLETED
 
 ### Current State
 - Parser: ? Supported
-- Engine: ?? Partial - adds column but doesn't populate existing rows
+- Engine: ? **IMPLEMENTED** - adds column AND populates existing rows with evaluated default value
 
-### Current Problem (from test)
-```csharp
-[Ignore("ALTER TABLE ADD COLUMN with DEFAULT does not yet populate existing rows")]
-public void AlterTableAddColumnWithDefaultPopulatesExistingRowsTest()
-```
+### Implementation Summary
 
-### Implementation Steps
+**Completed on:** 2025-01-30
 
-#### Step 3.1: Update `AddColumn()` Logic
-- [ ] After adding column metadata, scan existing rows
-- [ ] For each row, set new column to default value
-- [ ] Update stored row data
+The `AddColumn()` method in `WitSqlEngine.Ddl.Tables.cs` now:
+1. Parses the DEFAULT expression using `WitSql.ParseExpression()`
+2. Creates an `ExpressionEvaluator` to evaluate the default value
+3. Checks if the expression is deterministic (e.g., literals, arithmetic) or non-deterministic (e.g., `NOW()`, `NEWGUID()`)
+4. For deterministic expressions: evaluates once and reuses the value
+5. For non-deterministic expressions: evaluates per row to generate unique values
+6. Updates all existing rows with the new column and its default value
 
-#### Step 3.2: Implement Row Population
-```csharp
-private void PopulateNewColumnWithDefault(string tableName, DefinitionColumn column)
-{
-    if (column.DefaultValue == null)
-        return; // NULL is implicit default
-    
-    var table = m_schema.GetTable(tableName);
-    var defaultExpr = WitSql.ParseExpression(column.DefaultValue);
-    var evaluator = new ExpressionEvaluator(new ContextExecution { Database = this });
-    
-    // Evaluate default value once (if deterministic)
-    var defaultValue = evaluator.Evaluate(defaultExpr, new WitSqlRow([], []));
-    
-    // Scan and update all existing rows
-    var tablePrefix = SchemaCatalog.GetTableDataPrefix(tableName);
-    var endPrefix = SchemaCatalog.GetTableDataEndPrefix(tableName);
-    
-    foreach (var (key, value) in m_database.Scan(tablePrefix, endPrefix))
-    {
-        var row = table.DeserializeRow(value);
-        // Add new column with default value
-        var newRow = AddColumnToRow(row, column.Name, defaultValue);
-        var newValue = table.SerializeRow(newRow);
-        m_database.Put(key, newValue);
-    }
-}
-```
+### Helper Methods Added
+- `IsDeterministicExpression()` - checks if expression returns same value each call
+- `IsDeterministicFunction()` - identifies non-deterministic functions (NOW, NEWGUID, RANDOM, etc.)
+- `IsDeterministicCase()` - handles CASE expression determinism
 
-#### Step 3.3: Handle Non-Deterministic Defaults
-- [ ] `NOW()`, `NEWGUID()` - evaluate per row
-- [ ] `INCREMENT()` - evaluate per row
+### Tests Added (10 new tests in `WitSqlEngineDdlTests.cs`)
+- [x] `AlterTableAddColumnWithDefaultPopulatesExistingRowsTest()` - string default
+- [x] `AlterTableAddColumnWithNullDefaultTest()` - no default = NULL
+- [x] `AlterTableAddColumnWithIntegerDefaultTest()` - integer literal default
+- [x] `AlterTableAddColumnWithExpressionDefaultTest()` - computed expression `(1 + 2)`
+- [x] `AlterTableAddColumnOnEmptyTableTest()` - empty table + new inserts use default
+- [x] `AlterTableAddNotNullColumnWithDefaultTest()` - NOT NULL with DEFAULT
+- [x] `AlterTableAddColumnWithNowDefaultGeneratesTimestampsTest()` - `DEFAULT (NOW())`
+- [x] `AlterTableAddColumnWithNewGuidDefaultGeneratesUniqueGuidsTest()` - `DEFAULT (NEWGUID())`
 
-#### Step 3.4: Update Serialization
-- [ ] Ensure row serialization handles new column schema
-- [ ] Handle schema migration (old rows without new column)
-
-#### Step 3.5: Tests
-- [ ] Enable ignored test: `AlterTableAddColumnWithDefaultPopulatesExistingRowsTest()`
-- [ ] `AlterTableAddColumnWithNullDefaultTest()`
-- [ ] `AlterTableAddNotNullColumnWithDefaultTest()`
-- [ ] `AlterTableAddColumnWithExpressionDefaultTest()` (e.g., `NOW()`)
-- [ ] `AlterTableAddColumnOnEmptyTableTest()`
+### Files Modified
+- `WitSqlEngine.Ddl.Tables.cs` - Added expression evaluation logic to `AddColumn()`
+- `WitSqlRow.cs` - Added `Empty` static field
+- `WitSqlEngineDdlTests.cs` - Added tests, enabled previously ignored test
 
 ---
 
@@ -260,12 +235,12 @@ Constraint Validation (scan existing data)
 
 ---
 
-## Implementation Order
+## Implementation Order (Updated)
 
-1. **Week 1**: ADD COLUMN with DEFAULT (smallest scope, unblocks EF Core)
-   - Update `AddColumn()` logic
-   - Implement row population
-   - Enable ignored test
+1. ~~**Week 1**: ADD COLUMN with DEFAULT (smallest scope, unblocks EF Core)~~ ? DONE
+   - ~~Update `AddColumn()` logic~~
+   - ~~Implement row population~~
+   - ~~Enable ignored test~~
 
 2. **Week 2**: DROP CONSTRAINT
    - Add `DropConstraint()` method
@@ -313,4 +288,4 @@ All these patterns must be supported for EF Core migrations to work.
 
 ---
 
-**Last Updated:** 2025-01-29
+**Last Updated:** 2025-01-30

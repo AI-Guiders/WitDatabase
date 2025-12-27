@@ -11,6 +11,15 @@ namespace OutWit.Database;
 /// </remarks>
 public readonly struct WitSqlRow
 {
+    #region Constants
+
+    /// <summary>
+    /// An empty row with no columns.
+    /// </summary>
+    public static readonly WitSqlRow Empty = new([], []);
+
+    #endregion
+
     #region Fields
 
     private readonly WitSqlValue[] m_values;

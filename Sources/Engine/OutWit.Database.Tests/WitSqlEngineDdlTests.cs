@@ -96,7 +96,6 @@ public sealed class WitSqlEngineDdlTests : WitSqlEngineTestsBase
     }
 
     [Test]
-    [Ignore("ALTER TABLE ADD COLUMN with DEFAULT does not yet populate existing rows - feature not implemented")]
     public void AlterTableAddColumnWithDefaultPopulatesExistingRowsTest()
     {
         CreateUsersTable();
@@ -106,12 +105,129 @@ public sealed class WitSqlEngineDdlTests : WitSqlEngineTestsBase
         
         var rows = m_engine.Query("SELECT Status FROM Users");
         
+        Assert.That(rows, Has.Count.EqualTo(3));
         Assert.That(rows.All(r => r["Status"].AsString() == "active"), Is.True);
+    }
+
+    [Test]
+    public void AlterTableAddColumnWithNullDefaultTest()
+    {
+        CreateUsersTable();
+        InsertTestUsers();
+        
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN Notes TEXT");
+        
+        var rows = m_engine.Query("SELECT Notes FROM Users");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        Assert.That(rows.All(r => r["Notes"].IsNull), Is.True);
+    }
+
+    [Test]
+    public void AlterTableAddColumnWithIntegerDefaultTest()
+    {
+        CreateUsersTable();
+        InsertTestUsers();
+        
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN Score INT DEFAULT 100");
+        
+        var rows = m_engine.Query("SELECT Score FROM Users");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        Assert.That(rows.All(r => r["Score"].AsInt64() == 100), Is.True);
+    }
+
+    [Test]
+    public void AlterTableAddColumnWithExpressionDefaultTest()
+    {
+        CreateUsersTable();
+        InsertTestUsers();
+        
+        // Test with computed expression
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN Priority INT DEFAULT (1 + 2)");
+        
+        var rows = m_engine.Query("SELECT Priority FROM Users");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        Assert.That(rows.All(r => r["Priority"].AsInt64() == 3), Is.True);
+    }
+
+    [Test]
+    public void AlterTableAddColumnOnEmptyTableTest()
+    {
+        CreateUsersTable();
+        
+        // Add column to empty table - should succeed without populating anything
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN Status VARCHAR(20) DEFAULT 'active'");
+        
+        var table = m_engine.GetTable("Users");
+        var statusColumn = table!.Columns.FirstOrDefault(c => c.Name == "Status");
+        
+        Assert.That(statusColumn, Is.Not.Null);
+        Assert.That(statusColumn!.DefaultValue, Is.EqualTo("'active'"));
+        
+        // New inserts should use default
+        m_engine.Execute("INSERT INTO Users (Name, Email) VALUES ('Test', 'test@test.com')");
+        
+        var row = m_engine.QueryFirstOrDefault("SELECT Status FROM Users");
+        Assert.That(row!.Value["Status"].AsString(), Is.EqualTo("active"));
+    }
+
+    [Test]
+    public void AlterTableAddNotNullColumnWithDefaultTest()
+    {
+        CreateUsersTable();
+        InsertTestUsers();
+        
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN IsActive BOOLEAN NOT NULL DEFAULT TRUE");
+        
+        var rows = m_engine.Query("SELECT IsActive FROM Users");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        Assert.That(rows.All(r => r["IsActive"].AsBool() == true), Is.True);
+    }
+
+    [Test]
+    public void AlterTableAddColumnWithNowDefaultGeneratesTimestampsTest()
+    {
+        CreateUsersTable();
+        InsertTestUsers();
+        
+        // Add column with NOW() - use parentheses as required by parser for function calls
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN CreatedAt DATETIME DEFAULT (NOW())");
+        
+        var rows = m_engine.Query("SELECT CreatedAt FROM Users ORDER BY Id");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        // All rows should have a non-null timestamp
+        Assert.That(rows.All(r => !r["CreatedAt"].IsNull), Is.True);
+        // All timestamps should be close to now
+        var now = DateTime.UtcNow;
+        Assert.That(rows.All(r => (now - r["CreatedAt"].AsDateTime()).TotalMinutes < 1), Is.True);
+    }
+
+    [Test]
+    public void AlterTableAddColumnWithNewGuidDefaultGeneratesUniqueGuidsTest()
+    {
+        CreateUsersTable();
+        InsertTestUsers();
+        
+        // Use parentheses for function call
+        m_engine.Execute("ALTER TABLE Users ADD COLUMN TrackingId GUID DEFAULT (NEWGUID())");
+        
+        var rows = m_engine.Query("SELECT TrackingId FROM Users");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        // All should have non-empty GUIDs
+        Assert.That(rows.All(r => r["TrackingId"].AsGuid() != Guid.Empty), Is.True);
+        // All GUIDs should be unique
+        var guids = rows.Select(r => r["TrackingId"].AsGuid()).ToList();
+        Assert.That(guids.Distinct().Count(), Is.EqualTo(3));
     }
 
     #endregion
 
-    #region Alter Table - Drop Column Tests
+    #region Drop Column Tests
 
     [Test]
     public void AlterTableDropColumnRemovesColumnTest()
