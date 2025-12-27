@@ -248,7 +248,7 @@
 - Schema type verification
 - INSERT OR REPLACE (new row, existing row, multiple rows, with unique index)
 - INSERT OR IGNORE (new row, existing row, multiple rows)
-- ON CONFLICT DO NOTHING (new row, existing row, with unique constraint)
+- ON CONFLICT DO NOTHING (new row, existing row, multiple rows)
 - ON CONFLICT DO UPDATE (new row, existing row, with EXCLUDED, increment, with WHERE)
 - UPSERT with RETURNING (inserted and updated)
 - TRUNCATE (removes rows, resets auto-increment, clears indexes, error cases)
@@ -397,8 +397,8 @@ EF Core scaffolding requires these views for reverse engineering:
 | WitSqlEngineWindowFunction* | 24 | 0 | All window functions |
 | WitSqlEngineReturning* | 20 | 0 | INSERT/UPDATE/DELETE RETURNING |
 | WitSqlEngineUpsert* | 19 | 0 | UPSERT (ON CONFLICT) |
-| WitSqlEngineTruncateMerge* | 19 | 0 | TRUNCATE + MERGE + Complex conditions |
-| **Total** | **1265** | **0** | 100% passing |
+| WitSqlEngineTruncateMerge* | 23 | 0 | TRUNCATE + MERGE + Complex conditions + Integration |
+| **Total** | **1269** | **0** | 100% passing |
 
 ---
 
@@ -514,6 +514,30 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |  TypeMapping --> QueryTranslation --> Migrations             |
 +-------------------------------------------------------------+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

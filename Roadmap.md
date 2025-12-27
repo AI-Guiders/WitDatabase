@@ -44,7 +44,7 @@ For detailed version-specific information, see:
 |-----------|-------------|-------------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 100% ? |
 | **OutWit.Database.Parser** | 290 | 290 | 100% ? |
-| **OutWit.Database** (Engine) | 200+ | ~185 | ~90% ?? |
+| **OutWit.Database** (Engine) | 200+ | ~195 | ~95% ?? |
 
 ### v2 Features (Deferred)
 
@@ -141,7 +141,8 @@ For detailed version-specific information, see:
 | Data Type Implementation | 100% | All types supported |
 | DDL Execution | 100% | Tables, Views, Triggers, Sequences ? |
 | DML Execution (SELECT) | 100% | JOINs, Subqueries, Set Ops ? |
-| DML Execution (INSERT/UPDATE/DELETE) | 85% | Core operations, triggers ? |
+| DML Execution (INSERT/UPDATE/DELETE) | 100% | Core operations, triggers, RETURNING ? |
+| DML Enhancements | 100% | UPSERT, TRUNCATE, MERGE ? |
 | Expression Evaluation | 100% | Including subqueries ? |
 | Built-in Functions (scalar) | 100% | 60+ functions ? |
 | Built-in Functions (aggregate) | 100% | COUNT, SUM, AVG, MIN, MAX, GROUP_CONCAT ? |
@@ -157,7 +158,23 @@ For detailed version-specific information, see:
 | ADO.NET Provider | 0% | Not started |
 | Query Optimization | 10% | Basic plan building only |
 
-### Recently Completed (2025-02-01)
+### Recently Completed (2025-02-02)
+
+- ? **DML Enhancements Complete**:
+  - `INSERT ... RETURNING` - returns inserted rows with auto-generated IDs
+  - `UPDATE ... RETURNING` - returns updated rows
+  - `DELETE ... RETURNING` - returns deleted rows
+  - `INSERT OR REPLACE` / `INSERT OR IGNORE`
+  - `ON CONFLICT DO UPDATE` (UPSERT) with EXCLUDED pseudo-table
+  - `ON CONFLICT DO NOTHING`
+  - `TRUNCATE TABLE` - fast delete with auto-increment reset
+  - `MERGE` - full UPSERT with WHEN MATCHED/NOT MATCHED clauses
+  - Complex conditions in MERGE (AND, OR, expressions, subquery sources)
+- ? **Code Refactoring**:
+  - Split `StatementExecutor.Dml.cs` into separate files for better maintainability
+- ? 62 DML enhancement tests passing
+
+### Previously Completed (2025-02-01)
 
 - ? **Window Functions Complete**:
   - ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST
@@ -256,8 +273,8 @@ For detailed version-specific information, see:
 |-----------|-------|--------|
 | OutWit.Database.Core | 1811+ | ? Passing |
 | OutWit.Database.Parser | 1000+ | ? Passing |
-| OutWit.Database (Engine) | 1207+ | ? Passing |
-| **Total** | **4018+** | ? Passing |
+| OutWit.Database (Engine) | 1269 | ? Passing |
+| **Total** | **4080+** | ? Passing |
 
 ### Engine Test Breakdown
 
@@ -276,6 +293,9 @@ For detailed version-specific information, see:
 | WitSqlEngine Transactions | 46 |
 | WitSqlEngine CTE | 43 |
 | WitSqlEngine Window Functions | 24 |
+| WitSqlEngine RETURNING | 20 |
+| WitSqlEngine UPSERT | 19 |
+| WitSqlEngine TRUNCATE/MERGE | 23 |
 
 ---
 
@@ -296,6 +316,16 @@ For detailed version-specific information, see:
 ---
 
 ## Recent Changes
+
+### 2025-02-02
+- Engine: DML Enhancements complete
+  - INSERT/UPDATE/DELETE RETURNING clause
+  - INSERT OR REPLACE / INSERT OR IGNORE
+  - ON CONFLICT DO UPDATE (UPSERT) with EXCLUDED pseudo-table
+  - TRUNCATE TABLE with auto-increment reset
+  - MERGE statement with complex conditions
+  - 62 DML enhancement tests passing
+- Engine: Code refactoring - split StatementExecutor.Dml.cs into separate files
 
 ### 2025-02-01
 - Engine: Window Functions implementation complete

@@ -25,7 +25,7 @@
 |-----------|----------------|-------------|---------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 0 | 100% |
 | **OutWit.Database.Parser** | 290 | 290 | 0 | 100% |
-| **OutWit.Database** (Engine) | 200+ | ~185 | ~15 | ~90% |
+| **OutWit.Database** (Engine) | 200+ | ~195 | ~5 | ~95% |
 
 ---
 
@@ -230,11 +230,11 @@
 | `INSERT INTO table (cols) VALUES (...)` | N/A | [x] | [x] | SS3.2 |
 | Multi-row `VALUES (...), (...)` | N/A | [x] | [x] | SS3.2 |
 | `INSERT INTO ... SELECT` | N/A | [x] | [x] | SS3.2 |
-| `INSERT ... RETURNING` | N/A | [x] | [ ] | SS3.2 |
-| `INSERT OR REPLACE` | N/A | [x] | [ ] | SS16.1 |
-| `INSERT ... ON CONFLICT DO UPDATE` | N/A | [x] | [ ] | SS16.2 |
-| `INSERT ... ON CONFLICT DO NOTHING` | N/A | [x] | [ ] | SS16.2 |
-| `EXCLUDED.column` reference | N/A | [x] | [ ] | SS16 |
+| `INSERT ... RETURNING` | N/A | [x] | [x] | SS3.2 |
+| `INSERT OR REPLACE` | N/A | [x] | [x] | SS16.1 |
+| `INSERT ... ON CONFLICT DO UPDATE` | N/A | [x] | [x] | SS16.2 |
+| `INSERT ... ON CONFLICT DO NOTHING` | N/A | [x] | [x] | SS16.2 |
+| `EXCLUDED.column` reference | N/A | [x] | [x] | SS16 |
 
 ## 10. UPDATE (SS3.3)
 
@@ -242,7 +242,7 @@
 |---------|------|--------|--------|------|
 | `UPDATE table SET col = expr` | N/A | [x] | [x] | SS3.3 |
 | `UPDATE ... WHERE condition` | N/A | [x] | [x] | SS3.3 |
-| `UPDATE ... RETURNING` | N/A | [x] | [ ] | SS3.3 |
+| `UPDATE ... RETURNING` | N/A | [x] | [x] | SS3.3 |
 | `UPDATE ... FROM other_table` | N/A | [x] | [ ] | SS17.2 |
 | `UPDATE table AS alias` | N/A | [x] | [x] | SS3.3 |
 
@@ -252,18 +252,21 @@
 |---------|------|--------|--------|------|
 | `DELETE FROM table` | N/A | [x] | [x] | SS3.4 |
 | `DELETE FROM ... WHERE` | N/A | [x] | [x] | SS3.4 |
-| `DELETE FROM ... RETURNING` | N/A | [x] | [ ] | SS3.4 |
+| `DELETE FROM ... RETURNING` | N/A | [x] | [x] | SS3.4 |
 | `DELETE ... USING other_table` | N/A | [x] | [ ] | SS17.3 |
 | `DELETE FROM table AS alias` | N/A | [x] | [x] | SS3.4 |
 
-## 12. TRUNCATE / MERGE (SS16-17)
+## 12. TRUNCATE / MERGE (SS16-17) ? COMPLETE
 
 | Feature | Core | Parser | Engine | Spec |
 |---------|------|--------|--------|------|
-| `TRUNCATE TABLE table_name` | N/A | [x] | [ ] | SS17.1 |
-| `MERGE INTO target USING source ON` | N/A | [x] | [ ] | SS16.3 |
-| `WHEN MATCHED THEN UPDATE` | N/A | [x] | [ ] | SS16.3 |
-| `WHEN NOT MATCHED THEN INSERT` | N/A | [x] | [ ] | SS16.3 |
+| `TRUNCATE TABLE table_name` | N/A | [x] | [x] | SS17.1 |
+| `MERGE INTO target USING source ON` | N/A | [x] | [x] | SS16.3 |
+| `WHEN MATCHED THEN UPDATE` | N/A | [x] | [x] | SS16.3 |
+| `WHEN MATCHED THEN DELETE` | N/A | [x] | [x] | SS16.3 |
+| `WHEN NOT MATCHED THEN INSERT` | N/A | [x] | [x] | SS16.3 |
+| `WHEN MATCHED AND condition` | N/A | [x] | [x] | SS16.3 |
+| MERGE with subquery source | N/A | [x] | [x] | SS16.3 |
 
 ## 13. CTE / Set Operations (SS6, SS8) ? COMPLETE
 

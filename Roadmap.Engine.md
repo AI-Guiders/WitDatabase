@@ -2,7 +2,7 @@
 
 **Version:** 2.6  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-02-01
+**Last Updated:** 2025-02-02
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: ~90% - Core SQL Execution + Transactions + Indexes + ALTER TABLE + Computed Columns + CTE + Window Functions Complete**
+**Current Status: ~95% - Core SQL Execution + Transactions + Indexes + ALTER TABLE + Computed Columns + CTE + Window Functions + DML Complete**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -59,6 +59,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 - ? **Computed Columns** (STORED with auto-recalculation, VIRTUAL with on-the-fly evaluation)
 - ? **CTE Execution** (Simple CTEs, Multiple CTEs, Recursive CTEs, Caching)
 - ? **Window Functions** (ROW_NUMBER, RANK, DENSE_RANK, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE, PERCENT_RANK, CUME_DIST, Aggregate OVER)
+- ? **DML Enhancements** (RETURNING clause, INSERT OR REPLACE, ON CONFLICT DO UPDATE/NOTHING, TRUNCATE, MERGE)
 
 ---
 
@@ -230,12 +231,12 @@ The Engine component (`OutWit.Database`) is responsible for:
 | INSERT with column list | [x] | P0 | v1 | SS3.2 |
 | Multi-row INSERT | [x] | P0 | v1 | SS3.2 |
 | INSERT ... SELECT | [x] | P0 | v1 | SS3.2 |
-| INSERT ... RETURNING | [ ] | P1 | v1 | SS3.2 |
+| INSERT ... RETURNING | [x] | P1 | v1 | SS3.2 |
 | DEFAULT value handling | [x] | P0 | v1 | SS3.2 |
 | AUTOINCREMENT handling | [x] | P0 | v1 | SS3.2 |
 | Constraint validation | [x] | P0 | v1 | SS3.2 |
-| INSERT OR REPLACE | [ ] | P1 | v1 | SS16.1 |
-| INSERT ... ON CONFLICT | [ ] | P1 | v1 | SS16.2 |
+| INSERT OR REPLACE | [x] | P1 | v1 | SS16.1 |
+| INSERT ... ON CONFLICT | [x] | P1 | v1 | SS16.2 |
 
 ### 4.4 UPDATE Execution
 
@@ -243,7 +244,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 |---------|--------|----------|---------|------|
 | Basic UPDATE | [x] | P0 | v1 | SS3.3 |
 | UPDATE with WHERE | [x] | P0 | v1 | SS3.3 |
-| UPDATE ... RETURNING | [ ] | P1 | v1 | SS3.3 |
+| UPDATE ... RETURNING | [x] | P1 | v1 | SS3.3 |
 | Multi-column UPDATE | [x] | P0 | v1 | SS3.3 |
 | UPDATE with expressions | [x] | P0 | v1 | SS3.3 |
 | Index update on modification | [x] | P1 | v1 | SS3.3 |
@@ -256,17 +257,22 @@ The Engine component (`OutWit.Database`) is responsible for:
 |---------|--------|----------|---------|------|
 | Basic DELETE | [x] | P0 | v1 | SS3.4 |
 | DELETE with WHERE | [x] | P0 | v1 | SS3.4 |
-| DELETE ... RETURNING | [ ] | P1 | v1 | SS3.4 |
+| DELETE ... RETURNING | [x] | P1 | v1 | SS3.4 |
 | Index cleanup on delete | [x] | P1 | v1 | SS3.4 |
 | Cascading deletes | [ ] | P1 | v1 | SS2.1 |
 | DELETE ... USING | [ ] | P1 | v1 | SS17.3 |
 
-### 4.6 TRUNCATE / MERGE
+### 4.6 TRUNCATE / MERGE ? COMPLETE
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| TRUNCATE TABLE | [ ] | P1 | v1 | SS17.1 |
-| MERGE execution | [ ] | P1 | v1 | SS16.3 |
+| TRUNCATE TABLE | [x] | P1 | v1 | SS17.1 |
+| MERGE execution | [x] | P1 | v1 | SS16.3 |
+| WHEN MATCHED THEN UPDATE | [x] | P1 | v1 | SS16.3 |
+| WHEN MATCHED THEN DELETE | [x] | P1 | v1 | SS16.3 |
+| WHEN NOT MATCHED THEN INSERT | [x] | P1 | v1 | SS16.3 |
+| MERGE with complex conditions | [x] | P1 | v1 | SS16.3 |
+| MERGE with subquery source | [x] | P1 | v1 | SS16.3 |
 
 ---
 
@@ -602,11 +608,36 @@ The Engine component (`OutWit.Database`) is responsible for:
 | WitSqlEngineAlterTableIntegrationTests | 42 | ? Passing |
 | WitSqlEngineCteTests | 43 | ? Passing |
 | WitSqlEngineWindowFunctionTests | 24 | ? Passing |
-| **Total** | **1207+** | ? Passing |
+| WitSqlEngineReturningTests | 20 | ? Passing |
+| WitSqlEngineUpsertTests | 19 | ? Passing |
+| WitSqlEngineTruncateMergeTests | 23 | ? Passing |
+| **Total** | **1269** | ? Passing |
 
 ---
 
 ## Recent Changes
+
+### 2025-02-02
+- ? **DML Enhancements Implementation Complete**:
+  - `INSERT ... RETURNING` - returns inserted rows with auto-increment IDs
+  - `UPDATE ... RETURNING` - returns updated rows
+  - `DELETE ... RETURNING` - returns deleted rows before deletion
+  - `INSERT OR REPLACE` - delete + insert on conflict
+  - `INSERT OR IGNORE` - skip on conflict
+  - `ON CONFLICT DO NOTHING` - skip on conflict (column-specific)
+  - `ON CONFLICT DO UPDATE` - UPSERT with EXCLUDED pseudo-table
+  - `TRUNCATE TABLE` - fast delete with auto-increment reset
+  - `MERGE` - full UPSERT with WHEN MATCHED/NOT MATCHED clauses
+  - Complex conditions in MERGE (AND, OR, expressions)
+  - Subquery sources in MERGE
+- ? **Code Refactoring**:
+  - Split `StatementExecutor.Dml.cs` into separate files:
+    - `StatementExecutor.Insert.cs` - INSERT + Conflict resolution
+    - `StatementExecutor.Update.cs` - UPDATE
+    - `StatementExecutor.Delete.cs` - DELETE
+    - `StatementExecutor.Merge.cs` - MERGE + TRUNCATE
+    - `StatementExecutor.Returning.cs` - Shared RETURNING clause support
+- ? 62 DML tests passing (20 RETURNING + 19 UPSERT + 23 TRUNCATE/MERGE)
 
 ### 2025-02-01
 - ? **Window Functions Implementation Complete**:
@@ -652,4 +683,4 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-**Last Updated:** 2025-02-01
+**Last Updated:** 2025-02-02

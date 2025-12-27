@@ -467,6 +467,7 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
         m_engine.Execute("INSERT INTO StagingProducts (Sku, Name, Price, Stock, IsActive) VALUES ('SKU001', 'Widget V2', 31.99, 110, TRUE)");
         m_engine.Execute("INSERT INTO StagingProducts (Sku, Name, Price, Stock, IsActive) VALUES ('SKU006', 'Inactive', 0, 0, FALSE)");
         m_engine.Execute("INSERT INTO StagingProducts (Sku, Name, Price, Stock, IsActive) VALUES ('SKU007', 'Active New', 44.99, 30, TRUE)");
+        m_engine.Execute("INSERT INTO StagingProducts (Sku, Name, Price, Stock, IsActive) VALUES ('SKU008', 'Another Widget', 35.00, 200, TRUE)");
 
         // MERGE using subquery - only active products
         var mergeResult = m_engine.Execute(@"
@@ -478,7 +479,7 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
             WHEN NOT MATCHED THEN
                 INSERT (Sku, Name, Price, Stock) VALUES (s.Sku, s.Name, s.Price, s.Stock)");
 
-        Assert.That(mergeResult.RowsAffected, Is.EqualTo(2)); // SKU001 update, SKU007 insert
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(3)); // SKU001 update, SKU007 insert, SKU008 insert
 
         // Verify SKU001 updated
         var result1 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU001'");
@@ -490,10 +491,15 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
         result2.Read();
         Assert.That(result2.CurrentRow[0].AsInt64(), Is.EqualTo(1));
 
-        // Verify SKU006 NOT inserted (IsActive = FALSE)
-        var result3 = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU006'");
+        // Verify SKU008 inserted
+        var result3 = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU008'");
         result3.Read();
-        Assert.That(result3.CurrentRow[0].AsInt64(), Is.EqualTo(0));
+        Assert.That(result3.CurrentRow[0].AsInt64(), Is.EqualTo(1));
+
+        // Verify SKU006 NOT inserted (IsActive = FALSE)
+        var result4 = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU006'");
+        result4.Read();
+        Assert.That(result4.CurrentRow[0].AsInt64(), Is.EqualTo(0));
     }
 
     [Test]
@@ -570,6 +576,157 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
                 INSERT (Sku, Name, Price, Stock) VALUES (s.Sku, s.Name, s.Price, s.Stock)");
 
         Assert.That(mergeResult.RowsAffected, Is.EqualTo(0)); // No changes - row exists
+    }
+
+    #endregion
+
+    #region Integration Tests
+
+    [Test]
+    public void MergeWithComputedColumnsTest()
+    {
+        // Create table with computed column (separate table, no conflict with existing Products)
+        m_engine.Execute(@"
+            CREATE TABLE ProductsWithComputed (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Sku TEXT UNIQUE NOT NULL,
+                Name TEXT NOT NULL,
+                Price DECIMAL(10,2) DEFAULT 0,
+                Stock INTEGER DEFAULT 0,
+                TotalValue AS (Price * Stock) STORED
+            )");
+
+        // Insert initial data
+        m_engine.Execute("INSERT INTO ProductsWithComputed (Sku, Name, Price, Stock) VALUES ('COMP001', 'Widget', 10.00, 100)");
+
+        // Verify computed column
+        var initial = m_engine.Execute("SELECT TotalValue FROM ProductsWithComputed WHERE Sku = 'COMP001'");
+        initial.Read();
+        Assert.That(initial.CurrentRow[0].AsDecimal(), Is.EqualTo(1000.00m));
+
+        // Create source for MERGE
+        m_engine.Execute(@"
+            CREATE TABLE ComputedUpdates (
+                Sku TEXT NOT NULL,
+                Name TEXT,
+                Price DECIMAL(10,2),
+                Stock INTEGER
+            )");
+        m_engine.Execute("INSERT INTO ComputedUpdates (Sku, Name, Price, Stock) VALUES ('COMP001', 'Widget', 20.00, 50)");
+
+        // MERGE update - computed column should recalculate
+        m_engine.Execute(@"
+            MERGE INTO ProductsWithComputed AS t
+            USING ComputedUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED THEN
+                UPDATE SET Price = s.Price, Stock = s.Stock");
+
+        // Verify computed column was recalculated
+        var updated = m_engine.Execute("SELECT TotalValue FROM ProductsWithComputed WHERE Sku = 'COMP001'");
+        updated.Read();
+        Assert.That(updated.CurrentRow[0].AsDecimal(), Is.EqualTo(1000.00m)); // 20 * 50 = 1000
+    }
+
+    [Test]
+    public void TruncateAndMergeSequenceTest()
+    {
+        // Truncate existing Products data from Setup
+        m_engine.Execute("TRUNCATE TABLE Products");
+
+        // Verify empty
+        var countBefore = m_engine.Execute("SELECT COUNT(*) FROM Products");
+        countBefore.Read();
+        Assert.That(countBefore.CurrentRow[0].AsInt64(), Is.EqualTo(0));
+
+        // Clear ProductUpdates and add source data for MERGE
+        m_engine.Execute("TRUNCATE TABLE ProductUpdates");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('NEW001', 'New Widget', 35.00, 200)");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('NEW002', 'Gizmo', 15.00, 500)");
+
+        // MERGE into empty table - all should be inserts
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN NOT MATCHED THEN
+                INSERT (Sku, Name, Price, Stock) VALUES (s.Sku, s.Name, s.Price, s.Stock)");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(2));
+
+        // Verify Products table
+        var rows = m_engine.Query("SELECT Sku, Name FROM Products ORDER BY Sku");
+        Assert.That(rows.Count, Is.EqualTo(2));
+        Assert.That(rows[0]["Sku"].AsString(), Is.EqualTo("NEW001"));
+        Assert.That(rows[1]["Sku"].AsString(), Is.EqualTo("NEW002"));
+    }
+
+    [Test]
+    public void UpsertWithReturningAndSubsequentSelectTest()
+    {
+        // SKU001 already exists from InsertTestData(), so UPSERT will update it
+        var upsertResult = m_engine.Execute(@"
+            INSERT INTO Products (Sku, Name, Price, Stock) VALUES ('SKU001', 'Widget Pro', 39.99, 200)
+            ON CONFLICT (Sku) DO UPDATE SET Name = EXCLUDED.Name, Price = EXCLUDED.Price, Stock = EXCLUDED.Stock
+            RETURNING Id, Sku, Name, Price, Stock");
+
+        var rows = upsertResult.ReadAll();
+        Assert.That(rows.Count, Is.EqualTo(1));
+        var id = rows[0]["Id"].AsInt64();
+        Assert.That(rows[0]["Name"].AsString(), Is.EqualTo("Widget Pro"));
+
+        // Verify with subsequent SELECT
+        var selectResult = m_engine.Query($"SELECT * FROM Products WHERE Id = {id}");
+        Assert.That(selectResult.Count, Is.EqualTo(1));
+        Assert.That(selectResult[0]["Name"].AsString(), Is.EqualTo("Widget Pro"));
+        Assert.That(selectResult[0]["Price"].AsDecimal(), Is.EqualTo(39.99m));
+    }
+
+    [Test]
+    public void MergeAllActionsInOneStatementTest()
+    {
+        // Clear Products and set up fresh data
+        m_engine.Execute("TRUNCATE TABLE Products");
+        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock, Category) VALUES ('ACT001', 'ToUpdate', 10.00, 100, 'Hardware')");
+        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock, Category) VALUES ('ACT002', 'ToDelete', 20.00, 0, 'Hardware')");
+        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock, Category) VALUES ('ACT003', 'ToKeep', 30.00, 50, 'Hardware')");
+
+        // Clear ProductUpdates and set up source data
+        m_engine.Execute("TRUNCATE TABLE ProductUpdates");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('ACT001', 'Updated', 15.00, 150)");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('ACT002', 'DeleteMe', 0, 0)"); // Stock = 0 -> delete
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('ACT004', 'NewProduct', 25.00, 75)"); // New
+
+        // MERGE with all action types
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED AND s.Stock = 0 THEN
+                DELETE
+            WHEN MATCHED THEN
+                UPDATE SET Name = s.Name, Price = s.Price, Stock = s.Stock
+            WHEN NOT MATCHED THEN
+                INSERT (Sku, Name, Price, Stock) VALUES (s.Sku, s.Name, s.Price, s.Stock)");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(3)); // 1 update + 1 delete + 1 insert
+
+        // Verify results
+        var products = m_engine.Query("SELECT Sku, Name, Stock FROM Products ORDER BY Sku");
+        Assert.That(products.Count, Is.EqualTo(3)); // ACT001 updated, ACT002 deleted, ACT003 unchanged, ACT004 inserted
+
+        // ACT001 - updated
+        Assert.That(products[0]["Sku"].AsString(), Is.EqualTo("ACT001"));
+        Assert.That(products[0]["Name"].AsString(), Is.EqualTo("Updated"));
+        Assert.That(products[0]["Stock"].AsInt64(), Is.EqualTo(150));
+
+        // ACT003 - unchanged (was not in source)
+        Assert.That(products[1]["Sku"].AsString(), Is.EqualTo("ACT003"));
+        Assert.That(products[1]["Name"].AsString(), Is.EqualTo("ToKeep"));
+
+        // ACT004 - inserted
+        Assert.That(products[2]["Sku"].AsString(), Is.EqualTo("ACT004"));
+        Assert.That(products[2]["Name"].AsString(), Is.EqualTo("NewProduct"));
     }
 
     #endregion
