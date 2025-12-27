@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-02-01  
+**Last Updated:** 2025-12-27  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -41,7 +41,7 @@
 | ALTER TABLE | 0 | 0 | 0 | ? DONE |
 | CTE Execution | 0 | 0 | 0 | ? DONE |
 | Window Functions | 0 | 0 | 1 | ? DONE (frame clause P2) |
-| DML Enhancements | 0 | 8 | 0 | Required |
+| DML Enhancements | 0 | 5 | 0 | ? RETURNING done, 5 remaining |
 | JSON Functions | 0 | 3 | 3 | Required |
 | Query Optimization | 0 | 2 | 2 | Optional |
 | INFORMATION_SCHEMA | 0 | 6 | 0 | Required |
@@ -216,10 +216,34 @@
 
 ## 6. DML Enhancements (P1)
 
+**Current State:** RETURNING clause implemented
+
+### Completed Tasks:
+- [x] **P1** `INSERT ... RETURNING` - critical for EF Core identity
+- [x] **P1** `UPDATE ... RETURNING`
+- [x] **P1** `DELETE ... RETURNING`
+
+### Implementation Summary:
+- **WitSqlResult** - New constructor for DML with RETURNING (returns both RowsAffected and rows)
+- **BuildReturningRow** - Builds row for RETURNING clause from source row and select list
+- **BuildReturningSchema** - Builds column schema for RETURNING clause
+- **RETURNING *** - Returns all columns from the table
+- **RETURNING with expressions** - Supports computed expressions and aliases
+
+### Test Coverage: 20 tests passing
+- INSERT RETURNING (Id, *, multiple columns, alias, multiple rows, defaults)
+- UPDATE RETURNING (single row, all columns, multiple rows, no match)
+- DELETE RETURNING (single row, all columns, multiple rows)
+- RETURNING with expressions
+- Schema type verification
+- Integration tests
+
+### Key Files:
+- `StatementExecutor.Dml.cs` - Modified - RETURNING clause support in INSERT/UPDATE/DELETE
+- `WitSqlResult.cs` - Modified - New constructor for DML with RETURNING
+- `WitSqlEngineReturningTests.cs` - Created - 20 RETURNING tests
+
 ### Missing Features:
-- [ ] **P1** `INSERT ... RETURNING` - critical for EF Core identity
-- [ ] **P1** `UPDATE ... RETURNING`
-- [ ] **P1** `DELETE ... RETURNING`
 - [ ] **P1** `INSERT OR REPLACE`
 - [ ] **P1** `INSERT ... ON CONFLICT DO UPDATE` (UPSERT)
 - [ ] **P1** `INSERT ... ON CONFLICT DO NOTHING`
@@ -354,7 +378,8 @@ EF Core scaffolding requires these views for reverse engineering:
 | WitSqlEngineAlterTable* | 60 | 0 | Constraints + Computed + Integration |
 | WitSqlEngineCte* | 43 | 0 | CTE + Recursive + Caching |
 | WitSqlEngineWindowFunction* | 24 | 0 | All window functions |
-| **Total** | **1207+** | **0** | 100% passing |
+| WitSqlEngineReturning* | 20 | 0 | INSERT/UPDATE/DELETE RETURNING |
+| **Total** | **1227+** | **0** | 100% passing |
 
 ---
 
@@ -409,7 +434,13 @@ EF Core scaffolding requires these views for reverse engineering:
 | `QueryPlanner.cs` | Modified - Window function detection |
 | `WitSqlEngineWindowFunctionTests.cs` | Created - 24 window function tests |
 
----
+### RETURNING Clause (Complete)
+| File | Status |
+|------|--------|
+| `StatementExecutor.Dml.cs` | Modified - RETURNING clause support |
+| `WitSqlResult.cs` | Modified - New constructor for DML with RETURNING |
+| `WitSqlEngineReturningTests.cs` | Created - 20 RETURNING tests |
+
 
 ## Dependencies
 
@@ -425,7 +456,7 @@ EF Core scaffolding requires these views for reverse engineering:
 |        |                                                     |
 |        +--> Window Functions ?                              |
 |        |                                                     |
-|        +--> RETURNING clause (for identity values)           |
+|        +--> RETURNING clause ?                              |
 |        |                                                     |
 |        +--> INFORMATION_SCHEMA (for scaffolding)             |
 +-------------------------------------------------------------+
@@ -445,32 +476,4 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |  TypeMapping --> QueryTranslation --> Migrations             |
 +-------------------------------------------------------------+
-```
-
----
-
-## Next Steps (Immediate)
-
-1. ~~**Transaction Fix** - fix lock recursion issue~~ ?
-2. ~~**FOR UPDATE/SHARE** - implement locking hints~~ ?
-3. ~~**Index Implementation** - seek, range scan, auto-update~~ ?
-4. ~~**ALTER TABLE ADD COLUMN with DEFAULT**~~ ?
-5. ~~**ALTER TABLE DROP CONSTRAINT**~~ ?
-6. ~~**ALTER TABLE ADD CONSTRAINT**~~ ?
-7. ~~**Computed Columns (STORED/VIRTUAL)**~~ ?
-8. ~~**CTE Execution**~~ ?
-9. ~~**Window Functions**~~ ?
-10. **RETURNING clause** - INSERT/UPDATE/DELETE ... RETURNING
-11. **INFORMATION_SCHEMA** - for EF Core scaffolding
-
----
-
-## Related Documents
-
-- [Roadmap.Engine.md](../../Roadmap.Engine.md) - Overall engine roadmap
-- [Roadmap.v2.md](../../Roadmap.v2.md) - v2 features (deferred)
-
----
-
-**Last Updated:** 2025-02-01
 

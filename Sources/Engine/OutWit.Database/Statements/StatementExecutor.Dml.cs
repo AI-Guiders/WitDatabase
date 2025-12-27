@@ -2,7 +2,9 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Iterators;
 using OutWit.Database.Parser.Expressions;
+using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Types;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Statements;
@@ -18,6 +20,12 @@ public sealed partial class StatementExecutor
 
         int rowsAffected = 0;
         long lastRowId = 0;
+        List<WitSqlRow>? returningRows = null;
+
+        if (insert.ReturningClause != null)
+        {
+            returningRows = [];
+        }
 
         if (insert.Values != null)
         {
@@ -45,6 +53,13 @@ public sealed partial class StatementExecutor
                 lastRowId = rowId;
                 rowsAffected++;
 
+                // Collect RETURNING row
+                if (returningRows != null)
+                {
+                    var returningRow = BuildReturningRow(row, insert.ReturningClause!, table);
+                    returningRows.Add(returningRow);
+                }
+
                 // Fire AFTER INSERT triggers
                 WitSqlRow? afterRow = row;
                 FireTriggers(insert.TableName, TriggerEvent.Insert, TriggerTime.After, null, ref afterRow);
@@ -52,17 +67,24 @@ public sealed partial class StatementExecutor
         }
         else if (insert.SelectSource != null)
         {
-            rowsAffected = ExecuteInsertFromSelect(insert, table);
+            rowsAffected = ExecuteInsertFromSelect(insert, table, returningRows);
         }
 
         // Update context for LAST_INSERT_ROWID() and CHANGES()
         m_context.LastInsertRowId = lastRowId;
         m_context.LastChangesCount = rowsAffected;
 
+        // Return result with RETURNING rows if specified
+        if (returningRows != null)
+        {
+            var schema = BuildReturningSchema(insert.ReturningClause!, table);
+            return new WitSqlResult(rowsAffected, returningRows, schema);
+        }
+
         return new WitSqlResult(rowsAffected);
     }
 
-    private int ExecuteInsertFromSelect(WitSqlStatementInsert insert, DefinitionTable table)
+    private int ExecuteInsertFromSelect(WitSqlStatementInsert insert, DefinitionTable table, List<WitSqlRow>? returningRows)
     {
         var iterator = m_planner.Plan(insert.SelectSource!);
         iterator.Open();
@@ -172,6 +194,13 @@ public sealed partial class StatementExecutor
                 ValidateConstraints(table, row, insert.TableName);
                 m_context.Database.InsertRow(insert.TableName, row);
                 rowsAffected++;
+
+                // Collect RETURNING row
+                if (returningRows != null && insert.ReturningClause != null)
+                {
+                    var returningRow = BuildReturningRow(row, insert.ReturningClause, table);
+                    returningRows.Add(returningRow);
+                }
 
                 // Fire AFTER INSERT triggers
                 WitSqlRow? afterRow = row;
@@ -379,6 +408,13 @@ public sealed partial class StatementExecutor
 
         // Apply updates with trigger invocation
         int rowsAffected = 0;
+        List<WitSqlRow>? returningRows = null;
+
+        if (update.ReturningClause != null)
+        {
+            returningRows = [];
+        }
+
         foreach (var (rowId, oldRow, originalNewRow) in rowsToUpdate)
         {
             var newRow = originalNewRow;
@@ -405,12 +441,27 @@ public sealed partial class StatementExecutor
             m_context.Database.UpdateRow(update.TableName, rowId, newRow);
             rowsAffected++;
 
+            // Collect RETURNING row
+            if (returningRows != null)
+            {
+                var returningRow = BuildReturningRow(newRow, update.ReturningClause!, table);
+                returningRows.Add(returningRow);
+            }
+
             // Fire AFTER UPDATE triggers
             WitSqlRow? afterRow = newRow;
             FireTriggers(update.TableName, TriggerEvent.Update, TriggerTime.After, oldRow, ref afterRow);
         }
 
         m_context.LastChangesCount = rowsAffected;
+
+        // Return result with RETURNING rows if specified
+        if (returningRows != null)
+        {
+            var schema = BuildReturningSchema(update.ReturningClause!, table);
+            return new WitSqlResult(rowsAffected, returningRows, schema);
+        }
+
         return new WitSqlResult(rowsAffected);
     }
 
@@ -434,6 +485,14 @@ public sealed partial class StatementExecutor
 
     private WitSqlResult ExecuteDelete(WitSqlStatementDelete delete)
     {
+        // Only get table definition if we have RETURNING clause (need schema for building return rows)
+        DefinitionTable? table = null;
+        if (delete.ReturningClause != null)
+        {
+            table = m_context.Database.GetTable(delete.TableName)
+                ?? throw new InvalidOperationException($"Table '{delete.TableName}' not found");
+        }
+
         var iterator = m_context.Database.CreateTableScan(delete.TableName);
 
         if (delete.WhereClause != null)
@@ -458,6 +517,13 @@ public sealed partial class StatementExecutor
         }
 
         int rowsAffected = 0;
+        List<WitSqlRow>? returningRows = null;
+
+        if (delete.ReturningClause != null)
+        {
+            returningRows = [];
+        }
+
         foreach (var (rowId, oldRow) in rowsToDelete)
         {
             // Fire BEFORE DELETE triggers
@@ -473,6 +539,13 @@ public sealed partial class StatementExecutor
                 continue; // INSTEAD OF executed, skip normal delete
             }
 
+            // Collect RETURNING row before deletion
+            if (returningRows != null && table != null)
+            {
+                var returningRow = BuildReturningRow(oldRow, delete.ReturningClause!, table);
+                returningRows.Add(returningRow);
+            }
+
             m_context.Database.DeleteRow(delete.TableName, rowId);
             rowsAffected++;
 
@@ -482,7 +555,115 @@ public sealed partial class StatementExecutor
         }
 
         m_context.LastChangesCount = rowsAffected;
+
+        // Return result with RETURNING rows if specified
+        if (returningRows != null && table != null)
+        {
+            var schema = BuildReturningSchema(delete.ReturningClause!, table);
+            return new WitSqlResult(rowsAffected, returningRows, schema);
+        }
+
         return new WitSqlResult(rowsAffected);
+    }
+
+    #endregion
+
+    #region RETURNING Clause Support
+
+    /// <summary>
+    /// Builds a row for RETURNING clause based on the source row and select list.
+    /// </summary>
+    private WitSqlRow BuildReturningRow(WitSqlRow sourceRow, IReadOnlyList<ClauseSelectItem> returningClause, DefinitionTable table)
+    {
+        var evaluator = new ExpressionEvaluator(m_context);
+        var values = new List<WitSqlValue>();
+        var names = new List<string>();
+
+        foreach (var item in returningClause)
+        {
+            if (item.IsStar)
+            {
+                // RETURNING * - add all columns from the table
+                foreach (var col in table.Columns)
+                {
+                    values.Add(sourceRow[col.Name]);
+                    names.Add(col.Name);
+                }
+            }
+            else if (item.Expression != null)
+            {
+                var value = evaluator.Evaluate(item.Expression, sourceRow);
+                values.Add(value);
+
+                var name = item.Alias ?? GetExpressionName(item.Expression);
+                names.Add(name);
+            }
+        }
+
+        return new WitSqlRow([.. values], [.. names]);
+    }
+
+    /// <summary>
+    /// Builds the schema for RETURNING clause.
+    /// </summary>
+    private IReadOnlyList<WitSqlColumnInfo> BuildReturningSchema(IReadOnlyList<ClauseSelectItem> returningClause, DefinitionTable table)
+    {
+        var schema = new List<WitSqlColumnInfo>();
+
+        foreach (var item in returningClause)
+        {
+            if (item.IsStar)
+            {
+                // RETURNING * - add all columns from the table
+                foreach (var col in table.Columns)
+                {
+                    schema.Add(new WitSqlColumnInfo
+                    {
+                        Name = col.Name,
+                        Type = col.Type.ToSqlType()
+                    });
+                }
+            }
+            else if (item.Expression != null)
+            {
+                var name = item.Alias ?? GetExpressionName(item.Expression);
+                var type = InferExpressionType(item.Expression, table);
+                schema.Add(new WitSqlColumnInfo { Name = name, Type = type });
+            }
+        }
+
+        return schema;
+    }
+
+    /// <summary>
+    /// Gets a name for an expression (column name or generated name).
+    /// </summary>
+    private static string GetExpressionName(WitSqlExpression expression)
+    {
+        return expression switch
+        {
+            WitSqlExpressionColumnRef colRef => colRef.ColumnName,
+            WitSqlExpressionFunctionCall func => func.FunctionName,
+            _ => "column"
+        };
+    }
+
+    /// <summary>
+    /// Infers the SQL type of an expression based on the table schema.
+    /// </summary>
+    private static WitSqlType InferExpressionType(WitSqlExpression expression, DefinitionTable table)
+    {
+        if (expression is WitSqlExpressionColumnRef colRef)
+        {
+            var col = table.GetColumn(colRef.ColumnName);
+            if (col != null)
+            {
+                return col.Type.ToSqlType();
+            }
+        }
+
+        // Default to Text for complex expressions
+        return WitSqlType.Text;
     }
 
     #endregion

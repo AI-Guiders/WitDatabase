@@ -14,6 +14,7 @@ namespace OutWit.Database;
 /// <list type="bullet">
 /// <item><description>SELECT queries - iterate rows using <see cref="Read"/> or <see cref="ReadAll"/></description></item>
 /// <item><description>DML statements (INSERT, UPDATE, DELETE) - check <see cref="RowsAffected"/></description></item>
+/// <item><description>DML with RETURNING - both <see cref="RowsAffected"/> and rows available</description></item>
 /// <item><description>DDL statements (CREATE, DROP, ALTER) - no data returned</description></item>
 /// </list>
 /// </remarks>
@@ -49,6 +50,20 @@ public sealed class WitSqlResult : IDisposable
         RowsAffected = rowsAffected;
         Columns = [];
         HasRows = false;
+    }
+
+    /// <summary>
+    /// Creates a result for DML statements with RETURNING clause.
+    /// </summary>
+    /// <param name="rowsAffected">Number of rows affected by the statement.</param>
+    /// <param name="rows">Enumerable of returned rows.</param>
+    /// <param name="columns">Column schema information.</param>
+    public WitSqlResult(int rowsAffected, IEnumerable<WitSqlRow> rows, IReadOnlyList<WitSqlColumnInfo> columns)
+    {
+        RowsAffected = rowsAffected;
+        Columns = columns;
+        m_rowEnumerator = rows.GetEnumerator();
+        HasRows = true;
     }
 
     /// <summary>
