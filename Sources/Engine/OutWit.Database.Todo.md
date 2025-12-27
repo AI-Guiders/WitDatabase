@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-01-28  
+**Last Updated:** 2025-01-29  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -36,9 +36,9 @@
 
 | Category | P0 | P1 | P2 | Status |
 |----------|----|----|----|----|
-| Transaction Support | 0 | 0 | 0 | DONE |
-| Index Implementation | 0 | 3 | 0 | DONE (P0 complete, P1 deferred) |
-| ALTER TABLE | 3 | 0 | 1 | MISSING |
+| Transaction Support | 0 | 0 | 0 | ? DONE |
+| Index Implementation | 0 | 0 | 0 | ? DONE |
+| ALTER TABLE | 3 | 0 | 1 | ?? MISSING ? [Detailed TODO](OutWit.Database.AlterTable.Todo.md) |
 | CTE Execution | 2 | 1 | 0 | Required |
 | Window Functions | 0 | 6 | 3 | Required |
 | DML Enhancements | 0 | 8 | 0 | Required |
@@ -53,7 +53,7 @@
 
 # PHASE 2: SQL Engine (Current)
 
-## 1. Transaction Support (COMPLETED)
+## 1. Transaction Support (COMPLETED ?)
 
 **Current State:** Transaction support fully implemented including FOR UPDATE/FOR SHARE
 
@@ -62,7 +62,7 @@
 - Transaction-aware `IteratorTableScan` uses transaction's `Scan()` when active
 - Schema operations (row ID management) now respect active transactions
 - SQL statement execution for `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`
-- **NEW:** FOR UPDATE / FOR SHARE locking hints via `IteratorLocking`
+- FOR UPDATE / FOR SHARE locking hints via `IteratorLocking`
 
 ### Completed Tasks:
 - [x] **P0** Fix lock recursion issue in transactions
@@ -119,9 +119,9 @@ All 46 transaction and locking tests passing:
 
 ---
 
-## 2. Index Implementation (P0/P1 - COMPLETE)
+## 2. Index Implementation (COMPLETED ?)
 
-**Current State:** Index implementation complete - metadata, iterators, auto-update, building from existing data, partial indexes, expression indexes (engine support), and covering indexes
+**Current State:** Index implementation complete - metadata, iterators, auto-update, building from existing data, partial indexes, expression indexes, and covering indexes
 
 ### Found in Code:
 ```csharp
@@ -139,8 +139,19 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
 - [x] **P0** Index auto-update on INSERT/UPDATE/DELETE
 - [x] **P0** Index building from existing data (CREATE INDEX on non-empty table)
 - [x] **P1** Partial index evaluation (WHERE clause on index)
-- [x] **P1** Expression index evaluation (functional indexes) - engine support ready, parser syntax TBD
+- [x] **P1** Expression index evaluation (functional indexes) - **Parser supports `CREATE INDEX ... ON ... (LOWER(Name))`**
 - [x] **P1** Covering index support (INCLUDE columns)
+
+### Expression Index Parser Support:
+The parser already supports expression indexes via `ClauseIndexElement.Expression`:
+```sql
+CREATE INDEX IX_Users_LowerEmail ON Users (LOWER(Email));
+CREATE INDEX IX_Orders_Year ON Orders (YEAR(OrderDate));
+```
+
+The grammar (`WitSqlParser.g4`) has rules:
+- `indexColumnElement`: Simple column reference
+- `indexExpressionElement`: Expression like `LOWER(column)`, `YEAR(date)`, etc.
 
 ### Implementation Files Created:
 - `Iterators/IteratorIndexSeek.cs` - Index equality lookup iterator
@@ -156,30 +167,15 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
 - `Iterators/IteratorIndexSeek.cs` - Added `CoverColumns()` method for covering index support
 - `Iterators/IteratorIndexRangeScan.cs` - Added `CoverColumns()` method for covering index support
 
-### Test Coverage:
-- **27 Index Tests** (`WitSqlEngineIndexTests.cs`):
-  - Create/Drop index metadata
-  - Index seek and range scan iterators
-  - Index building from existing data
-  - Unique index constraint on duplicate data
-  - Different data types (integer, date, boolean)
-  
-- **23 Index Auto-Update Tests** (`WitSqlEngineIndexAutoUpdateTests.cs`):
-  - INSERT: Updates secondary indexes, composite indexes, multiple indexes, unique index violation
-  - UPDATE: Updates indexed columns, removes null from index, adds non-null to index
-  - DELETE: Removes entries from all indexes
-  - Range scan: Reflects inserts, updates, and deletes correctly
-
-- **17 Advanced Index Tests** (`WitSqlEngineAdvancedIndexTests.cs`):
-  - Partial indexes: WHERE clause filtering on INSERT/UPDATE/DELETE
-  - Covering indexes: INCLUDE columns metadata and storage
-  - Combined: partial + covering indexes
+### Test Coverage: 67 tests (27 basic + 23 auto-update + 17 advanced)
 
 ---
 
-## 3. ALTER TABLE (P0 - MISSING)
+## 3. ALTER TABLE (P0 - MISSING) ??
 
 **Current State:** Partial implementation - several ALTER actions not executed
+
+> **?? See detailed implementation plan: [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md)**
 
 ### Missing in `StatementExecutor.Ddl.cs`:
 ```csharp
@@ -195,11 +191,16 @@ case AlterActionDropConstraint dropConstraint: // NOT IMPLEMENTED
 public void AlterTableAddColumnWithDefaultPopulatesExistingRowsTest()
 ```
 
-### Tasks:
+### Tasks (Summary - see detailed TODO for steps):
 - [ ] **P0** `ALTER TABLE ADD CONSTRAINT` - needed for EF Core migrations
 - [ ] **P0** `ALTER TABLE DROP CONSTRAINT` - needed for EF Core migrations  
 - [ ] **P0** `ALTER TABLE ADD COLUMN` - populate existing rows with DEFAULT value
 - [ ] **P2** Computed columns support in ALTER TABLE
+
+### Implementation Order (from detailed TODO):
+1. **Week 1**: ADD COLUMN with DEFAULT (smallest scope, unblocks EF Core)
+2. **Week 2**: DROP CONSTRAINT
+3. **Week 3**: ADD CONSTRAINT (most complex)
 
 ---
 
@@ -363,26 +364,28 @@ EF Core scaffolding requires these views for reverse engineering:
 
 | Week | Tasks |
 |------|-------|
-| **Week 1-2** | ~~Transaction fix~~, ~~FOR UPDATE/SHARE~~, ~~Index seek/range~~, Index auto-update, ALTER TABLE fix |
-| **Week 3-4** | CTE execution, RETURNING clause |
-| **Week 5-6** | Window functions (ROW_NUMBER, RANK) |
-| **Week 7-8** | INFORMATION_SCHEMA, JSON functions |
+| **Week 1-2** | ~~Transaction fix~~, ~~FOR UPDATE/SHARE~~, ~~Index implementation~~ ? |
+| **Week 3** | ALTER TABLE ADD COLUMN with DEFAULT |
+| **Week 4** | ALTER TABLE DROP/ADD CONSTRAINT |
+| **Week 5-6** | CTE execution, RETURNING clause |
+| **Week 7-8** | Window functions (ROW_NUMBER, RANK) |
+| **Week 9-10** | INFORMATION_SCHEMA, JSON functions |
 
 ### Phase 3: ADO.NET (After Engine)
 
 | Week | Tasks |
 |------|-------|
-| **Week 9-10** | WitDbConnection, WitDbCommand |
-| **Week 11-12** | WitDbDataReader, Parameters |
-| **Week 13-14** | Transaction, Factory, Tests |
+| **Week 11-12** | WitDbConnection, WitDbCommand |
+| **Week 13-14** | WitDbDataReader, Parameters |
+| **Week 15-16** | Transaction, Factory, Tests |
 
 ### Phase 4: EF Core (After ADO.NET)
 
 | Week | Tasks |
 |------|-------|
-| **Week 15-16** | Basic provider registration |
-| **Week 17-18** | Query translation |
-| **Week 19-20** | Migrations, Scaffolding |
+| **Week 17-18** | Basic provider registration |
+| **Week 19-20** | Query translation |
+| **Week 21-22** | Migrations, Scaffolding |
 
 ---
 
@@ -394,67 +397,42 @@ EF Core scaffolding requires these views for reverse engineering:
 | StatementExecutor* | 162 | 1 | ALTER TABLE DEFAULT |
 | Iterators/* | 119 | 0 | OK |
 | QueryPlanner* | 50 | 0 | OK |
-| WitSqlValue* | 130 | 0 | OK |
-| WitSqlEngine* | 132 | 1 | All TX tests enabled, 1 ALTER |
-| **Total** | **950+** | **2** | 99.8% passing |
+| WitSqlValue* | 148 | 0 | OK |
+| WitSqlEngineIndex* | 67 | 0 | OK |
+| WitSqlEngine* | 132 | 1 | ALTER TABLE DEFAULT |
+| **Total** | **1090+** | **2** | 99.8% passing |
 
 ---
 
-## Files Created (Index Implementation)
+## Files Created/Modified
 
-| File | Purpose |
-|------|---------|
-| `Iterators/IteratorIndexSeek.cs` | Index equality lookup iterator |
-| `Iterators/IteratorIndexRangeScan.cs` | Index range scan iterator |
+### Transaction Support (Complete)
+| File | Status |
+|------|--------|
+| `ITransaction.cs` | Modified - Added `Scan()` |
+| `Transaction.cs` | Modified |
+| `MvccTransaction.cs` | Modified |
+| `IteratorLocking.cs` | Created |
+| `IteratorTableScan.cs` | Modified |
 
-## Files Modified (Index Implementation)
+### Index Implementation (Complete)
+| File | Status |
+|------|--------|
+| `IteratorIndexSeek.cs` | Created |
+| `IteratorIndexRangeScan.cs` | Created |
+| `WitSqlEngine.Query.cs` | Modified |
+| `WitSqlEngine.Dml.cs` | Modified |
+| `WitSqlEngine.Ddl.Indexes.cs` | Modified |
+| `WitSqlValue.Getters.cs` | Modified |
 
-| File | Changes Made |
-|------|-------------|
-| `WitSqlEngine.Query.cs` | Added `CreateIndexSeek()`, `CreateIndexRangeScan()`, `SerializeIndexKey()` |
-| `WitSqlEngine.Dml.cs` | Added index auto-update on INSERT/UPDATE/DELETE, partial index condition evaluation, expression index evaluation |
-| `WitSqlEngine.Ddl.Indexes.cs` | Added physical secondary index creation/drop, index building from existing data with partial index support |
-| `Schema/SchemaCatalog.cs` | Added `GetTableDataEndPrefix()` for table scanning |
-| `Values/WitSqlValue.Getters.cs` | Added `AsLong()`, `AsULong()`, `AsUInt64()`, `IsTrue`, `IsFalse` properties |
-| `Types/WitTypeConverter.cs` | Fixed string serialization for lexicographic ordering |
-| `Iterators/IteratorIndexSeek.cs` | Added `CoverColumns()` method for covering index support |
-| `Iterators/IteratorIndexRangeScan.cs` | Added `CoverColumns()` method for covering index support |
-
----
-
-## Files to Create (Remaining Engine Work)
-
-| File | Purpose |
-|------|---------|
-| `Iterators/IteratorWindow.cs` | Window function iterator |
-| `Iterators/IteratorCte.cs` | CTE materialization iterator |
-| `Schema/InformationSchema.cs` | INFORMATION_SCHEMA views |
-
----
-
-## Files Modified (Transaction Support) - Previously
-
-| File | Changes Made |
-|------|-------------|
-| `ITransaction.cs` | Added `Scan()` and `ScanAsync()` methods |
-| `Transaction.cs` | Implemented `Scan()` with transaction-aware merging |
-| `MvccTransaction.cs` | Implemented `Scan()` with MVCC support |
-| `TransactionalStore.cs` | Added `ScanFromStore()` internal methods |
-| `IDatabase.cs` | Added `CurrentTransaction`, `CreateSavepoint()`, `ReleaseSavepoint()`, `RollbackToSavepoint()`, `BeginTransaction(IsolationLevel)` |
-| `WitSqlEngine.Transactions.cs` | Implemented isolation level support and savepoint methods |
-| `WitSqlEngine.Query.cs` | Updated `CreateTableScan()` to pass transaction |
-| `IteratorTableScan.cs` | Added transaction-aware scanning |
-| `StatementExecutor.cs` | Added transaction SQL statement execution |
-| `SchemaCatalog.cs` | Added transaction-aware row ID methods |
-| `WitSqlEngine.Ddl.Tables.cs` | Updated `GetNextAutoIncrement()` to use transaction |
-
-## Files Modified (FOR UPDATE/FOR SHARE Support) - Previously
-
-| File | Changes Made |
-|------|-------------|
-| `IteratorLocking.cs` | **NEW** - Row-level locking iterator |
-| `QueryPlanner.cs` | Added `ApplyLockingClause()` method and helper methods |
-| `StatementExecutorLockingTests.cs` | **NEW** - 17 tests for locking functionality |
+### ALTER TABLE (Planned)
+| File | Status |
+|------|--------|
+| `DefinitionNamedConstraint.cs` | To Create |
+| `DefinitionTable.cs` | To Modify |
+| `IDatabase.cs` | To Modify |
+| `WitSqlEngine.Ddl.Tables.cs` | To Modify |
+| `StatementExecutor.Ddl.cs` | To Modify |
 
 ---
 
@@ -464,11 +442,9 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |                     SQL ENGINE (Phase 2)                     |
 +-------------------------------------------------------------+
-|  Transaction Fix ? --> FOR UPDATE/SHARE ? --> Index Seek ?   |
+|  Transaction Fix ? --> FOR UPDATE/SHARE ? --> Index ?        |
 |        |                                                     |
-|        +--> Index Auto-Update (pending)                      |
-|        |                                                     |
-|        +--> ALTER TABLE (ADD/DROP CONSTRAINT)                |
+|        +--> ALTER TABLE (ADD/DROP CONSTRAINT) ? CURRENT      |
 |        |                                                     |
 |        +--> CTE Execution                                    |
 |        |                                                     |
@@ -502,12 +478,20 @@ EF Core scaffolding requires these views for reverse engineering:
 
 1. ~~**Transaction Fix** - fix lock recursion issue~~ ?
 2. ~~**FOR UPDATE/SHARE** - implement locking hints~~ ?
-3. ~~**Index Seek** - implement `CreateIndexSeek()` for secondary index~~ ?
-4. ~~**Index Range Scan** - implement range queries~~ ?
-5. ~~**Index Auto-Update** - update indexes on INSERT/UPDATE/DELETE~~ ?
-6. ~~**Index Building** - build index from existing data on CREATE INDEX~~ ?
-7. **ALTER TABLE ADD/DROP CONSTRAINT** - requires changes to DefinitionTable (deferred)
-8. **CTE Execution** - implement simple (non-recursive) CTE
+3. ~~**Index Implementation** - seek, range scan, auto-update~~ ?
+4. **ALTER TABLE ADD COLUMN with DEFAULT** ? NEXT (see [detailed TODO](OutWit.Database.AlterTable.Todo.md))
+5. **ALTER TABLE DROP CONSTRAINT** 
+6. **ALTER TABLE ADD CONSTRAINT**
+7. **CTE Execution** - implement simple (non-recursive) CTE
 
 ---
+
+## Related Documents
+
+- [Roadmap.Engine.md](../../Roadmap.Engine.md) - Overall engine roadmap
+- [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md) - Detailed ALTER TABLE implementation plan
+
+---
+
+**Last Updated:** 2025-01-29
 

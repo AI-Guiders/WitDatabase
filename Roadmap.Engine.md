@@ -1,8 +1,8 @@
 # OutWit.Database (Engine) - Roadmap
 
-**Version:** 2.2  
+**Version:** 2.3  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-28
+**Last Updated:** 2025-01-29
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: ~70% - Core SQL Execution + Transactions Complete**
+**Current Status: ~75% - Core SQL Execution + Transactions + Indexes Complete**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -54,6 +54,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 - ? Trigger execution (BEFORE/AFTER/INSTEAD OF)
 - ? **Transaction support** (BEGIN/COMMIT/ROLLBACK, Isolation Levels, Savepoints)
 - ? **FOR UPDATE / FOR SHARE** locking hints with NOWAIT/SKIP LOCKED
+- ? **Index Implementation** (Index seek, range scan, auto-update, partial indexes, expression indexes, covering indexes)
 
 ---
 
@@ -143,14 +144,14 @@ The Engine component (`OutWit.Database`) is responsible for:
 |---------|--------|----------|---------|------|
 | `CREATE INDEX` execution | [x] | P0 | v1 | SS2.4 |
 | `CREATE UNIQUE INDEX` | [x] | P0 | v1 | SS2.4 |
-| Index building from existing data | [ ] | P0 | v1 | SS2.4 |
-| Index seek (equality lookup) | [ ] | P0 | v1 | SS2.4 |
-| Index range scan | [ ] | P0 | v1 | SS2.4 |
-| Index auto-update on DML | [ ] | P0 | v1 | SS2.4 |
+| Index building from existing data | [x] | P0 | v1 | SS2.4 |
+| Index seek (equality lookup) | [x] | P0 | v1 | SS2.4 |
+| Index range scan | [x] | P0 | v1 | SS2.4 |
+| Index auto-update on DML | [x] | P0 | v1 | SS2.4 |
 | `DROP INDEX` execution | [x] | P0 | v1 | SS2.5 |
-| Partial indexes | [ ] | P1 | v1 | SS19.1 |
-| Expression indexes | [ ] | P1 | v1 | SS19.2 |
-| Covering indexes | [ ] | P1 | v1 | SS19.3 |
+| Partial indexes (WHERE clause) | [x] | P1 | v1 | SS19.1 |
+| Expression indexes (functional) | [x] | P1 | v1 | SS19.2 |
+| Covering indexes (INCLUDE) | [x] | P1 | v1 | SS19.3 |
 
 ### 3.3 View Operations
 
@@ -240,7 +241,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | UPDATE ... RETURNING | [ ] | P1 | v1 | SS3.3 |
 | Multi-column UPDATE | [x] | P0 | v1 | SS3.3 |
 | UPDATE with expressions | [x] | P0 | v1 | SS3.3 |
-| Index update on modification | [ ] | P1 | v1 | SS3.3 |
+| Index update on modification | [x] | P1 | v1 | SS3.3 |
 | NOT NULL validation on UPDATE | [x] | P0 | v1 | SS3.3 |
 | UPDATE ... FROM | [ ] | P1 | v1 | SS17.2 |
 
@@ -251,7 +252,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | Basic DELETE | [x] | P0 | v1 | SS3.4 |
 | DELETE with WHERE | [x] | P0 | v1 | SS3.4 |
 | DELETE ... RETURNING | [ ] | P1 | v1 | SS3.4 |
-| Index cleanup on delete | [ ] | P1 | v1 | SS3.4 |
+| Index cleanup on delete | [x] | P1 | v1 | SS3.4 |
 | Cascading deletes | [ ] | P1 | v1 | SS2.1 |
 | DELETE ... USING | [ ] | P1 | v1 | SS17.3 |
 
@@ -471,7 +472,32 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-## 10. Schema Information
+## 10. Index Implementation ? COMPLETE
+
+| Feature | Status | Priority | Version | Spec |
+|---------|--------|----------|---------|------|
+| `CREATE INDEX` metadata storage | [x] | P0 | v1 | SS2.4 |
+| `DROP INDEX` execution | [x] | P0 | v1 | SS2.5 |
+| Index seek (equality lookup) | [x] | P0 | v1 | SS2.4 |
+| Index range scan | [x] | P0 | v1 | SS2.4 |
+| Index auto-update on INSERT | [x] | P0 | v1 | SS2.4 |
+| Index auto-update on UPDATE | [x] | P0 | v1 | SS2.4 |
+| Index auto-update on DELETE | [x] | P0 | v1 | SS2.4 |
+| Index building from existing data | [x] | P0 | v1 | SS2.4 |
+| Partial indexes (WHERE clause) | [x] | P1 | v1 | SS19.1 |
+| Expression indexes (functional) | [x] | P1 | v1 | SS19.2 |
+| Covering indexes (INCLUDE cols) | [x] | P1 | v1 | SS19.3 |
+
+### Implementation Details:
+- **Index Iterators**: `IteratorIndexSeek.cs` for equality, `IteratorIndexRangeScan.cs` for ranges
+- **Index Auto-Update**: DML operations automatically update all affected secondary indexes
+- **Partial Indexes**: WHERE clause evaluated via `ExpressionEvaluator`
+- **Expression Indexes**: Expressions evaluated and serialized for key building
+- **Covering Indexes**: INCLUDE columns stored in index metadata, `CoverColumns()` method for query optimizer
+
+---
+
+## 11. Schema Information
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -484,7 +510,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-## 11. ADO.NET Provider
+## 12. ADO.NET Provider
 
 | Feature | Status | Priority | Version |
 |---------|--------|----------|---------|
@@ -501,7 +527,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-## 12. Query Optimization
+## 13. Query Optimization
 
 | Feature | Status | Priority | Version |
 |---------|--------|----------|---------|
@@ -514,9 +540,9 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-## 13. v2 Features (Deferred)
+## 14. v2 Features (Deferred)
 
-### 13.1 User-Defined Functions
+### 14.1 User-Defined Functions
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -525,7 +551,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | `DETERMINISTIC` handling | [ ] | P2 | v2 | SS22.1 |
 | `DROP FUNCTION` execution | [ ] | P2 | v2 | SS22 |
 
-### 13.2 Stored Procedures
+### 14.2 Stored Procedures
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -533,7 +559,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | `DROP PROCEDURE` execution | [ ] | P2 | v2 | SS23 |
 | `CALL` / `EXECUTE` execution | [ ] | P2 | v2 | SS23 |
 
-### 13.3 Query Analysis
+### 14.3 Query Analysis
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -541,7 +567,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | `EXPLAIN ANALYZE` | [ ] | P2 | v2 | SS25.1 |
 | `EXPLAIN (FORMAT JSON/TEXT)` | [ ] | P2 | v2 | SS25.1 |
 
-### 13.4 Database Administration
+### 14.4 Database Administration
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -553,7 +579,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | `ANALYZE` execution | [ ] | P2 | v2 | SS26.2 |
 | `PRAGMA` support | [ ] | P2 | v2 | SS26.3 |
 
-### 13.5 Cursor Support
+### 14.5 Cursor Support
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -562,7 +588,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 | FETCH | [ ] | P2 | v2 | - |
 | CLOSE CURSOR | [ ] | P2 | v2 | - |
 
-### 13.6 Advanced Statistics
+### 14.6 Advanced Statistics
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
@@ -596,7 +622,8 @@ The Engine component (`OutWit.Database`) is responsible for:
 - [x] INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN ?
 - [x] CROSS JOIN ?
 - [x] CREATE/DROP INDEX (metadata) ?
-- [ ] Index usage in WHERE clauses
+- [x] Index seek and range scan ?
+- [x] Index auto-update on DML ?
 - [x] GROUP BY, HAVING ?
 - [x] Subqueries (scalar, IN, EXISTS, ANY/ALL) ?
 - [x] Correlated subqueries ?
@@ -618,13 +645,15 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 **Goal:** Production-ready engine
 
-- [ ] **Index Implementation** (BLOCKING - P0)
+- [x] **Index Implementation** ? COMPLETE
 - [ ] Window functions
 - [ ] Recursive CTE
 - [x] Views and triggers ?
 - [ ] All remaining v1 functions
 - [ ] INFORMATION_SCHEMA
 - [ ] Basic query optimization
+- [ ] **ALTER TABLE ADD/DROP CONSTRAINT** (P0)
+- [ ] **ALTER TABLE ADD COLUMN with DEFAULT** (P0)
 
 ### Phase 5: Advanced Features (v2)
 
@@ -647,16 +676,31 @@ The Engine component (`OutWit.Database`) is responsible for:
 | StatementExecutor | 162 | ? Passing |
 | Iterators | 119 | ? Passing |
 | QueryPlanner | 50 | ? Passing |
-| WitSqlValue | 130 | ? Passing |
+| WitSqlValue | 148 | ? Passing |
 | Definitions | 90 | ? Passing |
 | Schema | 50 | ? Passing |
 | WitSqlEngine (integration) | 132 | ? Passing |
 | StatementExecutorLockingTests | 17 | ? Passing |
-| **Total** | **976** | ? Passing |
+| WitSqlEngineIndexTests | 27 | ? Passing |
+| WitSqlEngineIndexAutoUpdateTests | 23 | ? Passing |
+| WitSqlEngineAdvancedIndexTests | 17 | ? Passing |
+| **Total** | **1090+** | ? Passing |
 
 ---
 
 ## Recent Changes
+
+### 2025-01-29
+- ? **Index Implementation Complete**:
+  - `IteratorIndexSeek.cs` - equality lookup using secondary index
+  - `IteratorIndexRangeScan.cs` - range queries using index
+  - Index auto-update on INSERT/UPDATE/DELETE
+  - Index building from existing data (CREATE INDEX on non-empty table)
+  - Partial index evaluation (WHERE clause on index)
+  - Expression index evaluation (functional indexes)
+  - Covering index support (INCLUDE columns)
+- ? Added `IsTrue`/`IsFalse` properties to `WitSqlValue`
+- ? 67 new index tests (27 basic + 23 auto-update + 17 advanced)
 
 ### 2025-01-28
 - ? **Transaction Support Complete**:
@@ -686,4 +730,4 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-**Last Updated:** 2025-01-28
+**Last Updated:** 2025-01-29
