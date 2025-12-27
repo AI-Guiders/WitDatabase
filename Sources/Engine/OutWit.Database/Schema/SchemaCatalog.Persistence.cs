@@ -50,6 +50,9 @@ public sealed partial class SchemaCatalog
 
         // Load sequences
         LoadSequences();
+
+        // Load global row version counter
+        LoadRowVersion();
     }
 
     private void SaveSchema()

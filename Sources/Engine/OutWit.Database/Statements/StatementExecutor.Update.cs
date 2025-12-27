@@ -19,7 +19,7 @@ public sealed partial class StatementExecutor
         var table = m_context.Database.GetTable(update.TableName)
             ?? throw new InvalidOperationException($"Table '{update.TableName}' not found");
 
-        // Validate that we're not trying to UPDATE computed columns directly
+        // Validate that we're not trying to UPDATE computed columns or ROWVERSION directly
         foreach (var setClause in update.SetClauses)
         {
             var col = table.GetColumn(setClause.ColumnName);
@@ -27,6 +27,11 @@ public sealed partial class StatementExecutor
             {
                 throw new InvalidOperationException(
                     $"Cannot UPDATE computed column '{setClause.ColumnName}'");
+            }
+            if (col != null && col.Type == WitDataType.RowVersion)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot UPDATE ROWVERSION column '{setClause.ColumnName}'");
             }
         }
 
@@ -41,9 +46,13 @@ public sealed partial class StatementExecutor
         iterator.Open();
         var evaluator = new ExpressionEvaluator(m_context);
 
-        // Get computed columns info
+        // Get computed columns and ROWVERSION columns info
         var storedComputedColumns = table.Columns
             .Where(c => c.IsComputed && c.IsStored)
+            .ToList();
+
+        var rowVersionColumns = table.Columns
+            .Where(c => c.Type == WitDataType.RowVersion)
             .ToList();
 
         // Collect rows to update (can't modify while iterating)
@@ -65,6 +74,19 @@ public sealed partial class StatementExecutor
                         if (columnNames[i].Equals(setClause.ColumnName, StringComparison.OrdinalIgnoreCase))
                         {
                             newValues[i] = evaluator.Evaluate(setClause.Value, currentRow);
+                            break;
+                        }
+                    }
+                }
+
+                // Auto-increment ROWVERSION columns
+                foreach (var rowVersionCol in rowVersionColumns)
+                {
+                    for (int i = 0; i < columnNames.Length; i++)
+                    {
+                        if (columnNames[i].Equals(rowVersionCol.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            newValues[i] = WitSqlValue.FromRowVersion(m_context.Database.GetNextRowVersion(table.Name));
                             break;
                         }
                     }

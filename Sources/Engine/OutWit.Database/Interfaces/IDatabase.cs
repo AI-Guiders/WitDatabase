@@ -149,6 +149,12 @@ public interface IDatabase
     long GetNextAutoIncrement(string tableName);
 
     /// <summary>
+    /// Get next value for a ROWVERSION column.
+    /// ROWVERSION is a database-wide counter, not per-table.
+    /// </summary>
+    ulong GetNextRowVersion(string tableName);
+
+    /// <summary>
     /// Begin a transaction.
     /// </summary>
     IDisposable BeginTransaction();

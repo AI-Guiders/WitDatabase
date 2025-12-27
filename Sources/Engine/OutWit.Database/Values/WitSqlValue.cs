@@ -27,17 +27,19 @@ namespace OutWit.Database.Values
         private readonly WitSqlType m_type;
         private readonly long m_intValue;      // For Integer, Boolean, DateTime, DateOnly, TimeOnly, TimeSpan
         private readonly double m_realValue;   // For Real
+        private readonly ulong m_ulongValue;   // For RowVersion
         private readonly object? m_objectValue; // For Text, Blob, Decimal, Guid, DateTimeOffset, Json
 
         #endregion
 
         #region Constructors
 
-        private WitSqlValue(WitSqlType type, long intValue = 0, double realValue = 0, object? objectValue = null)
+        private WitSqlValue(WitSqlType type, long intValue = 0, double realValue = 0, ulong ulongValue = 0, object? objectValue = null)
         {
             m_type = type;
             m_intValue = intValue;
             m_realValue = realValue;
+            m_ulongValue = ulongValue;
             m_objectValue = objectValue;
         }
 

@@ -23,5 +23,6 @@ public enum WitSqlType : byte
     TimeSpan = 10,
     Guid = 11,
     DateTimeOffset = 12,
-    Json = 13
+    Json = 13,
+    RowVersion = 14
 }

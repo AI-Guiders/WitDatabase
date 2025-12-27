@@ -129,6 +129,11 @@ public sealed partial class StatementExecutor
                         // Computed columns will be calculated after all regular values are set
                         values[i] = WitSqlValue.Null;
                     }
+                    else if (col.Type == WitDataType.RowVersion)
+                    {
+                        // Auto-generate initial ROWVERSION value
+                        values[i] = WitSqlValue.FromRowVersion(m_context.Database.GetNextRowVersion(table.Name));
+                    }
                     else if (col.IsAutoIncrement)
                     {
                         rowId = m_context.Database.GetNextAutoIncrement(table.Name);
@@ -155,11 +160,16 @@ public sealed partial class StatementExecutor
                         if (colIndex >= 0)
                         {
                             var col = table.Columns[colIndex];
-                            // Don't allow setting computed columns directly
+                            // Don't allow setting computed columns or ROWVERSION directly
                             if (col.IsComputed)
                             {
                                 throw new InvalidOperationException(
                                     $"Cannot INSERT into computed column '{col.Name}'");
+                            }
+                            if (col.Type == WitDataType.RowVersion)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Cannot INSERT into ROWVERSION column '{col.Name}'");
                             }
                             values[colIndex] = iterator.Current[i];
                         }
@@ -168,12 +178,12 @@ public sealed partial class StatementExecutor
                 else
                 {
                     // Positional: INSERT INTO table SELECT ...
-                    // Skip computed columns for positional matching
+                    // Skip computed columns and ROWVERSION for positional matching
                     int valueIndex = 0;
                     for (int i = 0; i < table.Columns.Count && valueIndex < iterator.Current.ColumnCount; i++)
                     {
                         var col = table.Columns[i];
-                        if (!col.IsComputed)
+                        if (!col.IsComputed && col.Type != WitDataType.RowVersion)
                         {
                             values[i] = iterator.Current[valueIndex];
                             valueIndex++;
@@ -255,6 +265,11 @@ public sealed partial class StatementExecutor
                 // Computed columns will be calculated after all regular values are set
                 values[i] = WitSqlValue.Null;
             }
+            else if (col.Type == WitDataType.RowVersion)
+            {
+                // Auto-generate initial ROWVERSION value
+                values[i] = WitSqlValue.FromRowVersion(m_context.Database.GetNextRowVersion(table.Name));
+            }
             else if (col.IsAutoIncrement)
             {
                 rowId = m_context.Database.GetNextAutoIncrement(table.Name);
@@ -282,11 +297,16 @@ public sealed partial class StatementExecutor
                 if (colIndex >= 0)
                 {
                     var col = table.Columns[colIndex];
-                    // Don't allow setting computed columns directly
+                    // Don't allow setting computed columns or ROWVERSION directly
                     if (col.IsComputed)
                     {
                         throw new InvalidOperationException(
                             $"Cannot INSERT into computed column '{col.Name}'");
+                    }
+                    if (col.Type == WitDataType.RowVersion)
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot INSERT into ROWVERSION column '{col.Name}'");
                     }
                     values[colIndex] = evaluator.Evaluate(valueExprs[i], dummyRow);
                 }
@@ -295,12 +315,12 @@ public sealed partial class StatementExecutor
         else
         {
             // Positional: INSERT INTO table VALUES (val1, val2, ...)
-            // Count non-computed columns for positional matching
+            // Count non-computed and non-ROWVERSION columns for positional matching
             int valueIndex = 0;
             for (int i = 0; i < table.Columns.Count && valueIndex < valueExprs.Count; i++)
             {
                 var col = table.Columns[i];
-                if (!col.IsComputed)
+                if (!col.IsComputed && col.Type != WitDataType.RowVersion)
                 {
                     values[i] = evaluator.Evaluate(valueExprs[valueIndex], dummyRow);
                     valueIndex++;

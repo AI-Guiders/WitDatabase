@@ -20,6 +20,7 @@ public sealed partial class SchemaCatalog : IDisposable
     private const string TRIGGERS_KEY = "$schema:_triggers";
     private const string SEQUENCES_KEY = "$schema:_sequences";
     private const string ROWID_PREFIX = "$schema:_rowid:";
+    private const string ROWVERSION_KEY = "$schema:_rowversion";
 
     // Pre-computed UTF8 bytes for frequently used keys
     private static readonly byte[] TABLES_KEY_BYTES = Encoding.UTF8.GetBytes(TABLES_KEY);
@@ -28,6 +29,7 @@ public sealed partial class SchemaCatalog : IDisposable
     private static readonly byte[] TRIGGERS_KEY_BYTES = Encoding.UTF8.GetBytes(TRIGGERS_KEY);
     private static readonly byte[] SEQUENCES_KEY_BYTES = Encoding.UTF8.GetBytes(SEQUENCES_KEY);
     private static readonly byte[] ROWID_PREFIX_BYTES = Encoding.UTF8.GetBytes(ROWID_PREFIX);
+    private static readonly byte[] ROWVERSION_KEY_BYTES = Encoding.UTF8.GetBytes(ROWVERSION_KEY);
 
     #endregion
 
@@ -41,6 +43,7 @@ public sealed partial class SchemaCatalog : IDisposable
     private readonly Dictionary<string, DefinitionTrigger> m_triggers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DefinitionSequence> m_sequences = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> m_tableRowIds = new(StringComparer.OrdinalIgnoreCase);
+    private ulong m_globalRowVersion;
     private bool m_disposed;
 
     #endregion
@@ -344,6 +347,55 @@ public sealed partial class SchemaCatalog : IDisposable
             throw new ArgumentException("Invalid key length");
         
         return System.Buffers.Binary.BinaryPrimitives.ReadInt64BigEndian(key.AsSpan(prefix.Length));
+    }
+
+    #endregion
+
+    #region RowVersion Management
+
+    /// <summary>
+    /// Gets the next global row version value.
+    /// ROWVERSION is a database-wide auto-incrementing counter.
+    /// </summary>
+    /// <param name="transaction">The active transaction (if any) to use for persisting the value.</param>
+    /// <returns>The next row version value.</returns>
+    public ulong GetNextRowVersion(ITransaction? transaction = null)
+    {
+        m_lock.EnterWriteLock();
+        try
+        {
+            m_globalRowVersion++;
+            SaveRowVersion(m_globalRowVersion, transaction);
+            return m_globalRowVersion;
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    private void SaveRowVersion(ulong rowVersion, ITransaction? transaction)
+    {
+        Span<byte> valueBytes = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(valueBytes, rowVersion);
+        
+        if (transaction != null)
+        {
+            transaction.Put(ROWVERSION_KEY_BYTES.AsSpan(), valueBytes);
+        }
+        else
+        {
+            m_store.Put(ROWVERSION_KEY_BYTES.AsSpan(), valueBytes);
+        }
+    }
+
+    private void LoadRowVersion()
+    {
+        var data = m_store.Get(ROWVERSION_KEY_BYTES.AsSpan());
+        if (data != null && data.Length == 8)
+        {
+            m_globalRowVersion = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(data);
+        }
     }
 
     #endregion

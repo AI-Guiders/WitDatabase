@@ -21,49 +21,47 @@ public static class WitTypeConverter
     #region WitDataType <-> WitSqlType
 
     /// <summary>
-    /// Converts a storage data type to a runtime SQL type.
+    /// Maps a storage data type to a SQL type for expression evaluation.
     /// </summary>
-    public static WitSqlType ToSqlType(this WitDataType me)
+    public static WitSqlType ToSqlType(this WitDataType me) => me switch
     {
-        return me switch
-        {
-            WitDataType.Null => WitSqlType.Null,
+        // Integers
+        WitDataType.Int8 or WitDataType.UInt8 or
+        WitDataType.Int16 or WitDataType.UInt16 or
+        WitDataType.Int32 or WitDataType.UInt32 or
+        WitDataType.Int64 or WitDataType.UInt64 => WitSqlType.Integer,
 
-            // All integer types -> Integer
-            WitDataType.Int8 or WitDataType.UInt8 or
-            WitDataType.Int16 or WitDataType.UInt16 or
-            WitDataType.Int32 or WitDataType.UInt32 or
-            WitDataType.Int64 or WitDataType.UInt64 => WitSqlType.Integer,
+        // Floating point
+        WitDataType.Float16 or WitDataType.Float32 or WitDataType.Float64 => WitSqlType.Real,
+        WitDataType.Decimal => WitSqlType.Decimal,
 
-            // Floating point
-            WitDataType.Float16 or WitDataType.Float32 or WitDataType.Float64 => WitSqlType.Real,
-            WitDataType.Decimal => WitSqlType.Decimal,
+        // Boolean
+        WitDataType.Boolean => WitSqlType.Boolean,
 
-            // Boolean
-            WitDataType.Boolean => WitSqlType.Boolean,
+        // Date/Time
+        WitDataType.DateOnly => WitSqlType.DateOnly,
+        WitDataType.TimeOnly => WitSqlType.TimeOnly,
+        WitDataType.DateTime => WitSqlType.DateTime,
+        WitDataType.DateTimeOffset => WitSqlType.DateTimeOffset,
+        WitDataType.TimeSpan => WitSqlType.TimeSpan,
 
-            // Date/Time
-            WitDataType.DateOnly => WitSqlType.DateOnly,
-            WitDataType.TimeOnly => WitSqlType.TimeOnly,
-            WitDataType.DateTime => WitSqlType.DateTime,
-            WitDataType.DateTimeOffset => WitSqlType.DateTimeOffset,
-            WitDataType.TimeSpan => WitSqlType.TimeSpan,
+        // Identifiers
+        WitDataType.Guid => WitSqlType.Guid,
 
-            // Identifiers
-            WitDataType.Guid => WitSqlType.Guid,
+        // Strings
+        WitDataType.StringFixed or WitDataType.StringVariable => WitSqlType.Text,
 
-            // Strings
-            WitDataType.StringFixed or WitDataType.StringVariable => WitSqlType.Text,
+        // Binary
+        WitDataType.BinaryFixed or WitDataType.BinaryVariable => WitSqlType.Blob,
 
-            // Binary
-            WitDataType.BinaryFixed or WitDataType.BinaryVariable or WitDataType.RowVersion => WitSqlType.Blob,
+        // RowVersion
+        WitDataType.RowVersion => WitSqlType.RowVersion,
 
-            // JSON
-            WitDataType.Json => WitSqlType.Json,
+        // JSON
+        WitDataType.Json => WitSqlType.Json,
 
-            _ => WitSqlType.Text
-        };
-    }
+        _ => WitSqlType.Null
+    };
 
     /// <summary>
     /// Converts a runtime SQL type to a default storage data type.
@@ -146,7 +144,7 @@ public static class WitTypeConverter
         s_dataTypeToClr[WitDataType.Null] = typeof(DBNull);
         s_dataTypeToClr[WitDataType.StringFixed] = typeof(string);
         s_dataTypeToClr[WitDataType.BinaryFixed] = typeof(byte[]);
-        s_dataTypeToClr[WitDataType.RowVersion] = typeof(byte[]);
+        s_dataTypeToClr[WitDataType.RowVersion] = typeof(ulong);
     }
 
     /// <summary>
@@ -537,7 +535,9 @@ public static class WitTypeConverter
 
             // Binary
             WitDataType.BinaryFixed or WitDataType.BinaryVariable => WitSqlValue.FromBlob(reader.ReadBlob()),
-            WitDataType.RowVersion => WitSqlValue.FromBlob(reader.ReadBytes(8).ToArray()),
+            
+            // RowVersion - stored as 8-byte ulong
+            WitDataType.RowVersion => WitSqlValue.FromRowVersion((ulong)reader.ReadInt64()),
 
             // JSON
             WitDataType.Json => WitSqlValue.FromText(reader.ReadString()),
@@ -631,10 +631,14 @@ public static class WitTypeConverter
                 break;
             case WitDataType.BinaryVariable:
             case WitDataType.BinaryFixed:
-            case WitDataType.RowVersion:
                 var blob = value.AsBlob();
                 writer.Write(blob.Length);
                 writer.Write(blob);
+                break;
+            case WitDataType.RowVersion:
+                // RowVersion is stored as 8-byte ulong
+                var rvValue = value.AsRowVersion();
+                writer.Write(rvValue);
                 break;
             default:
                 var s = value.AsString();
@@ -657,13 +661,13 @@ public static class WitTypeConverter
         WitSqlType.Null, WitSqlType.Integer, WitSqlType.Real, WitSqlType.Text,
         WitSqlType.Blob, WitSqlType.Boolean, WitSqlType.Decimal, WitSqlType.DateTime,
         WitSqlType.DateOnly, WitSqlType.TimeOnly, WitSqlType.TimeSpan, WitSqlType.Guid,
-        WitSqlType.DateTimeOffset, WitSqlType.Json
+        WitSqlType.DateTimeOffset, WitSqlType.Json, WitSqlType.RowVersion
     ];
 
     /// <summary>
     /// Number of WitSqlType values. Update when adding new types!
     /// </summary>
-    public const int SqlTypeCount = 14;
+    public const int SqlTypeCount = 15;
 
     #endregion
 
@@ -783,16 +787,8 @@ public static class WitTypeConverter
 
             case WitDataType.RowVersion:
                 // RowVersion as 8-byte unsigned big-endian
-                var rvBlob = value.AsBlob();
-                if (rvBlob.Length == 8)
-                {
-                    var rvValue = BinaryPrimitives.ReadUInt64BigEndian(rvBlob);
-                    writer.Write(BinaryPrimitives.ReverseEndianness(rvValue));
-                }
-                else
-                {
-                    SerializeBlobForIndex(writer, rvBlob);
-                }
+                var rvValue = value.AsRowVersion();
+                writer.Write(BinaryPrimitives.ReverseEndianness(rvValue));
                 break;
 
             default:

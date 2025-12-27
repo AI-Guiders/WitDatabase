@@ -826,6 +826,21 @@ public sealed partial class WitSqlEngine
 
     #endregion
 
+    #region RowVersion
+
+    /// <summary>
+    /// Gets the next global row version value.
+    /// ROWVERSION is a database-wide auto-incrementing counter.
+    /// </summary>
+    /// <param name="tableName">The table name (not used, but required by interface).</param>
+    /// <returns>The next row version value.</returns>
+    public ulong GetNextRowVersion(string tableName)
+    {
+        return m_schema.GetNextRowVersion(m_currentTransaction);
+    }
+
+    #endregion
+
     #region Migration Helpers
 
     private void MigrateExistingRows(string tableName, DefinitionTable table, Func<WitSqlValue[], WitSqlValue[]> transform)

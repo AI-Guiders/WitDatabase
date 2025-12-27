@@ -87,6 +87,25 @@ namespace OutWit.Database.Values
         public static WitSqlValue FromDateTimeOffset(DateTimeOffset value) => new(WitSqlType.DateTimeOffset, objectValue: value);
 
         /// <summary>
+        /// Creates a RowVersion SqlValue from a ulong.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static WitSqlValue FromRowVersion(ulong value) => new(WitSqlType.RowVersion, ulongValue: value);
+
+        /// <summary>
+        /// Creates a RowVersion SqlValue from a byte array.
+        /// </summary>
+        public static WitSqlValue FromRowVersion(byte[] value)
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (value.Length != 8)
+                throw new ArgumentException("RowVersion must be exactly 8 bytes", nameof(value));
+            
+            var ulongValue = BitConverter.ToUInt64(value, 0);
+            return new(WitSqlType.RowVersion, ulongValue: ulongValue);
+        }
+
+        /// <summary>
         /// Creates a Json SqlValue from a JsonDocument.
         /// </summary>
         public static WitSqlValue FromJson(JsonDocument value)

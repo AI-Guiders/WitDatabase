@@ -80,8 +80,33 @@ namespace OutWit.Database.Values
             WitSqlType.DateTimeOffset => ((DateTimeOffset)m_objectValue!).ToString("o", CultureInfo.InvariantCulture),
             WitSqlType.Blob => Convert.ToBase64String((byte[])m_objectValue!),
             WitSqlType.Json => JsonToString(),
+            WitSqlType.RowVersion => $"0x{m_ulongValue:X16}",
             WitSqlType.Null => string.Empty,
             _ => ThrowInvalidCast<string>()
+        };
+
+        /// <summary>
+        /// Gets the value as RowVersion (ulong).
+        /// </summary>
+        /// <exception cref="InvalidCastException">If conversion is not possible.</exception>
+        public ulong AsRowVersion() => m_type switch
+        {
+            WitSqlType.RowVersion => m_ulongValue,
+            WitSqlType.Integer => (ulong)m_intValue,
+            WitSqlType.Null => 0,
+            _ => ThrowInvalidCast<ulong>()
+        };
+
+        /// <summary>
+        /// Gets the RowVersion as a byte array.
+        /// </summary>
+        /// <exception cref="InvalidCastException">If conversion is not possible.</exception>
+        public byte[] AsRowVersionBytes() => m_type switch
+        {
+            WitSqlType.RowVersion => BitConverter.GetBytes(m_ulongValue),
+            WitSqlType.Blob when ((byte[])m_objectValue!).Length == 8 => (byte[])m_objectValue!,
+            WitSqlType.Null => new byte[8],
+            _ => ThrowInvalidCast<byte[]>()
         };
 
         /// <summary>
@@ -261,6 +286,7 @@ namespace OutWit.Database.Values
             WitSqlType.DateOnly => DateOnly.FromDayNumber((int)m_intValue),
             WitSqlType.TimeOnly => new TimeOnly(m_intValue),
             WitSqlType.TimeSpan => new TimeSpan(m_intValue),
+            WitSqlType.RowVersion => m_ulongValue,
             _ => throw new InvalidOperationException($"Unknown type: {m_type}")
         };
 
