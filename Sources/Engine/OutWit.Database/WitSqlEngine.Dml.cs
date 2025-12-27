@@ -130,6 +130,51 @@ public sealed partial class WitSqlEngine
 
     #endregion
 
+    #region Truncate
+
+    /// <summary>
+    /// Truncate all rows from a table.
+    /// Faster than DELETE without WHERE - removes all data and resets auto-increment.
+    /// Does NOT fire triggers.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    public void TruncateTable(string tableName)
+    {
+        var table = m_schema.GetTable(tableName)
+            ?? throw new InvalidOperationException($"Table '{tableName}' not found");
+
+        // Get all indexes for this table
+        var indexes = m_schema.GetTableIndexes(tableName).ToList();
+
+        // Delete all rows from the table
+        var prefix = SchemaCatalog.GetTableDataPrefix(tableName);
+        var endPrefix = SchemaCatalog.GetTableDataEndPrefix(tableName);
+
+        var keysToDelete = new List<byte[]>();
+        foreach (var (key, _) in m_database.Scan(prefix, endPrefix))
+        {
+            keysToDelete.Add(key);
+        }
+
+        // Delete all rows
+        foreach (var key in keysToDelete)
+        {
+            DeleteFromStore(key);
+        }
+
+        // Clear all secondary indexes for this table
+        foreach (var indexDef in indexes)
+        {
+            var secondaryIndex = m_database.GetIndex(indexDef.Name);
+            secondaryIndex?.Clear();
+        }
+
+        // Reset auto-increment counter to 0
+        m_schema.ResetRowId(tableName, 0, m_currentTransaction);
+    }
+
+    #endregion
+
     #region Index Updates
 
     /// <summary>

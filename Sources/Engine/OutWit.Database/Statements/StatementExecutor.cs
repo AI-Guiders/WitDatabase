@@ -59,6 +59,8 @@ public sealed partial class StatementExecutor
             WitSqlStatementInsert insert => ExecuteInsert(insert),
             WitSqlStatementUpdate update => ExecuteUpdate(update),
             WitSqlStatementDelete delete => ExecuteDelete(delete),
+            WitSqlStatementTruncate truncate => ExecuteTruncate(truncate),
+            WitSqlStatementMerge merge => ExecuteMerge(merge),
             
             // DDL - Tables
             WitSqlStatementCreateTable createTable => ExecuteCreateTable(createTable),

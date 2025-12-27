@@ -41,7 +41,7 @@
 | ALTER TABLE | 0 | 0 | 0 | ? DONE |
 | CTE Execution | 0 | 0 | 0 | ? DONE |
 | Window Functions | 0 | 0 | 1 | ? DONE (frame clause P2) |
-| DML Enhancements | 0 | 0 | 0 | ? DONE (RETURNING + UPSERT) |
+| DML Enhancements | 0 | 0 | 0 | ? DONE (RETURNING + UPSERT + TRUNCATE + MERGE) |
 | JSON Functions | 0 | 3 | 3 | Required |
 | Query Optimization | 0 | 2 | 2 | Optional |
 | INFORMATION_SCHEMA | 0 | 6 | 0 | Required |
@@ -214,9 +214,9 @@
 
 ---
 
-## 6. DML Enhancements (P1)
+## 6. DML Enhancements (COMPLETED ?)
 
-**Current State:** UPSERT and RETURNING clause implemented
+**Current State:** All P1 DML features implemented (RETURNING, UPSERT, TRUNCATE, MERGE)
 
 ### Completed Tasks:
 - [x] **P1** `INSERT ... RETURNING` - critical for EF Core identity
@@ -225,6 +225,8 @@
 - [x] **P1** `INSERT OR REPLACE`
 - [x] **P1** `INSERT ... ON CONFLICT DO UPDATE` (UPSERT)
 - [x] **P1** `INSERT ... ON CONFLICT DO NOTHING`
+- [x] **P1** `TRUNCATE TABLE`
+- [x] **P1** `MERGE` statement
 
 ### Implementation Summary:
 - **WitSqlResult** - New constructor for DML with RETURNING (returns both RowsAffected and rows)
@@ -235,8 +237,10 @@
 - **EXCLUDED pseudo-table** - Supports EXCLUDED.column references in ON CONFLICT DO UPDATE
 - **Conflict detection** - Checks primary key, unique columns, and unique indexes
 - **WHERE clause in ON CONFLICT** - Supports conditional updates with EXCLUDED references
+- **TRUNCATE** - Removes all rows, clears secondary indexes, resets auto-increment
+- **MERGE** - Full UPSERT with WHEN MATCHED/NOT MATCHED clauses, subquery sources
 
-### Test Coverage: 39 tests passing
+### Test Coverage: 52 tests passing
 - INSERT RETURNING (Id, *, multiple columns, alias, multiple rows, defaults)
 - UPDATE RETURNING (single row, all columns, multiple rows, no match)
 - DELETE RETURNING (single row, all columns, multiple rows)
@@ -244,21 +248,26 @@
 - Schema type verification
 - INSERT OR REPLACE (new row, existing row, multiple rows, with unique index)
 - INSERT OR IGNORE (new row, existing row, multiple rows)
-- ON CONFLICT DO NOTHING (new row, existing row, with unique constraint)
+- ON CONFLICT DO NOTHING (new row, existing row, multiple rows)
 - ON CONFLICT DO UPDATE (new row, existing row, with EXCLUDED, increment, with WHERE)
 - UPSERT with RETURNING (inserted and updated)
+- TRUNCATE (removes rows, resets auto-increment, clears indexes, error cases)
+- MERGE (WHEN MATCHED UPDATE/DELETE, WHEN NOT MATCHED INSERT, conditions, subqueries)
 
 ### Key Files:
-- `StatementExecutor.Dml.cs` - Modified - RETURNING clause support in INSERT/UPDATE/DELETE, UPSERT support
+- `StatementExecutor.Dml.cs` - Modified - All DML statement execution
 - `WitSqlResult.cs` - Modified - New constructor for DML with RETURNING
 - `ContextExecution.cs` - Modified - Added ExcludedRow property for EXCLUDED pseudo-table
 - `ExpressionEvaluator.Core.cs` - Modified - EXCLUDED.column reference evaluation
+- `WitSqlEngine.Dml.cs` - Modified - TruncateTable implementation
+- `IDatabase.cs` - Modified - TruncateTable interface method
 - `WitSqlEngineReturningTests.cs` - Created - 20 RETURNING tests
 - `WitSqlEngineUpsertTests.cs` - Created - 19 UPSERT tests
+- `WitSqlEngineTruncateMergeTests.cs` - Created - 13 TRUNCATE/MERGE tests
 
 ### Missing Features:
-- [ ] **P1** `TRUNCATE TABLE`
-- [ ] **P1** `MERGE` statement
+- [ ] **P1** `MERGE` statement with complex conditions and subqueries (TBD)
+
 
 ---
 
@@ -389,7 +398,9 @@ EF Core scaffolding requires these views for reverse engineering:
 | WitSqlEngineCte* | 43 | 0 | CTE + Recursive + Caching |
 | WitSqlEngineWindowFunction* | 24 | 0 | All window functions |
 | WitSqlEngineReturning* | 20 | 0 | INSERT/UPDATE/DELETE RETURNING |
-| **Total** | **1227+** | **0** | 100% passing |
+| WitSqlEngineUpsert* | 19 | 0 | UPSERT (ON CONFLICT) |
+| WitSqlEngineTruncateMerge* | 13 | 0 | TRUNCATE + MERGE |
+| **Total** | **1259** | **0** | 100% passing |
 
 ---
 
@@ -457,6 +468,13 @@ EF Core scaffolding requires these views for reverse engineering:
 | `StatementExecutor.Dml.cs` | Modified - UPSERT support |
 | `WitSqlEngineUpsertTests.cs` | Created - 19 UPSERT tests |
 
+### TRUNCATE / MERGE (Complete)
+| File | Status |
+|------|--------|
+| `StatementExecutor.Dml.cs` | Modified - TruncateTable and MERGE implementation |
+| `IDatabase.cs` | Modified - TruncateTable interface method |
+| `WitSqlEngineTruncateMergeTests.cs` | Created - 13 TRUNCATE/MERGE tests |
+
 
 ## Dependencies
 
@@ -492,5 +510,8 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |  TypeMapping --> QueryTranslation --> Migrations             |
 +-------------------------------------------------------------+
+
+
+
 
 

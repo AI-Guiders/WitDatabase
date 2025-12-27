@@ -47,6 +47,12 @@ public interface IDatabase
     void DeleteRow(string tableName, long rowId);
 
     /// <summary>
+    /// Truncate all rows from a table.
+    /// Faster than DELETE without WHERE - removes all data and resets auto-increment.
+    /// </summary>
+    void TruncateTable(string tableName);
+
+    /// <summary>
     /// Create a new table.
     /// </summary>
     void CreateTable(DefinitionTable metadata);
