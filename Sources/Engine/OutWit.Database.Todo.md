@@ -37,7 +37,7 @@
 | Category | P0 | P1 | P2 | Status |
 |----------|----|----|----|----|
 | Transaction Support | 0 | 0 | 0 | DONE |
-| Index Implementation | 1 | 3 | 0 | IN PROGRESS |
+| Index Implementation | 0 | 3 | 0 | DONE (P0 complete, P1 deferred) |
 | ALTER TABLE | 3 | 0 | 1 | MISSING |
 | CTE Execution | 2 | 1 | 0 | Required |
 | Window Functions | 0 | 6 | 3 | Required |
@@ -119,13 +119,13 @@ All 46 transaction and locking tests passing:
 
 ---
 
-## 2. Index Implementation (P0 - IN PROGRESS)
+## 2. Index Implementation (P0 - COMPLETE)
 
-**Current State:** Index metadata stored, iterators created, but not yet integrated into query planner
+**Current State:** Index implementation complete - metadata, iterators, auto-update, and building from existing data
 
 ### Found in Code:
 ```csharp
-// WitSqlEngine.Query.cs - NOW IMPLEMENTED
+// WitSqlEngine.Query.cs - IMPLEMENTED
 public IResultIterator CreateIndexSeek(string tableName, string indexName, WitSqlValue[] keyValues)
 public IResultIterator CreateIndexRangeScan(string tableName, string indexName, ...)
 ```
@@ -137,8 +137,9 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
 - [x] **P0** Implement `CreateIndexRangeScan()` in WitSqlEngine
 - [x] **P0** Index key serialization (sort-order preserving)
 - [x] **P0** Index auto-update on INSERT/UPDATE/DELETE
+- [x] **P0** Index building from existing data (CREATE INDEX on non-empty table)
 
-### Remaining Tasks:
+### Remaining Tasks (P1 - Deferred):
 - [ ] **P1** Partial index evaluation (WHERE clause on index)
 - [ ] **P1** Expression index evaluation (functional indexes)
 - [ ] **P1** Covering index support (INCLUDE columns)
@@ -150,16 +151,24 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
 ### Updated Files:
 - `WitSqlEngine.Query.cs` - Added `CreateIndexSeek()`, `CreateIndexRangeScan()`, `SerializeIndexKey()`
 - `WitSqlEngine.Dml.cs` - Added index auto-update on INSERT/UPDATE/DELETE
-- `WitSqlEngine.Ddl.Indexes.cs` - Added physical secondary index creation/drop
+- `WitSqlEngine.Ddl.Indexes.cs` - Added physical secondary index creation/drop, index building from existing data
+- `Schema/SchemaCatalog.cs` - Added `GetTableDataEndPrefix()` for table scanning
 - `Values/WitSqlValue.Getters.cs` - Added `AsLong()`, `AsULong()`, `AsUInt64()` methods
 - `Types/WitTypeConverter.cs` - Fixed string serialization for lexicographic ordering
 
 ### Test Coverage:
-All 23 index auto-update tests passing:
-- INSERT: Updates secondary indexes, composite indexes, multiple indexes, unique index violation
-- UPDATE: Updates indexed columns, removes null from index, adds non-null to index
-- DELETE: Removes entries from all indexes
-- Range scan: Reflects inserts, updates, and deletes correctly
+- **27 Index Tests** (`WitSqlEngineIndexTests.cs`):
+  - Create/Drop index metadata
+  - Index seek and range scan iterators
+  - Index building from existing data
+  - Unique index constraint on duplicate data
+  - Different data types (integer, date, boolean)
+  
+- **23 Index Auto-Update Tests** (`WitSqlEngineIndexAutoUpdateTests.cs`):
+  - INSERT: Updates secondary indexes, composite indexes, multiple indexes, unique index violation
+  - UPDATE: Updates indexed columns, removes null from index, adds non-null to index
+  - DELETE: Removes entries from all indexes
+  - Range scan: Reflects inserts, updates, and deletes correctly
 
 ---
 
@@ -399,7 +408,8 @@ EF Core scaffolding requires these views for reverse engineering:
 |------|-------------|
 | `WitSqlEngine.Query.cs` | Added `CreateIndexSeek()`, `CreateIndexRangeScan()`, `SerializeIndexKey()` |
 | `WitSqlEngine.Dml.cs` | Added index auto-update on INSERT/UPDATE/DELETE |
-| `WitSqlEngine.Ddl.Indexes.cs` | Added physical secondary index creation/drop |
+| `WitSqlEngine.Ddl.Indexes.cs` | Added physical secondary index creation/drop, index building from existing data |
+| `Schema/SchemaCatalog.cs` | Added `GetTableDataEndPrefix()` for table scanning |
 | `Values/WitSqlValue.Getters.cs` | Added `AsLong()`, `AsULong()`, `AsUInt64()` methods |
 | `Types/WitTypeConverter.cs` | Fixed string serialization for lexicographic ordering |
 
@@ -487,10 +497,10 @@ EF Core scaffolding requires these views for reverse engineering:
 2. ~~**FOR UPDATE/SHARE** - implement locking hints~~ ?
 3. ~~**Index Seek** - implement `CreateIndexSeek()` for secondary index~~ ?
 4. ~~**Index Range Scan** - implement range queries~~ ?
-5. ~~**Index Auto-Update** - update indexes on INSERT/UPDATE/DELETE~~
-6. **ALTER TABLE** - add `AddConstraint` / `DropConstraint` to `ExecuteAlterTable`
+5. ~~**Index Auto-Update** - update indexes on INSERT/UPDATE/DELETE~~ ?
+6. ~~**Index Building** - build index from existing data on CREATE INDEX~~ ?
+7. **ALTER TABLE ADD/DROP CONSTRAINT** - requires changes to DefinitionTable (deferred)
+8. **CTE Execution** - implement simple (non-recursive) CTE
 
 ---
-
-**Last Updated:** 2025-01-28
 

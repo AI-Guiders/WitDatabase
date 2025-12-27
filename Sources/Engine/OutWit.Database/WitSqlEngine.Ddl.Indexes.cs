@@ -1,4 +1,8 @@
 using OutWit.Database.Definitions;
+using OutWit.Database.Schema;
+using OutWit.Database.Types;
+using OutWit.Database.Utils;
+using OutWit.Database.Values;
 
 namespace OutWit.Database;
 
@@ -23,6 +27,61 @@ public sealed partial class WitSqlEngine
         if (m_database.SupportsIndexes)
         {
             m_database.CreateIndex(index.Name, index.IsUnique);
+            
+            // Build index from existing data in the table
+            BuildIndexFromExistingData(index);
+        }
+    }
+
+    /// <summary>
+    /// Builds an index from existing data in the table.
+    /// </summary>
+    /// <param name="indexDef">The index definition.</param>
+    private void BuildIndexFromExistingData(DefinitionIndex indexDef)
+    {
+        var table = m_schema.GetTable(indexDef.TableName);
+        if (table == null)
+            return;
+
+        var secondaryIndex = m_database.GetIndex(indexDef.Name);
+        if (secondaryIndex == null)
+            return;
+
+        // Scan all rows in the table
+        var tablePrefix = SchemaCatalog.GetTableDataPrefix(indexDef.TableName);
+        var endPrefix = SchemaCatalog.GetTableDataEndPrefix(indexDef.TableName);
+
+        foreach (var (key, value) in m_database.Scan(tablePrefix, endPrefix))
+        {
+            // Parse row ID from key
+            var rowId = SchemaCatalog.ParseRowId(key, indexDef.TableName);
+            
+            // Deserialize row
+            var row = table.DeserializeRow(value);
+            
+            // Build index key
+            var indexKey = BuildIndexKey(table, indexDef, row);
+            if (indexKey == null)
+                continue; // Skip rows with null values in indexed columns
+            
+            // Build primary key
+            var primaryKey = BuildPrimaryKey(rowId);
+            
+            // Add to index
+            try
+            {
+                secondaryIndex.Add(indexKey, primaryKey);
+            }
+            catch (InvalidOperationException)
+            {
+                // Unique index violation on existing data
+                // Clean up the index and throw
+                m_database.DropIndex(indexDef.Name);
+                m_schema.DropIndex(indexDef.Name);
+                throw new InvalidOperationException(
+                    $"UNIQUE constraint failed: Cannot create unique index '{indexDef.Name}' " +
+                    $"on table '{indexDef.TableName}' - duplicate values exist");
+            }
         }
     }
 

@@ -305,6 +305,24 @@ public sealed partial class SchemaCatalog : IDisposable
     }
 
     /// <summary>
+    /// Gets the end key prefix for scanning table data (exclusive).
+    /// This is the prefix that comes immediately after all table rows.
+    /// </summary>
+    public static byte[] GetTableDataEndPrefix(string tableName)
+    {
+        // Use the same prefix but with the last byte incremented
+        // This creates an exclusive upper bound for the scan
+        var prefix = Encoding.UTF8.GetBytes($"t:{tableName}:");
+        var endPrefix = new byte[prefix.Length];
+        prefix.CopyTo(endPrefix, 0);
+        
+        // Increment the last byte to create an exclusive end key
+        // Since ':' is 0x3A, incrementing gives 0x3B (';')
+        endPrefix[^1]++;
+        return endPrefix;
+    }
+
+    /// <summary>
     /// Creates a key for a table row.
     /// </summary>
     public static byte[] CreateRowKey(string tableName, long rowId)
