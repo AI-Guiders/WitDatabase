@@ -1,8 +1,8 @@
 # WitDatabase - Complete Roadmap
 
-**Version:** 2.2  
+**Version:** 2.3  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-31
+**Last Updated:** 2025-02-01
 
 ---
 
@@ -44,7 +44,7 @@ For detailed version-specific information, see:
 |-----------|-------------|-------------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 100% ? |
 | **OutWit.Database.Parser** | 290 | 290 | 100% ? |
-| **OutWit.Database** (Engine) | 200+ | ~170 | ~85% ?? |
+| **OutWit.Database** (Engine) | 200+ | ~185 | ~90% ?? |
 
 ### v2 Features (Deferred)
 
@@ -137,10 +137,10 @@ For detailed version-specific information, see:
 
 | Category | Status | Details |
 |----------|--------|---------|
-| Query Execution Infrastructure | 90% | All core components complete |
+| Query Execution Infrastructure | 95% | All core components complete |
 | Data Type Implementation | 100% | All types supported |
 | DDL Execution | 100% | Tables, Views, Triggers, Sequences ? |
-| DML Execution (SELECT) | 95% | JOINs, Subqueries, Set Ops ? |
+| DML Execution (SELECT) | 100% | JOINs, Subqueries, Set Ops ? |
 | DML Execution (INSERT/UPDATE/DELETE) | 85% | Core operations, triggers ? |
 | Expression Evaluation | 100% | Including subqueries ? |
 | Built-in Functions (scalar) | 100% | 60+ functions ? |
@@ -151,13 +151,29 @@ For detailed version-specific information, see:
 | Index Implementation | 100% | Seek, Range Scan, Auto-update, Partial, Expression, Covering ? |
 | ALTER TABLE | 100% | ADD/DROP CONSTRAINT, ADD COLUMN with DEFAULT ? |
 | Computed Columns | 100% | STORED (auto-recalc), VIRTUAL (on-the-fly) ? |
-| Window Functions | 0% | Not started |
-| CTE Execution | 0% | Not started |
+| CTE Execution | 100% | Simple, Multiple, Recursive, Caching ? |
+| Window Functions | 100% | All ranking, value, aggregate window functions ? |
 | Schema Information | 0% | INFORMATION_SCHEMA not started |
 | ADO.NET Provider | 0% | Not started |
 | Query Optimization | 10% | Basic plan building only |
 
-### Recently Completed (2025-01-31)
+### Recently Completed (2025-02-01)
+
+- ? **Window Functions Complete**:
+  - ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST
+  - LAG, LEAD with offset and default value
+  - FIRST_VALUE, LAST_VALUE, NTH_VALUE
+  - Aggregate window functions (SUM, AVG, COUNT, MIN, MAX OVER)
+  - PARTITION BY and ORDER BY with NULLS FIRST/LAST
+  - 24 tests passing
+- ? **CTE Execution Complete**:
+  - Simple CTEs with explicit column names
+  - Multiple CTEs and CTE referencing another CTE
+  - Recursive CTEs with max depth protection
+  - CTE caching for multiple references
+  - 43 tests passing
+
+### Previously Completed (2025-01-31)
 
 - ? ALTER TABLE ADD/DROP CONSTRAINT (CHECK, UNIQUE, FOREIGN KEY)
 - ? ALTER TABLE ADD COLUMN with DEFAULT (populates existing rows)
@@ -166,12 +182,12 @@ For detailed version-specific information, see:
 - ? INDEX on STORED computed columns
 - ? Prevent direct INSERT/UPDATE into computed columns
 - ? VIRTUAL columns evaluation in IteratorIndexSeek and IteratorIndexRangeScan
-- ? UNIQUE constraint index persistence fix (engine restart)
 
 ### v2 Deferred
 
 | Category | Features |
 |----------|----------|
+| Window Frame Clause | ROWS/RANGE BETWEEN |
 | User-Defined Functions Execution | CREATE/DROP/INVOKE |
 | Stored Procedures Execution | CREATE/DROP/CALL |
 | Query Analysis | EXPLAIN, EXPLAIN ANALYZE |
@@ -196,14 +212,14 @@ For detailed version-specific information, see:
 - [x] Constraint validation ?
 - [ ] ADO.NET provider basics
 
-#### Phase 2: JOINs and Advanced Queries - ? MOSTLY COMPLETE
+#### Phase 2: JOINs and Advanced Queries - ? COMPLETE
 - [x] JOIN operations (INNER, LEFT, RIGHT, FULL, CROSS) ?
 - [x] Index creation (metadata) ?
 - [x] GROUP BY, HAVING ?
 - [x] Subqueries (scalar, IN, EXISTS, ANY/ALL) ?
 - [x] Correlated subqueries ?
 - [x] Set operations (UNION, INTERSECT, EXCEPT) ?
-- [ ] CTE (WITH clause)
+- [x] CTE (WITH clause) ?
 - [x] Index usage in queries ?
 
 #### Phase 3: Transactions and Concurrency - ? COMPLETE
@@ -212,12 +228,12 @@ For detailed version-specific information, see:
 - [x] FOR UPDATE / FOR SHARE ?
 - [ ] MERGE statement
 
-#### Phase 4: Production Ready (Current)
+#### Phase 4: Production Ready - ? MOSTLY COMPLETE
 - [x] Index implementation ?
 - [x] ALTER TABLE (constraints, defaults) ?
 - [x] Computed columns (STORED, VIRTUAL) ?
-- [ ] Window functions
-- [ ] Recursive CTE
+- [x] Window functions ?
+- [x] Recursive CTE ?
 - [x] Views and triggers ?
 - [ ] INFORMATION_SCHEMA
 - [ ] Basic query optimization
@@ -229,6 +245,7 @@ For detailed version-specific information, see:
 - [ ] Stored procedures
 - [ ] EXPLAIN / EXPLAIN ANALYZE
 - [ ] Database administration
+- [ ] Window frame clause (ROWS/RANGE BETWEEN)
 - [ ] Cascading computed columns (cross-table)
 
 ---
@@ -239,8 +256,8 @@ For detailed version-specific information, see:
 |-----------|-------|--------|
 | OutWit.Database.Core | 1811+ | ? Passing |
 | OutWit.Database.Parser | 1000+ | ? Passing |
-| OutWit.Database (Engine) | 1140+ | ? Passing |
-| **Total** | **3950+** | ? Passing |
+| OutWit.Database (Engine) | 1207+ | ? Passing |
+| **Total** | **4018+** | ? Passing |
 
 ### Engine Test Breakdown
 
@@ -257,6 +274,8 @@ For detailed version-specific information, see:
 | WitSqlEngine Index | 67 |
 | WitSqlEngine ALTER TABLE | 60 |
 | WitSqlEngine Transactions | 46 |
+| WitSqlEngine CTE | 43 |
+| WitSqlEngine Window Functions | 24 |
 
 ---
 
@@ -278,17 +297,24 @@ For detailed version-specific information, see:
 
 ## Recent Changes
 
+### 2025-02-01
+- Engine: Window Functions implementation complete
+  - ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST
+  - LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE
+  - Aggregate window functions (SUM, AVG, COUNT, MIN, MAX OVER)
+  - 24 tests passing
+- Engine: CTE implementation complete
+  - Simple and recursive CTEs
+  - CTE caching
+  - 43 tests passing
+
 ### 2025-01-31
 - Engine: ALTER TABLE implementation complete
   - ADD/DROP CONSTRAINT (CHECK, UNIQUE, FOREIGN KEY)
   - ADD COLUMN with DEFAULT (populates existing rows)
   - Computed columns STORED (auto-recalculate)
   - Computed columns VIRTUAL (on-the-fly evaluation)
-- Engine: VIRTUAL columns now evaluated in all iterators (TableScan, IndexSeek, IndexRangeScan)
-- Engine: Fixed UNIQUE constraint index persistence after engine restart
 - Engine: 60 ALTER TABLE tests passing
-- Removed OutWit.Database.AlterTable.Todo.md (merged into main docs)
-- Added Cascading Computed Columns to v2 roadmap
 
 ### 2025-01-30
 - Engine: Transaction support complete (BEGIN/COMMIT/ROLLBACK, Savepoints)

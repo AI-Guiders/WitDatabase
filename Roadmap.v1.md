@@ -1,8 +1,8 @@
 # WitDatabase - Roadmap v1
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-31
+**Last Updated:** 2025-02-01
 
 ---
 
@@ -25,7 +25,7 @@
 |-----------|----------------|-------------|---------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 0 | 100% |
 | **OutWit.Database.Parser** | 290 | 290 | 0 | 100% |
-| **OutWit.Database** (Engine) | 200+ | ~170 | ~30 | ~85% |
+| **OutWit.Database** (Engine) | 200+ | ~185 | ~15 | ~90% |
 
 ---
 
@@ -265,14 +265,15 @@
 | `WHEN MATCHED THEN UPDATE` | N/A | [x] | [ ] | SS16.3 |
 | `WHEN NOT MATCHED THEN INSERT` | N/A | [x] | [ ] | SS16.3 |
 
-## 13. CTE / Set Operations (SS6, SS8)
+## 13. CTE / Set Operations (SS6, SS8) ? COMPLETE
 
 | Feature | Core | Parser | Engine | Spec |
 |---------|------|--------|--------|------|
-| `WITH cte_name AS (SELECT ...)` | N/A | [x] | [ ] | SS6 |
-| `WITH cte_name (cols) AS (...)` | N/A | [x] | [ ] | SS6 |
-| Multiple CTEs | N/A | [x] | [ ] | SS6 |
-| `WITH RECURSIVE ...` | N/A | [x] | [ ] | SS6 |
+| `WITH cte_name AS (SELECT ...)` | N/A | [x] | [x] | SS6 |
+| `WITH cte_name (cols) AS (...)` | N/A | [x] | [x] | SS6 |
+| Multiple CTEs | N/A | [x] | [x] | SS6 |
+| `WITH RECURSIVE ...` | N/A | [x] | [x] | SS6 |
+| CTE Caching | N/A | N/A | [x] | SS6 |
 | `UNION` / `UNION ALL` | N/A | [x] | [x] | SS8 |
 | `INTERSECT` / `EXCEPT` | N/A | [x] | [x] | SS8 |
 
@@ -305,20 +306,30 @@
 
 # Part 5: Window Functions, Transactions
 
-## 29. Window Functions (SS7)
+## 29. Window Functions (SS7) ? COMPLETE
 
 | Feature | Core | Parser | Engine | Spec |
 |---------|------|--------|--------|------|
-| `OVER ()` | N/A | [x] | [ ] | SS7 |
-| `OVER (PARTITION BY ...)` | N/A | [x] | [ ] | SS7 |
-| `OVER (ORDER BY ...)` | N/A | [x] | [ ] | SS7 |
+| `OVER ()` | N/A | [x] | [x] | SS7 |
+| `OVER (PARTITION BY ...)` | N/A | [x] | [x] | SS7 |
+| `OVER (ORDER BY ...)` | N/A | [x] | [x] | SS7 |
 | `ROWS/RANGE frame_clause` | N/A | [x] | [ ] | SS7 |
 | `UNBOUNDED PRECEDING/FOLLOWING` | N/A | [x] | [ ] | SS7 |
 | `n PRECEDING/FOLLOWING`, `CURRENT ROW` | N/A | [x] | [ ] | SS7 |
-| `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()` | N/A | [x] | [ ] | SS7.1 |
-| `NTILE(n)`, `PERCENT_RANK()`, `CUME_DIST()` | N/A | [x] | [ ] | SS7.1 |
-| `FIRST_VALUE`, `LAST_VALUE`, `NTH_VALUE` | N/A | [x] | [ ] | SS7.2 |
-| `LAG`, `LEAD` | N/A | [x] | [ ] | SS7.2 |
+| `ROW_NUMBER()` | N/A | [x] | [x] | SS7.1 |
+| `RANK()` | N/A | [x] | [x] | SS7.1 |
+| `DENSE_RANK()` | N/A | [x] | [x] | SS7.1 |
+| `NTILE(n)` | N/A | [x] | [x] | SS7.1 |
+| `PERCENT_RANK()` | N/A | [x] | [x] | SS7.1 |
+| `CUME_DIST()` | N/A | [x] | [x] | SS7.1 |
+| `FIRST_VALUE` | N/A | [x] | [x] | SS7.2 |
+| `LAST_VALUE` | N/A | [x] | [x] | SS7.2 |
+| `NTH_VALUE` | N/A | [x] | [x] | SS7.2 |
+| `LAG` | N/A | [x] | [x] | SS7.2 |
+| `LEAD` | N/A | [x] | [x] | SS7.2 |
+| Aggregate window functions (SUM, AVG, COUNT, MIN, MAX OVER) | N/A | [x] | [x] | SS7 |
+
+**Note:** Frame clause (ROWS/RANGE BETWEEN) deferred to v2. Current implementation uses entire partition for aggregate window functions.
 
 ## 30. Transactions (SS9)
 
@@ -361,4 +372,4 @@
 
 ---
 
-**Last Updated:** 2025-01-31
+**Last Updated:** 2025-02-01

@@ -242,7 +242,8 @@ public sealed class IteratorWindow : IteratorBase
         if (orderBy == null || orderBy.Count == 0)
             return partitionIndices;
 
-        return [.. partitionIndices.OrderBy(idx => 0, new WindowOrderComparer(
+        // Use Order() with comparer to sort the indices based on the ORDER BY expressions
+        return [.. partitionIndices.Order(new WindowOrderComparer(
             m_windowedRows!,
             orderBy,
             m_evaluator))];

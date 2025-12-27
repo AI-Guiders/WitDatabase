@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-01-31  
+**Last Updated:** 2025-02-01  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -39,8 +39,8 @@
 | Transaction Support | 0 | 0 | 0 | ? DONE |
 | Index Implementation | 0 | 0 | 0 | ? DONE |
 | ALTER TABLE | 0 | 0 | 0 | ? DONE |
-| CTE Execution | 2 | 1 | 0 | Required |
-| Window Functions | 0 | 6 | 3 | Required |
+| CTE Execution | 0 | 0 | 0 | ? DONE |
+| Window Functions | 0 | 0 | 1 | ? DONE (frame clause P2) |
 | DML Enhancements | 0 | 8 | 0 | Required |
 | JSON Functions | 0 | 3 | 3 | Required |
 | Query Optimization | 0 | 2 | 2 | Optional |
@@ -149,15 +149,19 @@
 - **Recursive CTEs**: Execute anchor member, then iteratively execute recursive member until no new rows
 - **Column renaming**: Support explicit column names in CTE definition `WITH cte_name (col1, col2) AS (...)`
 - **Max recursion depth**: 1000 iterations to prevent infinite loops
+- **CTE Caching**: Results cached for multiple references in same query
+- **Cache cleanup**: Cleared between queries in `StatementExecutor.Select.cs`
 
-### Test Coverage: 30 tests passing
+### Test Coverage: 43 tests passing
 - Simple CTE queries (select, filter, aggregation)
 - CTE with explicit column names
 - Multiple CTEs and CTE referencing another CTE
 - ORDER BY, LIMIT, GROUP BY, DISTINCT on CTE
 - Recursive CTE for hierarchies
 - Recursive CTE for sequences (numbers, Fibonacci)
-- Error handling (max depth, requires UNION ALL)
+- CTE caching (multiple references, self-join, union)
+- Error handling (max depth, requires UNION ALL, duplicate names)
+- Integration tests (nested subquery, correlated, LEFT JOIN, EXISTS)
 
 ### Key Files:
 - `QueryPlanner.cs` - CTE registration and iterator creation
@@ -167,20 +171,46 @@
 
 ---
 
-## 5. Window Functions (P1 - Required for EF Core)
+## 5. Window Functions (COMPLETED ?)
 
-**Current State:** Parser supports, Engine doesn't execute
+**Current State:** Full window function support implemented
 
-### Tasks:
-- [ ] **P1** OVER clause handling infrastructure
-- [ ] **P1** PARTITION BY grouping
-- [ ] **P1** ORDER BY in window
-- [ ] **P1** ROW_NUMBER() - critical for EF Core pagination
-- [ ] **P1** RANK() / DENSE_RANK()
-- [ ] **P1** LAG() / LEAD()
-- [ ] **P2** Frame clause (ROWS/RANGE)
-- [ ] **P2** NTILE()
-- [ ] **P2** FIRST_VALUE / LAST_VALUE
+### Completed Tasks:
+- [x] **P1** OVER clause handling infrastructure
+- [x] **P1** PARTITION BY grouping
+- [x] **P1** ORDER BY in window (with ASC/DESC, NULLS FIRST/LAST)
+- [x] **P1** ROW_NUMBER() - critical for EF Core pagination
+- [x] **P1** RANK() / DENSE_RANK()
+- [x] **P1** LAG() / LEAD() with offset and default value
+- [x] **P1** NTILE(n)
+- [x] **P1** FIRST_VALUE / LAST_VALUE / NTH_VALUE
+- [x] **P1** PERCENT_RANK() / CUME_DIST()
+- [x] **P1** Aggregate window functions (SUM, AVG, COUNT, MIN, MAX OVER)
+- [ ] **P2** Frame clause (ROWS/RANGE BETWEEN) - deferred to v2
+
+### Implementation Summary:
+- **IteratorWindow.cs** - blocking operator that reads all rows, partitions, sorts, evaluates
+- **Ranking functions**: ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST
+- **Value functions**: FIRST_VALUE, LAST_VALUE, NTH_VALUE, LAG, LEAD
+- **Aggregate functions**: SUM, AVG, COUNT, MIN, MAX with OVER clause
+- **Partitioning**: GroupByPartition with composite key support
+- **Sorting**: WindowOrderComparer with NULLS FIRST/LAST support
+
+### Test Coverage: 24 tests passing
+- ROW_NUMBER with ORDER BY and PARTITION BY
+- RANK and DENSE_RANK with ties
+- NTILE bucket distribution
+- LAG/LEAD with offset and default values
+- FIRST_VALUE/LAST_VALUE/NTH_VALUE
+- Aggregate window functions (SUM, AVG, COUNT, MIN, MAX OVER)
+- Multiple window functions in same query
+- Edge cases (empty table, single row, NULL values)
+- PERCENT_RANK and CUME_DIST
+- Window functions in subqueries
+
+### Key Files:
+- `IteratorWindow.cs` - Window function evaluation iterator
+- `QueryPlanner.cs` - Window function detection and iterator creation
 
 ---
 
@@ -322,7 +352,9 @@ EF Core scaffolding requires these views for reverse engineering:
 | WitSqlEngineIndex* | 67 | 0 | OK |
 | WitSqlEngine* | 132 | 0 | OK |
 | WitSqlEngineAlterTable* | 60 | 0 | Constraints + Computed + Integration |
-| **Total** | **1140+** | **0** | 100% passing |
+| WitSqlEngineCte* | 43 | 0 | CTE + Recursive + Caching |
+| WitSqlEngineWindowFunction* | 24 | 0 | All window functions |
+| **Total** | **1207+** | **0** | 100% passing |
 
 ---
 
@@ -367,6 +399,15 @@ EF Core scaffolding requires these views for reverse engineering:
 | `IteratorColumnRename.cs` | Created - Column renaming for explicit CTE column names |
 | `IteratorInMemory.cs` | Created - In-memory row storage for recursive CTE working tables |
 | `StatementExecutor.Select.cs` | Modified - CTE cleanup after query execution |
+| `ContextExecution.cs` | Modified - CTE definitions and cache dictionaries |
+| `WitSqlEngineCteTests.cs` | Created - 43 CTE tests |
+
+### Window Functions (Complete)
+| File | Status |
+|------|--------|
+| `IteratorWindow.cs` | Created - Window function evaluation |
+| `QueryPlanner.cs` | Modified - Window function detection |
+| `WitSqlEngineWindowFunctionTests.cs` | Created - 24 window function tests |
 
 ---
 
@@ -376,13 +417,13 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |                     SQL ENGINE (Phase 2)                     |
 +-------------------------------------------------------------+
-|  Transaction Fix ? --> FOR UPDATE/SHARE ? --> Index ?        |
+|  Transaction Fix ? --> FOR UPDATE/SHARE ? --> Index ?     |
 |        |                                                     |
-|        +--> ALTER TABLE (ADD/DROP CONSTRAINT) ?              |
+|        +--> ALTER TABLE (ADD/DROP CONSTRAINT) ?             |
 |        |                                                     |
-|        +--> CTE Execution  ? NEXT                            |
+|        +--> CTE Execution ?                                 |
 |        |                                                     |
-|        +--> Window Functions (ROW_NUMBER for pagination)     |
+|        +--> Window Functions ?                              |
 |        |                                                     |
 |        +--> RETURNING clause (for identity values)           |
 |        |                                                     |
@@ -418,8 +459,9 @@ EF Core scaffolding requires these views for reverse engineering:
 6. ~~**ALTER TABLE ADD CONSTRAINT**~~ ?
 7. ~~**Computed Columns (STORED/VIRTUAL)**~~ ?
 8. ~~**CTE Execution**~~ ?
-9. **RETURNING clause** - INSERT/UPDATE/DELETE ... RETURNING
-10. **Window Functions** - ROW_NUMBER(), RANK(), etc.
+9. ~~**Window Functions**~~ ?
+10. **RETURNING clause** - INSERT/UPDATE/DELETE ... RETURNING
+11. **INFORMATION_SCHEMA** - for EF Core scaffolding
 
 ---
 
@@ -430,5 +472,5 @@ EF Core scaffolding requires these views for reverse engineering:
 
 ---
 
-**Last Updated:** 2025-01-31
+**Last Updated:** 2025-02-01
 

@@ -161,9 +161,13 @@ public sealed class WitSqlEngineWindowFunctionTests : WitSqlEngineTestsBase
         var frank = rows.First(r => r["Name"].AsString() == "Frank");
         Assert.That(david["DenseRank"].AsInt64(), Is.EqualTo(frank["DenseRank"].AsInt64()));
 
-        // Grace (55000) should have the next consecutive rank
+        // Henry (58000) should have the next consecutive rank after David/Frank
+        var henry = rows.First(r => r["Name"].AsString() == "Henry");
+        Assert.That(henry["DenseRank"].AsInt64(), Is.EqualTo(david["DenseRank"].AsInt64() + 1));
+        
+        // Grace (55000) should be after Henry
         var grace = rows.First(r => r["Name"].AsString() == "Grace");
-        Assert.That(grace["DenseRank"].AsInt64(), Is.EqualTo(david["DenseRank"].AsInt64() + 1));
+        Assert.That(grace["DenseRank"].AsInt64(), Is.EqualTo(henry["DenseRank"].AsInt64() + 1));
     }
 
     #endregion
