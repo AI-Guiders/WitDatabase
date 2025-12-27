@@ -25,7 +25,8 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
                 Sku TEXT UNIQUE NOT NULL,
                 Name TEXT NOT NULL,
                 Price DECIMAL(10,2) DEFAULT 0,
-                Stock INTEGER DEFAULT 0
+                Stock INTEGER DEFAULT 0,
+                Category TEXT DEFAULT 'General'
             )");
 
         // Source table for MERGE tests
@@ -34,7 +35,8 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
                 Sku TEXT NOT NULL,
                 Name TEXT NOT NULL,
                 Price DECIMAL(10,2),
-                Stock INTEGER
+                Stock INTEGER,
+                Category TEXT
             )");
 
         // Table with index for TRUNCATE tests
@@ -53,9 +55,9 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
     private void InsertTestData()
     {
         // Products
-        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock) VALUES ('SKU001', 'Widget', 29.99, 100)");
-        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock) VALUES ('SKU002', 'Gadget', 49.99, 50)");
-        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock) VALUES ('SKU003', 'Gizmo', 19.99, 200)");
+        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock, Category) VALUES ('SKU001', 'Widget', 29.99, 100, 'Hardware')");
+        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock, Category) VALUES ('SKU002', 'Gadget', 49.99, 50, 'Electronics')");
+        m_engine.Execute("INSERT INTO Products (Sku, Name, Price, Stock, Category) VALUES ('SKU003', 'Gizmo', 19.99, 200, 'Hardware')");
 
         // Orders
         m_engine.Execute("INSERT INTO Orders (ProductId, Quantity, Status) VALUES (1, 5, 'shipped')");
@@ -146,7 +148,7 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
 
     #endregion
 
-    #region MERGE Tests - WHEN MATCHED UPDATE
+    #region MERGE Tests - Basic Operations
 
     [Test]
     public void MergeWhenMatchedUpdateTest()
@@ -171,6 +173,61 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
         Assert.That(result.CurrentRow[1].AsDecimal(), Is.EqualTo(39.99m));
         Assert.That(result.CurrentRow[2].AsInt64(), Is.EqualTo(150));
     }
+
+    [Test]
+    public void MergeWhenNotMatchedInsertTest()
+    {
+        // Add source data - one existing, one new
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU001', 'Widget', 29.99, 100)");  // Exists
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU004', 'NewItem', 79.99, 25)");  // New
+
+        // MERGE - insert non-matching rows
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN NOT MATCHED THEN
+                INSERT (Sku, Name, Price, Stock) VALUES (s.Sku, s.Name, s.Price, s.Stock)");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(1)); // Only SKU004 inserted
+
+        // Verify new row inserted
+        var result = m_engine.Execute("SELECT * FROM Products WHERE Sku = 'SKU004'");
+        result.Read();
+        Assert.That(result.CurrentRow["Name"].AsString(), Is.EqualTo("NewItem"));
+        Assert.That(result.CurrentRow["Price"].AsDecimal(), Is.EqualTo(79.99m));
+        Assert.That(result.CurrentRow["Stock"].AsInt64(), Is.EqualTo(25));
+    }
+
+    [Test]
+    public void MergeWhenMatchedDeleteTest()
+    {
+        // Add source data indicating items to delete
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU003', 'Gizmo', 0, 0)");
+
+        // MERGE - delete matching rows
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED THEN DELETE");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(1));
+
+        // Verify row deleted
+        var result = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU003'");
+        result.Read();
+        Assert.That(result.CurrentRow[0].AsInt64(), Is.EqualTo(0));
+
+        // Other rows should remain
+        var totalResult = m_engine.Execute("SELECT COUNT(*) FROM Products");
+        totalResult.Read();
+        Assert.That(totalResult.CurrentRow[0].AsInt64(), Is.EqualTo(2));
+    }
+
+    #endregion
+
+    #region MERGE Tests - Complex Conditions
 
     [Test]
     public void MergeWhenMatchedUpdateWithConditionTest()
@@ -201,63 +258,161 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
         Assert.That(result2.CurrentRow[1].AsInt64(), Is.EqualTo(200));
     }
 
-    #endregion
-
-    #region MERGE Tests - WHEN NOT MATCHED INSERT
-
     [Test]
-    public void MergeWhenNotMatchedInsertTest()
+    public void MergeWithComplexAndConditionTest()
     {
-        // Add source data - one existing, one new
-        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU001', 'Widget', 29.99, 100)");  // Exists
-        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU004', 'NewItem', 79.99, 25)");  // New
+        // Add source data with various scenarios
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU001', 'Widget Premium', 45.00, 150, 'Hardware')");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU002', 'Gadget Pro', 75.00, 80, 'Electronics')");
 
-        // MERGE - insert non-matching rows
+        // MERGE - only update if stock increased AND price increased
         var mergeResult = m_engine.Execute(@"
             MERGE INTO Products AS t
             USING ProductUpdates AS s
             ON t.Sku = s.Sku
-            WHEN NOT MATCHED THEN
-                INSERT (Sku, Name, Price, Stock) VALUES (s.Sku, s.Name, s.Price, s.Stock)");
+            WHEN MATCHED AND s.Stock > t.Stock AND s.Price > t.Price THEN
+                UPDATE SET Name = s.Name, Price = s.Price, Stock = s.Stock");
 
-        Assert.That(mergeResult.RowsAffected, Is.EqualTo(1)); // Only SKU004 inserted
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(2)); // Both match conditions
 
-        // Verify new row inserted
-        var result = m_engine.Execute("SELECT * FROM Products WHERE Sku = 'SKU004'");
-        result.Read();
-        Assert.That(result.CurrentRow["Name"].AsString(), Is.EqualTo("NewItem"));
-        Assert.That(result.CurrentRow["Price"].AsDecimal(), Is.EqualTo(79.99m));
-        Assert.That(result.CurrentRow["Stock"].AsInt64(), Is.EqualTo(25));
+        // Verify both updated
+        var result1 = m_engine.Execute("SELECT Name, Price, Stock FROM Products WHERE Sku = 'SKU001'");
+        result1.Read();
+        Assert.That(result1.CurrentRow[0].AsString(), Is.EqualTo("Widget Premium"));
+        Assert.That(result1.CurrentRow[1].AsDecimal(), Is.EqualTo(45.00m));
+        Assert.That(result1.CurrentRow[2].AsInt64(), Is.EqualTo(150));
+
+        var result2 = m_engine.Execute("SELECT Name, Price, Stock FROM Products WHERE Sku = 'SKU002'");
+        result2.Read();
+        Assert.That(result2.CurrentRow[0].AsString(), Is.EqualTo("Gadget Pro"));
+        Assert.That(result2.CurrentRow[1].AsDecimal(), Is.EqualTo(75.00m));
+        Assert.That(result2.CurrentRow[2].AsInt64(), Is.EqualTo(80));
     }
 
-    #endregion
-
-    #region MERGE Tests - WHEN MATCHED DELETE
-
     [Test]
-    public void MergeWhenMatchedDeleteTest()
+    public void MergeWithOrConditionTest()
     {
-        // Add source data indicating items to delete
-        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU003', 'Gizmo', 0, 0)");
+        // Add source data
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU001', 'Widget Lite', 15.00, 50, 'Hardware')"); // Price < current
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU002', 'Gadget New', 49.99, 100, 'Electronics')"); // Stock > current
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU003', 'Gizmo Same', 19.99, 200, 'Hardware')"); // Neither
 
-        // MERGE - delete matching rows
+        // MERGE - update if price decreased OR stock increased
         var mergeResult = m_engine.Execute(@"
             MERGE INTO Products AS t
             USING ProductUpdates AS s
             ON t.Sku = s.Sku
-            WHEN MATCHED THEN DELETE");
+            WHEN MATCHED AND (s.Price < t.Price OR s.Stock > t.Stock) THEN
+                UPDATE SET Name = s.Name, Price = s.Price, Stock = s.Stock");
 
-        Assert.That(mergeResult.RowsAffected, Is.EqualTo(1));
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(2)); // SKU001 (price <), SKU002 (stock >), NOT SKU003
 
-        // Verify row deleted
-        var result = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU003'");
-        result.Read();
-        Assert.That(result.CurrentRow[0].AsInt64(), Is.EqualTo(0));
+        // SKU001 - updated (price decreased)
+        var result1 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU001'");
+        result1.Read();
+        Assert.That(result1.CurrentRow[0].AsString(), Is.EqualTo("Widget Lite"));
 
-        // Other rows should remain
-        var totalResult = m_engine.Execute("SELECT COUNT(*) FROM Products");
-        totalResult.Read();
-        Assert.That(totalResult.CurrentRow[0].AsInt64(), Is.EqualTo(2));
+        // SKU002 - updated (stock increased)
+        var result2 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU002'");
+        result2.Read();
+        Assert.That(result2.CurrentRow[0].AsString(), Is.EqualTo("Gadget New"));
+
+        // SKU003 - NOT updated (neither condition)
+        var result3 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU003'");
+        result3.Read();
+        Assert.That(result3.CurrentRow[0].AsString(), Is.EqualTo("Gizmo"));
+    }
+
+    [Test]
+    public void MergeWithComparisonExpressionTest()
+    {
+        // Add source data
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU001', 'Widget Bulk', 25.00, 300)");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU002', 'Gadget Single', 60.00, 30)");
+
+        // MERGE - only update if source has at least double the stock
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED AND s.Stock >= t.Stock * 2 THEN
+                UPDATE SET Name = s.Name, Price = s.Price, Stock = s.Stock");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(1)); // Only SKU001 (300 >= 100*2)
+
+        // SKU001 - updated (300 >= 200)
+        var result1 = m_engine.Execute("SELECT Name, Stock FROM Products WHERE Sku = 'SKU001'");
+        result1.Read();
+        Assert.That(result1.CurrentRow[0].AsString(), Is.EqualTo("Widget Bulk"));
+
+        // SKU002 - NOT updated (30 < 100)
+        var result2 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU002'");
+        result2.Read();
+        Assert.That(result2.CurrentRow[0].AsString(), Is.EqualTo("Gadget"));
+    }
+
+    [Test]
+    public void MergeWithCategoryMatchConditionTest()
+    {
+        // Add source data
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU001', 'Widget New', 35.00, 120, 'Hardware')");
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock, Category) VALUES ('SKU002', 'Gadget New', 55.00, 80, 'Software')"); // Category mismatch
+
+        // MERGE - only update if categories match
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED AND t.Category = s.Category THEN
+                UPDATE SET Name = s.Name, Price = s.Price, Stock = s.Stock");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(1)); // Only SKU001 (both Hardware)
+
+        // SKU001 - updated (category match)
+        var result1 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU001'");
+        result1.Read();
+        Assert.That(result1.CurrentRow[0].AsString(), Is.EqualTo("Widget New"));
+
+        // SKU002 - NOT updated (category mismatch: Electronics vs Software)
+        var result2 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU002'");
+        result2.Read();
+        Assert.That(result2.CurrentRow[0].AsString(), Is.EqualTo("Gadget"));
+    }
+
+    [Test]
+    public void MergeMultipleWhenMatchedClausesWithConditionsTest()
+    {
+        // Add source data
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU001', 'Widget Clearance', 10.00, 5)");   // Low stock, low price
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU002', 'Gadget Premium', 100.00, 200)");  // High stock, high price
+        m_engine.Execute("INSERT INTO ProductUpdates (Sku, Name, Price, Stock) VALUES ('SKU003', 'Gizmo Standard', 25.00, 150)");   // Normal
+
+        // MERGE - delete if stock < 10, update otherwise
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING ProductUpdates AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED AND s.Stock < 10 THEN
+                DELETE
+            WHEN MATCHED THEN
+                UPDATE SET Name = s.Name, Price = s.Price, Stock = s.Stock");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(3)); // 1 delete + 2 updates
+
+        // SKU001 - deleted
+        var result1 = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU001'");
+        result1.Read();
+        Assert.That(result1.CurrentRow[0].AsInt64(), Is.EqualTo(0));
+
+        // SKU002 - updated
+        var result2 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU002'");
+        result2.Read();
+        Assert.That(result2.CurrentRow[0].AsString(), Is.EqualTo("Gadget Premium"));
+
+        // SKU003 - updated
+        var result3 = m_engine.Execute("SELECT Name FROM Products WHERE Sku = 'SKU003'");
+        result3.Read();
+        Assert.That(result3.CurrentRow[0].AsString(), Is.EqualTo("Gizmo Standard"));
     }
 
     #endregion
@@ -339,6 +494,47 @@ public class WitSqlEngineTruncateMergeTests : WitSqlEngineTestsBase
         var result3 = m_engine.Execute("SELECT COUNT(*) FROM Products WHERE Sku = 'SKU006'");
         result3.Read();
         Assert.That(result3.CurrentRow[0].AsInt64(), Is.EqualTo(0));
+    }
+
+    [Test]
+    public void MergeWithSubqueryAndComplexConditionTest()
+    {
+        // Create a staging table with aggregated data
+        m_engine.Execute(@"
+            CREATE TABLE SalesData (
+                Sku TEXT NOT NULL,
+                TotalSold INTEGER DEFAULT 0,
+                Revenue DECIMAL(10,2) DEFAULT 0
+            )");
+
+        m_engine.Execute("INSERT INTO SalesData (Sku, TotalSold, Revenue) VALUES ('SKU001', 500, 15000.00)"); // High sales
+        m_engine.Execute("INSERT INTO SalesData (Sku, TotalSold, Revenue) VALUES ('SKU002', 100, 5000.00)");  // Low sales
+        m_engine.Execute("INSERT INTO SalesData (Sku, TotalSold, Revenue) VALUES ('SKU003', 300, 6000.00)");  // Medium sales
+
+        // MERGE - only increase stock for products with high sales (TotalSold > 200)
+        var mergeResult = m_engine.Execute(@"
+            MERGE INTO Products AS t
+            USING SalesData AS s
+            ON t.Sku = s.Sku
+            WHEN MATCHED AND s.TotalSold > 200 THEN
+                UPDATE SET Stock = t.Stock + 100");
+
+        Assert.That(mergeResult.RowsAffected, Is.EqualTo(2)); // SKU001 and SKU003
+
+        // SKU001 - stock increased
+        var result1 = m_engine.Execute("SELECT Stock FROM Products WHERE Sku = 'SKU001'");
+        result1.Read();
+        Assert.That(result1.CurrentRow[0].AsInt64(), Is.EqualTo(200)); // 100 + 100
+
+        // SKU002 - stock unchanged (TotalSold = 100)
+        var result2 = m_engine.Execute("SELECT Stock FROM Products WHERE Sku = 'SKU002'");
+        result2.Read();
+        Assert.That(result2.CurrentRow[0].AsInt64(), Is.EqualTo(50)); // unchanged
+
+        // SKU003 - stock increased
+        var result3 = m_engine.Execute("SELECT Stock FROM Products WHERE Sku = 'SKU003'");
+        result3.Read();
+        Assert.That(result3.CurrentRow[0].AsInt64(), Is.EqualTo(300)); // 200 + 100
     }
 
     #endregion
