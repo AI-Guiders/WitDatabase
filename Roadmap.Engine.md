@@ -1,8 +1,8 @@
 # OutWit.Database (Engine) - Roadmap
 
-**Version:** 2.4  
+**Version:** 2.5  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-30
+**Last Updated:** 2025-01-31
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: ~80% - Core SQL Execution + Transactions + Indexes + ALTER TABLE Complete**
+**Current Status: ~85% - Core SQL Execution + Transactions + Indexes + ALTER TABLE + Computed Columns Complete**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -56,6 +56,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 - ? **FOR UPDATE / FOR SHARE** locking hints with NOWAIT/SKIP LOCKED
 - ? **Index Implementation** (Index seek, range scan, auto-update, partial indexes, expression indexes, covering indexes)
 - ? **ALTER TABLE** (ADD/DROP CONSTRAINT, ADD COLUMN with DEFAULT)
+- ? **Computed Columns** (STORED with auto-recalculation, VIRTUAL with on-the-fly evaluation)
 
 ---
 
@@ -507,19 +508,70 @@ The Engine component (`OutWit.Database`) is responsible for:
 | ADD CONSTRAINT CHECK | [x] | P0 | v1 | SS2.3 |
 | ADD CONSTRAINT UNIQUE | [x] | P0 | v1 | SS2.3 |
 | ADD CONSTRAINT FOREIGN KEY | [x] | P0 | v1 | SS2.3 |
-| ADD CONSTRAINT PRIMARY KEY | [ ] | - | - | Not supported |
+| ADD CONSTRAINT PRIMARY KEY | [ ] | - | - | Not supported (requires table rebuild) |
 | DROP CONSTRAINT | [x] | P0 | v1 | SS2.3 |
-| Computed columns | [ ] | P2 | v1 | SS2.3 |
+| Computed columns (STORED) | [x] | P2 | v1 | SS20 |
+| Computed columns (VIRTUAL) | [x] | P2 | v1 | SS20 |
 
-### Implementation Details:
-- **Named Constraints**: `DefinitionNamedConstraint` class with CHECK, UNIQUE, FOREIGN KEY, PRIMARY KEY types
-- **ADD CONSTRAINT Validation**:
-  - CHECK: Evaluates expression against all existing rows
-  - UNIQUE: Verifies no duplicates (NULL excluded from uniqueness)
-  - FOREIGN KEY: Validates referential integrity (NULL allowed)
-  - PRIMARY KEY: Throws `NotSupportedException` (requires table rebuild)
-- **DROP CONSTRAINT**: Removes from metadata, drops associated UNIQUE index
-- **ADD COLUMN with DEFAULT**: Evaluates expression, supports non-deterministic functions (NOW, NEWGUID)
+### Implementation Details (Completed 2025-01-31):
+
+#### Named Constraints
+- `DefinitionNamedConstraint` class with CHECK, UNIQUE, FOREIGN KEY, PRIMARY KEY types
+- `NamedConstraints` property on `DefinitionTable`
+- `GetConstraint(name)` method for lookup
+
+#### ADD CONSTRAINT Validation
+- **CHECK**: Evaluates expression against all existing rows
+- **UNIQUE**: Verifies no duplicates (NULL excluded from uniqueness), creates implicit index
+- **FOREIGN KEY**: Validates referential integrity (NULL allowed)
+- **PRIMARY KEY**: Throws `NotSupportedException` (requires table rebuild)
+
+#### DROP CONSTRAINT
+- Removes from metadata
+- Drops associated UNIQUE index if applicable
+
+#### ADD COLUMN with DEFAULT
+- Parses and evaluates DEFAULT expression
+- Supports deterministic expressions (evaluated once)
+- Supports non-deterministic functions (NOW, NEWGUID - evaluated per row)
+- Populates all existing rows with default value
+
+#### Computed Columns
+- **STORED**: Expression evaluated for all existing rows, value persisted
+  - Auto-recalculated on UPDATE affecting source columns
+  - Auto-calculated on INSERT
+  - INDEX on STORED computed columns supported
+- **VIRTUAL**: Evaluated on-the-fly during SELECT
+  - Works in `IteratorTableScan`, `IteratorIndexSeek`, `IteratorIndexRangeScan`
+  - Uses `ContextExecution` for expression evaluation
+- Prevents direct INSERT/UPDATE into computed columns
+- Supports functions (UPPER, LOWER, etc.), CASE expressions, COALESCE
+
+#### Files Created/Modified
+- `DefinitionNamedConstraint.cs` - Created
+- `DefinitionTable.cs` - Added `NamedConstraints`, `GetConstraint()`
+- `IDatabase.cs` - Added `AddConstraint()`, `DropConstraint()`, `AddComputedColumn()`
+- `WitSqlEngine.Ddl.Tables.cs` - Constraint validation, computed columns
+- `Schema/SchemaCatalog.Columns.cs` - Constraint persistence
+- `StatementExecutor.Ddl.cs` - Constraint actions, computed column handling
+- `StatementExecutor.Dml.cs` - Computed column handling in INSERT/UPDATE
+- `IteratorTableScan.cs` - VIRTUAL column evaluation
+- `IteratorIndexSeek.cs` - VIRTUAL column evaluation
+- `IteratorIndexRangeScan.cs` - VIRTUAL column evaluation
+
+### Test Coverage: 60 tests
+- 11 ADD CONSTRAINT tests
+- 5 DROP CONSTRAINT tests
+- 10 ADD COLUMN with DEFAULT tests
+- 7 basic computed column tests
+- 4 auto-update tests
+- 4 VIRTUAL evaluation tests
+- 1 index on computed column test
+- 18 integration/persistence tests
+
+---
+
+## 12. ADO.NET Provider Implementation
 
 | Feature | Status | Priority | Version |
 |---------|--------|----------|---------|
@@ -700,7 +752,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ## Recent Changes
 
-### 2025-01-30
+### 2025-01-31
 - ? **ALTER TABLE Implementation Complete**:
   - `ALTER TABLE ADD CONSTRAINT` - CHECK, UNIQUE, FOREIGN KEY constraints
   - `ALTER TABLE DROP CONSTRAINT` - Remove named constraints
@@ -712,7 +764,7 @@ The Engine component (`OutWit.Database`) is responsible for:
   - VIRTUAL columns store NULL placeholder (evaluated on query - future)
 - ? 35 new ALTER TABLE tests (constraints + computed columns)
 
-### 2025-01-29
+### 2025-01-30
 - ? **Index Implementation Complete**:
   - `IteratorIndexSeek.cs` - equality lookup using secondary index
   - `IteratorIndexRangeScan.cs` - range queries using index
@@ -752,4 +804,4 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-**Last Updated:** 2025-01-30
+**Last Updated:** 2025-01-31

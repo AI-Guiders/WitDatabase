@@ -1,8 +1,8 @@
 # WitDatabase - Complete Roadmap
 
-**Version:** 2.1  
+**Version:** 2.2  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-26
+**Last Updated:** 2025-01-31
 
 ---
 
@@ -44,7 +44,7 @@ For detailed version-specific information, see:
 |-----------|-------------|-------------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 100% ? |
 | **OutWit.Database.Parser** | 290 | 290 | 100% ? |
-| **OutWit.Database** (Engine) | 200+ | ~130 | ~65% ?? |
+| **OutWit.Database** (Engine) | 200+ | ~170 | ~85% ?? |
 
 ### v2 Features (Deferred)
 
@@ -52,7 +52,7 @@ For detailed version-specific information, see:
 |-----------|-------------|-------------|----------|
 | **OutWit.Database.Core** | 9 | 0 | 0% |
 | **OutWit.Database.Parser** | 18 | 0 | 0% |
-| **OutWit.Database** (Engine) | 25+ | 0 | 0% |
+| **OutWit.Database** (Engine) | 30+ | 0 | 0% |
 
 ---
 
@@ -139,27 +139,34 @@ For detailed version-specific information, see:
 |----------|--------|---------|
 | Query Execution Infrastructure | 90% | All core components complete |
 | Data Type Implementation | 100% | All types supported |
-| DDL Execution | 90% | Tables, Views, Triggers, Sequences ? |
+| DDL Execution | 100% | Tables, Views, Triggers, Sequences ? |
 | DML Execution (SELECT) | 95% | JOINs, Subqueries, Set Ops ? |
 | DML Execution (INSERT/UPDATE/DELETE) | 85% | Core operations, triggers ? |
 | Expression Evaluation | 100% | Including subqueries ? |
 | Built-in Functions (scalar) | 100% | 60+ functions ? |
 | Built-in Functions (aggregate) | 100% | COUNT, SUM, AVG, MIN, MAX, GROUP_CONCAT ? |
 | Subquery Support | 100% | Scalar, EXISTS, IN, ANY/ALL, Correlated ? |
+| Transaction Support | 100% | BEGIN/COMMIT/ROLLBACK, Savepoints, Isolation ? |
+| Row-Level Locking | 100% | FOR UPDATE/SHARE, NOWAIT, SKIP LOCKED ? |
+| Index Implementation | 100% | Seek, Range Scan, Auto-update, Partial, Expression, Covering ? |
+| ALTER TABLE | 100% | ADD/DROP CONSTRAINT, ADD COLUMN with DEFAULT ? |
+| Computed Columns | 100% | STORED (auto-recalc), VIRTUAL (on-the-fly) ? |
 | Window Functions | 0% | Not started |
 | CTE Execution | 0% | Not started |
-| Transaction Support | 0% | Not started |
 | Schema Information | 0% | INFORMATION_SCHEMA not started |
 | ADO.NET Provider | 0% | Not started |
 | Query Optimization | 10% | Basic plan building only |
 
-### Recently Completed (2025-01-26)
+### Recently Completed (2025-01-31)
 
-- ? Full subquery support (scalar, EXISTS, IN, ANY/SOME/ALL)
-- ? Correlated subqueries
-- ? IteratorAlias fix for proper column name aliasing
-- ? ExpressionEvaluator.Subquery.cs - new partial class
-- ? OuterRow support in column reference evaluation
+- ? ALTER TABLE ADD/DROP CONSTRAINT (CHECK, UNIQUE, FOREIGN KEY)
+- ? ALTER TABLE ADD COLUMN with DEFAULT (populates existing rows)
+- ? Computed columns STORED (auto-recalculate on UPDATE, auto-calculate on INSERT)
+- ? Computed columns VIRTUAL (evaluated on-the-fly in all iterators)
+- ? INDEX on STORED computed columns
+- ? Prevent direct INSERT/UPDATE into computed columns
+- ? VIRTUAL columns evaluation in IteratorIndexSeek and IteratorIndexRangeScan
+- ? UNIQUE constraint index persistence fix (engine restart)
 
 ### v2 Deferred
 
@@ -171,6 +178,7 @@ For detailed version-specific information, see:
 | Database Administration | CREATE/DROP DATABASE, VACUUM |
 | Cursor Support | DECLARE, FETCH, CLOSE |
 | Advanced Optimization | Histograms, Adaptive |
+| Cascading Computed Columns | Cross-table STORED column recalculation |
 
 ---
 
@@ -196,15 +204,18 @@ For detailed version-specific information, see:
 - [x] Correlated subqueries ?
 - [x] Set operations (UNION, INTERSECT, EXCEPT) ?
 - [ ] CTE (WITH clause)
-- [ ] Index usage in queries
+- [x] Index usage in queries ?
 
-#### Phase 3: Transactions and Concurrency (Planned)
-- [ ] Isolation levels
-- [ ] Savepoints
-- [ ] FOR UPDATE / FOR SHARE
+#### Phase 3: Transactions and Concurrency - ? COMPLETE
+- [x] Isolation levels ?
+- [x] Savepoints ?
+- [x] FOR UPDATE / FOR SHARE ?
 - [ ] MERGE statement
 
-#### Phase 4: Production Ready (Planned)
+#### Phase 4: Production Ready (Current)
+- [x] Index implementation ?
+- [x] ALTER TABLE (constraints, defaults) ?
+- [x] Computed columns (STORED, VIRTUAL) ?
 - [ ] Window functions
 - [ ] Recursive CTE
 - [x] Views and triggers ?
@@ -218,6 +229,7 @@ For detailed version-specific information, see:
 - [ ] Stored procedures
 - [ ] EXPLAIN / EXPLAIN ANALYZE
 - [ ] Database administration
+- [ ] Cascading computed columns (cross-table)
 
 ---
 
@@ -227,21 +239,24 @@ For detailed version-specific information, see:
 |-----------|-------|--------|
 | OutWit.Database.Core | 1811+ | ? Passing |
 | OutWit.Database.Parser | 1000+ | ? Passing |
-| OutWit.Database (Engine) | 893 | ? Passing |
-| **Total** | **3700+** | ? Passing |
+| OutWit.Database (Engine) | 1140+ | ? Passing |
+| **Total** | **3950+** | ? Passing |
 
 ### Engine Test Breakdown
 
 | Category | Tests |
 |----------|-------|
 | ExpressionEvaluator | 194 |
-| StatementExecutor | 145 |
+| StatementExecutor | 162 |
 | Iterators | 119 |
 | QueryPlanner | 50 |
-| WitSqlValue | 130 |
+| WitSqlValue | 148 |
 | Definitions | 90 |
 | Schema | 50 |
-| WitSqlEngine Integration | 115 |
+| WitSqlEngine Integration | 132 |
+| WitSqlEngine Index | 67 |
+| WitSqlEngine ALTER TABLE | 60 |
+| WitSqlEngine Transactions | 46 |
 
 ---
 
@@ -256,12 +271,29 @@ For detailed version-specific information, see:
 | `Roadmap.Parser.md` | Parser-only roadmap |
 | `Roadmap.Engine.md` | Engine-only roadmap |
 | `WitSql.md` | Language Specification |
-| `OutWit.Database.Core.TODO.md` | Core TODO list |
+| `OutWit.Database.Todo.md` | Engine TODO list |
 | `CODE_STYLE_GUIDE.md` | Code style guide |
 
 ---
 
 ## Recent Changes
+
+### 2025-01-31
+- Engine: ALTER TABLE implementation complete
+  - ADD/DROP CONSTRAINT (CHECK, UNIQUE, FOREIGN KEY)
+  - ADD COLUMN with DEFAULT (populates existing rows)
+  - Computed columns STORED (auto-recalculate)
+  - Computed columns VIRTUAL (on-the-fly evaluation)
+- Engine: VIRTUAL columns now evaluated in all iterators (TableScan, IndexSeek, IndexRangeScan)
+- Engine: Fixed UNIQUE constraint index persistence after engine restart
+- Engine: 60 ALTER TABLE tests passing
+- Removed OutWit.Database.AlterTable.Todo.md (merged into main docs)
+- Added Cascading Computed Columns to v2 roadmap
+
+### 2025-01-30
+- Engine: Transaction support complete (BEGIN/COMMIT/ROLLBACK, Savepoints)
+- Engine: FOR UPDATE/FOR SHARE locking complete
+- Engine: Index implementation complete (seek, range, auto-update, partial, expression, covering)
 
 ### 2025-01-26
 - Engine: Added full subquery support
@@ -271,9 +303,3 @@ For detailed version-specific information, see:
   - ANY / SOME / ALL
   - Correlated subqueries
 - Engine: Fixed IteratorAlias for proper column name aliasing
-- Engine: 893 tests passing (up from 151)
-- Updated roadmaps with current progress
-
----
-
-**Last Updated:** 2025-01-26

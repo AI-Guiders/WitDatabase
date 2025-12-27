@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-01-30  
+**Last Updated:** 2025-01-31  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -38,7 +38,7 @@
 |----------|----|----|----|----|
 | Transaction Support | 0 | 0 | 0 | ? DONE |
 | Index Implementation | 0 | 0 | 0 | ? DONE |
-| ALTER TABLE | 0 | 0 | 0 | ? DONE ? [Details](OutWit.Database.AlterTable.Todo.md) |
+| ALTER TABLE | 0 | 0 | 0 | ? DONE |
 | CTE Execution | 2 | 1 | 0 | Required |
 | Window Functions | 0 | 6 | 3 | Required |
 | DML Enhancements | 0 | 8 | 0 | Required |
@@ -89,6 +89,7 @@
 - [x] **P1** Partial index evaluation (WHERE clause on index)
 - [x] **P1** Expression index evaluation (functional indexes)
 - [x] **P1** Covering index support (INCLUDE columns)
+- [x] **P1** VIRTUAL computed columns evaluation in index iterators
 
 ### Test Coverage: 67 tests (27 basic + 23 auto-update + 17 advanced)
 
@@ -98,50 +99,39 @@
 
 **Current State:** All ALTER TABLE features implemented including computed columns
 
-> **?? See detailed implementation: [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md)**
-
 ### Completed Tasks:
 - [x] **P0** `ALTER TABLE ADD CONSTRAINT` - CHECK, UNIQUE, FOREIGN KEY constraints
 - [x] **P0** `ALTER TABLE DROP CONSTRAINT` - Remove named constraints  
 - [x] **P0** `ALTER TABLE ADD COLUMN` - populate existing rows with DEFAULT value
-- [x] **P2** Computed columns support in ALTER TABLE (STORED and VIRTUAL)
+- [x] **P2** Computed columns support (STORED and VIRTUAL)
 
 ### Implementation Summary:
 
 #### ADD CONSTRAINT (Completed 2025-01-30)
 - Created `DefinitionNamedConstraint.cs` with `ConstraintType` enum
 - Added `NamedConstraints` property to `DefinitionTable`
-- Implemented validation for CHECK (expression evaluation), UNIQUE (duplicate check), FOREIGN KEY (referential integrity)
-- PRIMARY KEY throws `NotSupportedException` (would require table rebuild)
+- Validation: CHECK (expression), UNIQUE (duplicates), FOREIGN KEY (referential integrity)
+- PRIMARY KEY throws `NotSupportedException` (requires table rebuild)
 - UNIQUE constraint creates implicit index
 
 #### DROP CONSTRAINT (Completed 2025-01-30)
 - Removes constraint from metadata
 - Drops associated index for UNIQUE constraints
-- PRIMARY KEY cannot be dropped (throws `NotSupportedException`)
+- PRIMARY KEY cannot be dropped
 
 #### ADD COLUMN with DEFAULT (Completed 2025-01-30)
 - Parses and evaluates DEFAULT expression
-- Supports deterministic (evaluated once) and non-deterministic functions (NOW, NEWGUID - evaluated per row)
+- Supports deterministic and non-deterministic functions (NOW, NEWGUID)
 - Populates all existing rows with default value
 
 #### Computed Columns (Completed 2025-01-30)
-- STORED computed columns: expression evaluated for all existing rows, value persisted
-- VIRTUAL computed columns: metadata stored, NULL placeholder for existing rows
-- Supports functions (UPPER, LOWER, etc.), CASE expressions, NULL handling (COALESCE)
+- **STORED**: Expression evaluated for all rows, value persisted, auto-recalculated on UPDATE
+- **VIRTUAL**: Evaluated on-the-fly during SELECT (in all iterators)
+- Supports functions (UPPER, LOWER, etc.), CASE expressions, COALESCE
+- Prevents direct INSERT/UPDATE into computed columns
+- INDEX on STORED computed columns supported
 
-### Files Created:
-- `Definitions/DefinitionNamedConstraint.cs`
-- `Tests/WitSqlEngineAlterTableConstraintTests.cs`
-
-### Files Modified:
-- `Definitions/DefinitionTable.cs` - Added `NamedConstraints`, `GetConstraint()`
-- `Interfaces/IDatabase.cs` - Added `AddConstraint()`, `DropConstraint()`, `AddComputedColumn()`
-- `WitSqlEngine.Ddl.Tables.cs` - Constraint validation, computed columns
-- `Schema/SchemaCatalog.Columns.cs` - Constraint persistence
-- `Statements/StatementExecutor.Ddl.cs` - Handle constraint actions, computed columns
-
-### Test Coverage: 44 tests (11 ADD CONSTRAINT + 5 DROP CONSTRAINT + 10 ADD COLUMN with DEFAULT + 16 Computed Columns + 2 integration)
+### Test Coverage: 60 tests (constraints + computed columns + integration + persistence)
 
 ---
 
@@ -299,37 +289,6 @@ EF Core scaffolding requires these views for reverse engineering:
 
 ---
 
-## Implementation Timeline
-
-### Phase 2: Engine Completion (Current)
-
-| Week | Tasks |
-|------|-------|
-| **Week 1-2** | ~~Transaction fix~~, ~~FOR UPDATE/SHARE~~, ~~Index implementation~~ ? |
-| **Week 3** | ~~ALTER TABLE ADD COLUMN with DEFAULT~~ ? |
-| **Week 4** | ~~ALTER TABLE DROP/ADD CONSTRAINT~~ ? |
-| **Week 5-6** | CTE execution, RETURNING clause |
-| **Week 7-8** | Window functions (ROW_NUMBER, RANK) |
-| **Week 9-10** | INFORMATION_SCHEMA, JSON functions |
-
-### Phase 3: ADO.NET (After Engine)
-
-| Week | Tasks |
-|------|-------|
-| **Week 11-12** | WitDbConnection, WitDbCommand |
-| **Week 13-14** | WitDbDataReader, Parameters |
-| **Week 15-16** | Transaction, Factory, Tests |
-
-### Phase 4: EF Core (After ADO.NET)
-
-| Week | Tasks |
-|------|-------|
-| **Week 17-18** | Basic provider registration |
-| **Week 19-20** | Query translation |
-| **Week 21-22** | Migrations, Scaffolding |
-
----
-
 ## Test Status
 
 | Test File | Passing | Ignored | Notes |
@@ -341,9 +300,8 @@ EF Core scaffolding requires these views for reverse engineering:
 | WitSqlValue* | 148 | 0 | OK |
 | WitSqlEngineIndex* | 67 | 0 | OK |
 | WitSqlEngine* | 132 | 0 | OK |
-| WitSqlEngineAlterTableConstraint* | 44 | 0 | Computed columns |
-| WitSqlEngineAlterTableIntegration* | 13 | 0 | Persistence tests |
-| **Total** | **1137** | **0** | 100% passing |
+| WitSqlEngineAlterTable* | 60 | 0 | Constraints + Computed + Integration |
+| **Total** | **1140+** | **0** | 100% passing |
 
 ---
 
@@ -361,23 +319,25 @@ EF Core scaffolding requires these views for reverse engineering:
 ### Index Implementation (Complete)
 | File | Status |
 |------|--------|
-| `IteratorIndexSeek.cs` | Created |
-| `IteratorIndexRangeScan.cs` | Created |
+| `IteratorIndexSeek.cs` | Created - with VIRTUAL column evaluation |
+| `IteratorIndexRangeScan.cs` | Created - with VIRTUAL column evaluation |
 | `WitSqlEngine.Query.cs` | Modified |
 | `WitSqlEngine.Dml.cs` | Modified |
-| `WitSqlEngine.Ddl.Indexes.cs` | Modified |
+| `WitSqlEngine.Ddl.Indexes.cs` | Modified - skip rebuild if index has data |
 | `WitSqlValue.Getters.cs` | Modified |
 
 ### ALTER TABLE (Complete)
 | File | Status |
 |------|--------|
 | `DefinitionNamedConstraint.cs` | Created |
-| `DefinitionTable.cs` | Modified |
-| `IDatabase.cs` | Modified |
-| `WitSqlEngine.Ddl.Tables.cs` | Modified |
-| `Schema/SchemaCatalog.Columns.cs` | Modified |
-| `StatementExecutor.Ddl.cs` | Modified |
+| `DefinitionTable.cs` | Modified - `NamedConstraints`, `GetConstraint()` |
+| `IDatabase.cs` | Modified - `AddConstraint()`, `DropConstraint()`, `AddComputedColumn()` |
+| `WitSqlEngine.Ddl.Tables.cs` | Modified - constraint validation, computed columns |
+| `Schema/SchemaCatalog.Columns.cs` | Modified - constraint persistence |
+| `StatementExecutor.Ddl.cs` | Modified - constraint actions, computed columns |
+| `StatementExecutor.Dml.cs` | Modified - computed column handling in INSERT/UPDATE |
 | `WitSqlEngineAlterTableConstraintTests.cs` | Created |
+| `WitSqlEngineAlterTableIntegrationTests.cs` | Created |
 
 ---
 
@@ -427,18 +387,19 @@ EF Core scaffolding requires these views for reverse engineering:
 4. ~~**ALTER TABLE ADD COLUMN with DEFAULT**~~ ?
 5. ~~**ALTER TABLE DROP CONSTRAINT**~~ ?
 6. ~~**ALTER TABLE ADD CONSTRAINT**~~ ?
-7. **CTE Execution** ? NEXT - implement simple (non-recursive) CTE
-8. **RETURNING clause** - INSERT/UPDATE/DELETE ... RETURNING
-9. **Window Functions** - ROW_NUMBER(), RANK(), etc.
+7. ~~**Computed Columns (STORED/VIRTUAL)**~~ ?
+8. **CTE Execution** ? NEXT - implement simple (non-recursive) CTE
+9. **RETURNING clause** - INSERT/UPDATE/DELETE ... RETURNING
+10. **Window Functions** - ROW_NUMBER(), RANK(), etc.
 
 ---
 
 ## Related Documents
 
 - [Roadmap.Engine.md](../../Roadmap.Engine.md) - Overall engine roadmap
-- [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md) - ALTER TABLE implementation (COMPLETED)
+- [Roadmap.v2.md](../../Roadmap.v2.md) - v2 features (deferred)
 
 ---
 
-**Last Updated:** 2025-01-30
+**Last Updated:** 2025-01-31
 

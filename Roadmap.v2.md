@@ -1,8 +1,8 @@
 # WitDatabase - Roadmap v2
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-17
+**Last Updated:** 2025-01-31
 
 ---
 
@@ -30,7 +30,7 @@ This document contains features deferred to version 2 of WitDatabase. These are 
 |-----------|----------------|-------------|---------|----------|
 | **OutWit.Database.Core** | 9 | 0 | 9 | 0% |
 | **OutWit.Database.Parser** | 18 | 0 | 18 | 0% |
-| **OutWit.Database** (Engine) | 25+ | 0 | 25+ | 0% |
+| **OutWit.Database** (Engine) | 30+ | 0 | 30+ | 0% |
 
 ---
 
@@ -229,6 +229,33 @@ PRAGMA journal_mode = WAL;
 | Histogram-based selectivity | [ ] | P2 | Better estimates |
 | Adaptive query execution | [ ] | P2 | Runtime adjustment |
 
+## 14. Cascading Updates for Computed Columns
+
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Cross-table STORED column recalculation | [ ] | P2 | When FK source changes |
+| Dependency tracking between tables | [ ] | P2 | For computed columns |
+
+**Background:**
+When a STORED computed column in table A references a FOREIGN KEY to table B, 
+and a value in table B changes, the computed column in table A should be recalculated.
+This requires tracking dependencies between tables, which is complex and deferred to v2.
+
+**Example:**
+```sql
+-- Table B
+CREATE TABLE Products (Id INT PRIMARY KEY, Price DECIMAL);
+
+-- Table A with computed column referencing B
+CREATE TABLE OrderItems (
+    Id INT PRIMARY KEY,
+    ProductId INT REFERENCES Products(Id),
+    Quantity INT,
+    -- This would need recalculation when Products.Price changes
+    TotalPrice AS (Quantity * (SELECT Price FROM Products WHERE Id = ProductId)) STORED
+);
+```
+
 ---
 
 # Implementation Timeline
@@ -257,6 +284,10 @@ v2 features will be implemented after v1 is complete and stable:
 - ATTACH/DETACH
 - PRAGMA implementation
 
+### Phase 5: Advanced Computed Columns (2-3 weeks)
+- Cross-table dependency tracking
+- Cascading updates for STORED columns
+
 ---
 
 # Prerequisites
@@ -271,6 +302,7 @@ v2 features depend on the following v1 components being complete:
 | EXPLAIN | Query planning, Index selection |
 | VACUUM | B+Tree storage, Page management |
 | Multi-database | File storage, Connection management |
+| Cascading Computed Columns | ALTER TABLE, Computed columns, Foreign keys |
 
 ---
 
@@ -287,4 +319,4 @@ v2 features depend on the following v1 components being complete:
 
 ---
 
-**Last Updated:** 2025-01-17
+**Last Updated:** 2025-01-31
