@@ -1,8 +1,8 @@
 # WitDatabase - Roadmap v1
 
-**Version:** 1.2  
+**Version:** 1.3  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-02-01
+**Last Updated:** 2025-02-03
 
 ---
 
@@ -25,7 +25,7 @@
 |-----------|----------------|-------------|---------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 0 | 100% |
 | **OutWit.Database.Parser** | 290 | 290 | 0 | 100% |
-| **OutWit.Database** (Engine) | 200+ | ~195 | ~5 | ~95% |
+| **OutWit.Database** (Engine) | 200+ | ~200 | ~5 | ~97% |
 
 ---
 
@@ -303,7 +303,22 @@
 
 # Part 4: Built-in Functions
 
-(All function features marked as [x] for Engine where indicated - 60+ scalar functions, all aggregate functions implemented)
+## 25. JSON Functions (SS21.2) ? COMPLETE
+
+| Function | Core | Parser | Engine | Spec |
+|----------|------|--------|--------|------|
+| `JSON_EXTRACT(json, path)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_VALUE(json, path)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_QUERY(json, path)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_SET(json, path, value)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_INSERT(json, path, value)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_REPLACE(json, path, value)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_REMOVE(json, path)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_TYPE(json)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_ARRAY_LENGTH(json)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_VALID(str)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_ARRAY(values...)` | N/A | [x] | [x] | SS21.2 |
+| `JSON_OBJECT(key1, val1, ...)` | N/A | [x] | [x] | SS21.2 |
 
 ---
 
@@ -370,9 +385,9 @@
 | `Roadmap.Parser.md` | Parser-only roadmap |
 | `Roadmap.Engine.md` | Engine-only roadmap |
 | `WitSql.md` | Language Specification |
-| `OutWit.Database.Todo.md` | Engine TODO list |
-| `CODE_STYLE_GUIDE.md` | Code style guide |
+| `Sources/Engine/OutWit.Database.Todo.md` | Engine TODO list |
+| `Docs/CODE_STYLE_GUIDE.md` | Code style guide |
 
 ---
 
-**Last Updated:** 2025-02-01
+**Last Updated:** 2025-02-03

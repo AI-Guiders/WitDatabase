@@ -9,6 +9,7 @@ using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Schema.TableSources;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Schema;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Query;
@@ -435,7 +436,20 @@ public sealed class QueryPlanner
 
     private IResultIterator CreateSimpleTableIterator(TableSourceSimple simple)
     {
-        // First check if it's a CTE reference
+        // First check if it's an INFORMATION_SCHEMA reference
+        if (simple.TableName.StartsWith("INFORMATION_SCHEMA.", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateInformationSchemaIterator(simple);
+        }
+
+        // Check for INFORMATION_SCHEMA without prefix (case when FROM uses INFORMATION_SCHEMA.TABLES directly)
+        var parts = simple.TableName.Split('.', 2);
+        if (parts.Length == 2 && parts[0].Equals("INFORMATION_SCHEMA", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateInformationSchemaIterator(simple);
+        }
+
+        // Then check if it's a CTE reference
         var cteDef = TryGetCteDefinition(simple.TableName);
         if (cteDef != null)
         {
@@ -479,6 +493,67 @@ public sealed class QueryPlanner
         // Otherwise it's a regular table
         var tableIterator = m_context.Database.CreateTableScan(simple.TableName);
         return WrapWithAlias(tableIterator, simple.Alias ?? simple.TableName);
+    }
+
+    /// <summary>
+    /// Creates an iterator for INFORMATION_SCHEMA virtual tables.
+    /// </summary>
+    private IResultIterator CreateInformationSchemaIterator(TableSourceSimple simple)
+    {
+        // Parse the view name from INFORMATION_SCHEMA.VIEW_NAME
+        var tableName = simple.TableName;
+        var viewName = tableName.Contains('.')
+            ? tableName.Split('.', 2)[1]
+            : tableName;
+
+        // Get schema catalog from database to create InformationSchema helper
+        // We need to get the schema catalog - it's stored in the context's database
+        if (m_context.Database is not WitSqlEngine engine)
+        {
+            throw new InvalidOperationException("INFORMATION_SCHEMA is only available with WitSqlEngine");
+        }
+
+        var infoSchema = engine.GetInformationSchema();
+
+        return viewName.ToUpperInvariant() switch
+        {
+            "TABLES" => new IteratorInformationSchema(
+                infoSchema.GetTables(),
+                InformationSchema.GetTablesColumns(),
+                InformationSchema.GetTablesColumnTypes()),
+                
+            "COLUMNS" => new IteratorInformationSchema(
+                infoSchema.GetColumns(),
+                InformationSchema.GetColumnsColumns(),
+                InformationSchema.GetColumnsColumnTypes()),
+                
+            "KEY_COLUMN_USAGE" => new IteratorInformationSchema(
+                infoSchema.GetKeyColumnUsage(),
+                InformationSchema.GetKeyColumnUsageColumns(),
+                InformationSchema.GetKeyColumnUsageColumnTypes()),
+                
+            "TABLE_CONSTRAINTS" => new IteratorInformationSchema(
+                infoSchema.GetTableConstraints(),
+                InformationSchema.GetTableConstraintsColumns(),
+                InformationSchema.GetTableConstraintsColumnTypes()),
+                
+            "REFERENTIAL_CONSTRAINTS" => new IteratorInformationSchema(
+                infoSchema.GetReferentialConstraints(),
+                InformationSchema.GetReferentialConstraintsColumns(),
+                InformationSchema.GetReferentialConstraintsColumnTypes()),
+                
+            "INDEXES" => new IteratorInformationSchema(
+                infoSchema.GetIndexes(),
+                InformationSchema.GetIndexesColumns(),
+                InformationSchema.GetIndexesColumnTypes()),
+                
+            "VIEWS" => new IteratorInformationSchema(
+                infoSchema.GetViews(),
+                InformationSchema.GetViewsColumns(),
+                InformationSchema.GetViewsColumnTypes()),
+                
+            _ => throw new InvalidOperationException($"Unknown INFORMATION_SCHEMA view: {viewName}")
+        };
     }
 
     private IResultIterator CreateCteIterator(ClauseCteDefinition cteDef, string alias)

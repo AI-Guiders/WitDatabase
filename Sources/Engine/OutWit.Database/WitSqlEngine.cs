@@ -20,6 +20,7 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
 
     private readonly WitDatabase m_database;
     private readonly SchemaCatalog m_schema;
+    private readonly InformationSchema m_informationSchema;
     private readonly bool m_ownsStore;
     private ITransaction? m_currentTransaction;
 
@@ -36,6 +37,7 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     {
         m_database = database;
         m_schema = new SchemaCatalog(database.Store);
+        m_informationSchema = new InformationSchema(m_schema);
         m_ownsStore = ownsStore;
     }
 
@@ -92,6 +94,18 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
         LastChangesCount = context.LastChangesCount;
 
         return result!;
+    }
+
+    #endregion
+
+    #region Schema Information
+
+    /// <summary>
+    /// Gets the INFORMATION_SCHEMA helper for querying database metadata.
+    /// </summary>
+    public InformationSchema GetInformationSchema()
+    {
+        return m_informationSchema;
     }
 
     #endregion

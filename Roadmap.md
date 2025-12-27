@@ -1,8 +1,8 @@
 # WitDatabase - Complete Roadmap
 
-**Version:** 2.3  
+**Version:** 2.4  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-02-01
+**Last Updated:** 2025-02-03
 
 ---
 
@@ -44,7 +44,7 @@ For detailed version-specific information, see:
 |-----------|-------------|-------------|----------|
 | **OutWit.Database.Core** | 70 | 70 | 100% ? |
 | **OutWit.Database.Parser** | 290 | 290 | 100% ? |
-| **OutWit.Database** (Engine) | 200+ | ~195 | ~95% ?? |
+| **OutWit.Database** (Engine) | 200+ | ~200 | ~97% ?? |
 
 ### v2 Features (Deferred)
 
@@ -146,6 +146,7 @@ For detailed version-specific information, see:
 | Expression Evaluation | 100% | Including subqueries ? |
 | Built-in Functions (scalar) | 100% | 60+ functions ? |
 | Built-in Functions (aggregate) | 100% | COUNT, SUM, AVG, MIN, MAX, GROUP_CONCAT ? |
+| JSON Functions | 100% | JSON_EXTRACT, JSON_VALUE, JSON_QUERY, JSON_SET, etc. ? |
 | Subquery Support | 100% | Scalar, EXISTS, IN, ANY/ALL, Correlated ? |
 | Transaction Support | 100% | BEGIN/COMMIT/ROLLBACK, Savepoints, Isolation ? |
 | Row-Level Locking | 100% | FOR UPDATE/SHARE, NOWAIT, SKIP LOCKED ? |
@@ -158,7 +159,24 @@ For detailed version-specific information, see:
 | ADO.NET Provider | 0% | Not started |
 | Query Optimization | 10% | Basic plan building only |
 
-### Recently Completed (2025-02-02)
+### Recently Completed (2025-02-03)
+
+- ? **JSON Functions Complete**:
+  - `JSON_EXTRACT(json, path)` - extract any value at path
+  - `JSON_VALUE(json, path)` - extract scalar (NULL for objects/arrays)
+  - `JSON_QUERY(json, path)` - extract object/array (NULL for scalars)
+  - `JSON_SET(json, path, value)` - set value at path
+  - `JSON_INSERT(json, path, value)` - insert only if not exists
+  - `JSON_REPLACE(json, path, value)` - replace only if exists
+  - `JSON_REMOVE(json, path)` - remove value at path
+  - `JSON_TYPE(json)` - get type name
+  - `JSON_ARRAY_LENGTH(json)` - get array length
+  - `JSON_VALID(str)` - validate JSON string
+  - `JSON_ARRAY(values...)` - construct array
+  - `JSON_OBJECT(key1, val1, ...)` - construct object
+- ? 42 JSON function tests passing
+
+### Previously Completed (2025-02-02)
 
 - ? **DML Enhancements Complete**:
   - `INSERT ... RETURNING` - returns inserted rows with auto-generated IDs
@@ -243,15 +261,16 @@ For detailed version-specific information, see:
 - [x] Isolation levels ?
 - [x] Savepoints ?
 - [x] FOR UPDATE / FOR SHARE ?
-- [ ] MERGE statement
+- [x] MERGE statement ?
 
-#### Phase 4: Production Ready - ? MOSTLY COMPLETE
+#### Phase 4: Production Ready - ?? IN PROGRESS
 - [x] Index implementation ?
 - [x] ALTER TABLE (constraints, defaults) ?
 - [x] Computed columns (STORED, VIRTUAL) ?
 - [x] Window functions ?
 - [x] Recursive CTE ?
 - [x] Views and triggers ?
+- [x] JSON functions ?
 - [ ] INFORMATION_SCHEMA
 - [ ] Basic query optimization
 
@@ -273,8 +292,8 @@ For detailed version-specific information, see:
 |-----------|-------|--------|
 | OutWit.Database.Core | 1811+ | ? Passing |
 | OutWit.Database.Parser | 1000+ | ? Passing |
-| OutWit.Database (Engine) | 1269 | ? Passing |
-| **Total** | **4080+** | ? Passing |
+| OutWit.Database (Engine) | 1311 | ? Passing |
+| **Total** | **4122+** | ? Passing |
 
 ### Engine Test Breakdown
 
@@ -292,6 +311,7 @@ For detailed version-specific information, see:
 | WitSqlEngine ALTER TABLE | 60 |
 | WitSqlEngine Transactions | 46 |
 | WitSqlEngine CTE | 43 |
+| WitSqlEngine JSON Functions | 42 |
 | WitSqlEngine Window Functions | 24 |
 | WitSqlEngine RETURNING | 20 |
 | WitSqlEngine UPSERT | 19 |
@@ -310,12 +330,20 @@ For detailed version-specific information, see:
 | `Roadmap.Parser.md` | Parser-only roadmap |
 | `Roadmap.Engine.md` | Engine-only roadmap |
 | `WitSql.md` | Language Specification |
-| `OutWit.Database.Todo.md` | Engine TODO list |
-| `CODE_STYLE_GUIDE.md` | Code style guide |
+| `Sources/Engine/OutWit.Database.Todo.md` | Engine TODO list |
+| `Docs/CODE_STYLE_GUIDE.md` | Code style guide |
 
 ---
 
 ## Recent Changes
+
+### 2025-02-03
+- Engine: JSON Functions complete (12 functions)
+  - JSON_EXTRACT, JSON_VALUE, JSON_QUERY
+  - JSON_SET, JSON_INSERT, JSON_REPLACE, JSON_REMOVE
+  - JSON_TYPE, JSON_ARRAY_LENGTH, JSON_VALID
+  - JSON_ARRAY, JSON_OBJECT
+  - 42 JSON function tests passing
 
 ### 2025-02-02
 - Engine: DML Enhancements complete

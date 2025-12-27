@@ -27,6 +27,22 @@ public sealed partial class SchemaCatalog
     }
 
     /// <summary>
+    /// Gets all indexes.
+    /// </summary>
+    public IEnumerable<DefinitionIndex> GetIndexes()
+    {
+        m_lock.EnterReadLock();
+        try
+        {
+            return m_indexes.Values.ToList();
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
     /// Gets all indexes for a table.
     /// </summary>
     public IEnumerable<DefinitionIndex> GetTableIndexes(string tableName)

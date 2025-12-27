@@ -1,8 +1,8 @@
 # OutWit.Database (Engine) - Roadmap
 
-**Version:** 2.6  
+**Version:** 2.7  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-02-02
+**Last Updated:** 2025-02-03
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: ~95% - Core SQL Execution + Transactions + Indexes + ALTER TABLE + Computed Columns + CTE + Window Functions + DML Complete**
+**Current Status: ~97% - Core SQL Execution + Transactions + Indexes + ALTER TABLE + Computed Columns + CTE + Window Functions + DML + JSON Complete**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -50,6 +50,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 - ? Subquery support (Scalar, EXISTS, IN, ANY/SOME/ALL, Correlated)
 - ? All scalar functions (60+)
 - ? All aggregate functions
+- ? **JSON Functions** (JSON_EXTRACT, JSON_VALUE, JSON_QUERY, JSON_SET, JSON_INSERT, JSON_REPLACE, JSON_REMOVE, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_VALID, JSON_ARRAY, JSON_OBJECT)
 - ? Constraint validation (NOT NULL, UNIQUE, CHECK, FOREIGN KEY)
 - ? Trigger execution (BEFORE/AFTER/INSTEAD OF)
 - ? **Transaction support** (BEGIN/COMMIT/ROLLBACK, Isolation Levels, Savepoints)
@@ -611,11 +612,32 @@ The Engine component (`OutWit.Database`) is responsible for:
 | WitSqlEngineReturningTests | 20 | ? Passing |
 | WitSqlEngineUpsertTests | 19 | ? Passing |
 | WitSqlEngineTruncateMergeTests | 23 | ? Passing |
-| **Total** | **1269** | ? Passing |
+| WitSqlEngineJsonFunctionTests | 42 | ? Passing |
+| **Total** | **1311** | ? Passing |
 
 ---
 
 ## Recent Changes
+
+### 2025-02-03
+- ? **JSON Functions Implementation Complete**:
+  - `JSON_EXTRACT(json, path)` - extract any value at path
+  - `JSON_VALUE(json, path)` - extract scalar (NULL for objects/arrays)
+  - `JSON_QUERY(json, path)` - extract object/array (NULL for scalars)
+  - `JSON_SET(json, path, value)` - set value at path (creates or replaces)
+  - `JSON_INSERT(json, path, value)` - insert only if not exists
+  - `JSON_REPLACE(json, path, value)` - replace only if exists
+  - `JSON_REMOVE(json, path)` - remove value at path
+  - `JSON_TYPE(json)` - returns type name
+  - `JSON_ARRAY_LENGTH(json)` - returns array length
+  - `JSON_VALID(str)` - validates JSON string
+  - `JSON_ARRAY(values...)` - constructs JSON array
+  - `JSON_OBJECT(key1, val1, ...)` - constructs JSON object
+- ? **New Files**:
+  - `ExpressionEvaluator.Json.cs` - JSON function implementations
+  - `WitSqlEngineJsonFunctionTests.cs` - 42 JSON tests
+- ? **Modified Files**:
+  - `ExpressionEvaluator.Functions.cs` - JSON function routing
 
 ### 2025-02-02
 - ? **DML Enhancements Implementation Complete**:
@@ -683,4 +705,4 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-**Last Updated:** 2025-02-02
+**Last Updated:** 2025-02-03

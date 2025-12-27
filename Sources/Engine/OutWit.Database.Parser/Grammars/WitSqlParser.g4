@@ -612,6 +612,15 @@ frameBound
     ;
 
 tableName
+    : (schemaName DOT)? simpleTableName
+    ;
+
+simpleTableName
+    : IDENTIFIER
+    | nonReservedKeyword
+    ;
+
+schemaName
     : IDENTIFIER
     | nonReservedKeyword
     ;

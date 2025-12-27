@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-12-27  
+**Last Updated:** 2025-02-04  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -43,8 +43,8 @@
 | Window Functions | 0 | 0 | 1 | ? DONE (frame clause P2) |
 | DML Enhancements | 0 | 0 | 0 | ? DONE (RETURNING + UPSERT + TRUNCATE + MERGE) |
 | JSON Functions | 0 | 0 | 0 | ? DONE |
+| INFORMATION_SCHEMA | 0 | 0 | 0 | ? DONE |
 | Query Optimization | 0 | 2 | 2 | Optional |
-| INFORMATION_SCHEMA | 0 | 6 | 0 | Required |
 | Misc/Cleanup | 0 | 0 | 3 | Polish |
 | **ADO.NET Provider** | 0 | 9 | 0 | After Engine |
 | **EF Core Provider** | 0 | 10+ | 0 | After ADO.NET |
@@ -317,19 +317,45 @@
 
 ---
 
-## 8. INFORMATION_SCHEMA (P1 - Required for EF Core)
+## 8. INFORMATION_SCHEMA (COMPLETED ?)
 
-**Current State:** Not implemented
+**Current State:** Full INFORMATION_SCHEMA support implemented
 
-EF Core scaffolding requires these views for reverse engineering:
+EF Core scaffolding requires these views for reverse engineering.
 
-### Tasks:
-- [ ] **P1** `INFORMATION_SCHEMA.TABLES`
-- [ ] **P1** `INFORMATION_SCHEMA.COLUMNS`
-- [ ] **P1** `INFORMATION_SCHEMA.KEY_COLUMN_USAGE`
-- [ ] **P1** `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS`
-- [ ] **P1** `INFORMATION_SCHEMA.INDEXES`
-- [ ] **P1** `INFORMATION_SCHEMA.VIEWS`
+### Completed Tasks:
+- [x] **P1** `INFORMATION_SCHEMA.TABLES` - table and view metadata
+- [x] **P1** `INFORMATION_SCHEMA.COLUMNS` - column metadata with types, nullability, defaults
+- [x] **P1** `INFORMATION_SCHEMA.KEY_COLUMN_USAGE` - primary key and foreign key columns
+- [x] **P1** `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` - PK, UNIQUE, FK, CHECK constraints
+- [x] **P1** `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS` - foreign key relationships
+- [x] **P1** `INFORMATION_SCHEMA.INDEXES` - index metadata (non-standard extension)
+- [x] **P1** `INFORMATION_SCHEMA.VIEWS` - view definitions
+
+### Implementation Summary:
+- **Parser Update**: Modified grammar to support qualified table names (`INFORMATION_SCHEMA.TABLES`)
+- **InformationSchema.cs**: Helper class that generates metadata rows from SchemaCatalog
+- **IteratorInformationSchema.cs**: Iterator for virtual INFORMATION_SCHEMA tables
+- **QueryPlanner.cs**: Routes INFORMATION_SCHEMA queries to virtual table iterators
+- **Column-level constraints**: Handles both table-level and column-level constraints (UNIQUE, CHECK, FK)
+- **PK nullability**: Primary key columns correctly shown as NOT NULL
+
+### Test Coverage: 42 tests passing
+- TABLES: All tables and views listed, filter by TABLE_TYPE
+- COLUMNS: All columns with data types, nullability, defaults, computed columns
+- KEY_COLUMN_USAGE: Primary keys and foreign key columns with positions
+- TABLE_CONSTRAINTS: PK, UNIQUE, FK, CHECK constraints
+- REFERENTIAL_CONSTRAINTS: FK relationships with update/delete rules
+- INDEXES: Index metadata with unique flag and filter conditions
+- VIEWS: View definitions
+- Integration: WHERE clause, JOINs, aggregates, case-insensitive
+
+### Key Files:
+- `WitSqlParser.g4` - Modified - qualified table names support
+- `InformationSchema.cs` - Created - metadata generation
+- `IteratorInformationSchema.cs` - Created - virtual table iterator
+- `QueryPlanner.cs` - Modified - INFORMATION_SCHEMA routing
+- `WitSqlEngineInformationSchemaTests.cs` - Created - 42 tests
 
 ---
 
@@ -552,6 +578,135 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |  TypeMapping --> QueryTranslation --> Migrations             |
 +-------------------------------------------------------------+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
