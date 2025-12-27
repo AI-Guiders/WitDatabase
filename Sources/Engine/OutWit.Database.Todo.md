@@ -55,13 +55,14 @@
 
 ## 1. Transaction Support (COMPLETED)
 
-**Current State:** Transaction support fully implemented
+**Current State:** Transaction support fully implemented including FOR UPDATE/FOR SHARE
 
 ### Implementation Summary:
 - Fixed lock recursion issue by adding `Scan()` method to `ITransaction`
 - Transaction-aware `IteratorTableScan` uses transaction's `Scan()` when active
 - Schema operations (row ID management) now respect active transactions
 - SQL statement execution for `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`
+- **NEW:** FOR UPDATE / FOR SHARE locking hints via `IteratorLocking`
 
 ### Completed Tasks:
 - [x] **P0** Fix lock recursion issue in transactions
@@ -69,10 +70,17 @@
 - [x] **P0** `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` SQL execution
 - [x] **P0** Isolation level support (READ COMMITTED, SERIALIZABLE, etc.)
 - [x] **P1** `SAVEPOINT` / `RELEASE SAVEPOINT` / `ROLLBACK TO SAVEPOINT`
-- [ ] **P1** `FOR UPDATE` / `FOR SHARE` locking hints (available via MVCC, needs SQL syntax)
+- [x] **P1** `FOR UPDATE` / `FOR SHARE` locking hints
+
+### FOR UPDATE/SHARE Implementation Details:
+- `IteratorLocking.cs` - applies row-level locks during iteration
+- `QueryPlanner.cs` - integrates locking iterator into query plan
+- Supports all wait modes: `WAIT` (default), `NOWAIT`, `SKIP LOCKED`
+- Requires MVCC transaction (throws if regular transaction or no transaction)
+- Leverages Core's `IMvccTransaction.GetForUpdate()`/`GetForShare()` methods
 
 ### Test Coverage:
-All 17 transaction tests passing:
+All 46 transaction and locking tests passing:
 - `BeginTransactionReturnsHandleTest`
 - `CommitPersistsChangesTest`
 - `CommitWithoutTransactionDoesNotThrowTest`
@@ -90,6 +98,24 @@ All 17 transaction tests passing:
 - `BeginTransactionWhileActiveThrowsTest`
 - `SavepointWithoutTransactionThrowsTest`
 - `RollbackToNonExistentSavepointThrowsTest`
+- `SelectForUpdateWithoutTransactionThrowsTest`
+- `SelectForShareWithoutTransactionThrowsTest`
+- `SelectForUpdateWithNonMvccTransactionThrowsTest`
+- `SelectWithForUpdateClauseIsParsedTest`
+- `SelectWithForShareClauseIsParsedTest`
+- `SelectWithForUpdateNoWaitIsParsedTest`
+- `SelectWithForUpdateSkipLockedIsParsedTest`
+- `SelectWithForShareNoWaitIsParsedTest`
+- `SelectForUpdateWithoutFromThrowsTest`
+- `SelectWithoutForClauseDoesNotRequireTransactionTest`
+- `SelectForUpdateWithWhereClauseIsParsedTest`
+- `SelectForShareWithJoinIsParsedTest`
+- `SelectForUpdateWithGroupByIsParsedTest`
+- `LockingTypeNoneDoesNotRequireTransactionTest`
+- `LockingTypeMappingTest(ForUpdate)`
+- `LockingTypeMappingTest(ForShare)`
+- `SelectForUpdateWithSubqueryInFromReturnsNullTableNameTest`
+- Plus 29 StatementExecutorTransactionTests
 
 ---
 
@@ -302,7 +328,7 @@ EF Core scaffolding requires these views for reverse engineering:
 
 | Week | Tasks |
 |------|-------|
-| **Week 1-2** | ~~Transaction fix~~, Index seek/range, ALTER TABLE fix |
+| **Week 1-2** | ~~Transaction fix~~, ~~FOR UPDATE/SHARE~~, Index seek/range, ALTER TABLE fix |
 | **Week 3-4** | CTE execution, RETURNING clause |
 | **Week 5-6** | Window functions (ROW_NUMBER, RANK) |
 | **Week 7-8** | INFORMATION_SCHEMA, JSON functions |
@@ -330,12 +356,12 @@ EF Core scaffolding requires these views for reverse engineering:
 | Test File | Passing | Ignored | Notes |
 |-----------|---------|---------|-------|
 | ExpressionEvaluator* | 194 | 0 | OK |
-| StatementExecutor* | 145 | 1 | ALTER TABLE DEFAULT |
+| StatementExecutor* | 162 | 1 | ALTER TABLE DEFAULT |
 | Iterators/* | 119 | 0 | OK |
 | QueryPlanner* | 50 | 0 | OK |
 | WitSqlValue* | 130 | 0 | OK |
 | WitSqlEngine* | 132 | 1 | All TX tests enabled, 1 ALTER |
-| **Total** | **933** | **2** | 99.8% passing |
+| **Total** | **950+** | **2** | 99.8% passing |
 
 ---
 
@@ -367,6 +393,14 @@ EF Core scaffolding requires these views for reverse engineering:
 | `SchemaCatalog.cs` | Added transaction-aware row ID methods |
 | `WitSqlEngine.Ddl.Tables.cs` | Updated `GetNextAutoIncrement()` to use transaction |
 
+## Files Modified (FOR UPDATE/FOR SHARE Support)
+
+| File | Changes Made |
+|------|-------------|
+| `IteratorLocking.cs` | **NEW** - Row-level locking iterator |
+| `QueryPlanner.cs` | Added `ApplyLockingClause()` method and helper methods |
+| `StatementExecutorLockingTests.cs` | **NEW** - 17 tests for locking functionality |
+
 ---
 
 ## Dependencies
@@ -375,7 +409,7 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |                     SQL ENGINE (Phase 2)                     |
 +-------------------------------------------------------------+
-|  Transaction Fix ? --> Index Usage --> Query Optimization    |
+|  Transaction Fix ? --> FOR UPDATE/SHARE ? --> Index Usage    |
 |        |                                                     |
 |        +--> ALTER TABLE (ADD/DROP CONSTRAINT)                |
 |        |                                                     |
@@ -410,10 +444,10 @@ EF Core scaffolding requires these views for reverse engineering:
 ## Next Steps (Immediate)
 
 1. ~~**Transaction Fix** - fix lock recursion issue~~ ?
-2. **ALTER TABLE** - add `AddConstraint` / `DropConstraint` to `ExecuteAlterTable`
-3. **Index Seek** - implement `CreateIndexSeek()` for B+Tree
-4. **Index Range Scan** - implement range queries
-5. ~~**Enable Tests** - enable ignored tests~~ ?
+2. ~~**FOR UPDATE/SHARE** - implement locking hints~~ ?
+3. **ALTER TABLE** - add `AddConstraint` / `DropConstraint` to `ExecuteAlterTable`
+4. **Index Seek** - implement `CreateIndexSeek()` for B+Tree
+5. **Index Range Scan** - implement range queries
 
 ---
 

@@ -1,4 +1,5 @@
 using OutWit.Database.Context;
+using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Interfaces;
@@ -59,6 +60,9 @@ public sealed class QueryPlanner
 
         // Apply WHERE filter
         iterator = ApplyWhereClause(iterator, select.WhereClause);
+
+        // Apply FOR UPDATE/SHARE locking (before aggregation/ordering)
+        iterator = ApplyLockingClause(iterator, select);
 
         // Handle aggregation vs non-aggregation paths
         if (IsAggregateQuery(select))
@@ -129,6 +133,38 @@ public sealed class QueryPlanner
             return iterator;
 
         return new IteratorFilter(iterator, whereClause, m_context);
+    }
+
+    private IResultIterator ApplyLockingClause(IResultIterator iterator, WitSqlStatementSelect select)
+    {
+        if (select.ForClause == null || select.ForClause.LockingType == LockingType.None)
+            return iterator;
+
+        // FOR UPDATE/SHARE requires an active MVCC transaction
+        var transaction = m_context.Database.CurrentTransaction;
+        if (transaction == null)
+        {
+            throw new InvalidOperationException(
+                "FOR UPDATE/FOR SHARE requires an active transaction. " +
+                "Start a transaction with BEGIN TRANSACTION first.");
+        }
+
+        if (transaction is not IMvccTransaction mvccTransaction)
+        {
+            throw new InvalidOperationException(
+                "FOR UPDATE/FOR SHARE requires MVCC transaction support. " +
+                "The current transaction type does not support row-level locking.");
+        }
+
+        // Get the table name from FROM clause
+        var tableName = GetPrimaryTableName(select);
+        if (tableName == null)
+        {
+            throw new InvalidOperationException(
+                "FOR UPDATE/FOR SHARE requires a table in the FROM clause.");
+        }
+
+        return new IteratorLocking(iterator, select.ForClause, mvccTransaction, tableName);
     }
 
     private IResultIterator ApplyOrderByClause(IResultIterator iterator, IReadOnlyList<ClauseOrderByItem>? orderByClause)
@@ -335,6 +371,29 @@ public sealed class QueryPlanner
     private static bool IsSelectStar(IReadOnlyList<ClauseSelectItem> selectList)
     {
         return selectList.Count == 1 && selectList[0].IsStar;
+    }
+
+    /// <summary>
+    /// Gets the primary table name from the FROM clause for locking purposes.
+    /// For simple queries, returns the first table. For joins, returns the leftmost table.
+    /// </summary>
+    private static string? GetPrimaryTableName(WitSqlStatementSelect select)
+    {
+        if (select.FromClause == null || select.FromClause.Count == 0)
+            return null;
+
+        return GetTableNameFromSource(select.FromClause[0]);
+    }
+
+    private static string? GetTableNameFromSource(TableSource source)
+    {
+        return source switch
+        {
+            TableSourceSimple simple => simple.TableName,
+            TableSourceJoin join => GetTableNameFromSource(join.Left),
+            TableSourceSubquery => null, // Subqueries don't have a table to lock
+            _ => null
+        };
     }
 
     #endregion
