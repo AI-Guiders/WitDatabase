@@ -49,6 +49,27 @@ namespace OutWit.Database.Core.Interfaces
 
         #endregion
 
+        #region Scan
+
+        /// <summary>
+        /// Scans key-value pairs in the specified range, considering uncommitted changes in this transaction.
+        /// </summary>
+        /// <param name="startKey">Start key (inclusive). Null means start from the beginning.</param>
+        /// <param name="endKey">End key (exclusive). Null means scan to the end.</param>
+        /// <returns>Enumerable of key-value pairs.</returns>
+        IEnumerable<(byte[] Key, byte[] Value)> Scan(byte[]? startKey, byte[]? endKey);
+
+        /// <summary>
+        /// Scans key-value pairs asynchronously in the specified range, considering uncommitted changes.
+        /// </summary>
+        /// <param name="startKey">Start key (inclusive). Null means start from the beginning.</param>
+        /// <param name="endKey">End key (exclusive). Null means scan to the end.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Async enumerable of key-value pairs.</returns>
+        IAsyncEnumerable<(byte[] Key, byte[] Value)> ScanAsync(byte[]? startKey, byte[]? endKey, CancellationToken cancellationToken = default);
+
+        #endregion
+
         #region Commit
 
         /// <summary>

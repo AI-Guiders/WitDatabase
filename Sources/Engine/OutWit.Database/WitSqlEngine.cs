@@ -128,5 +128,10 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     /// </summary>
     ITransaction? ITransactionManager.Transaction => m_currentTransaction;
 
+    /// <summary>
+    /// Gets the current active transaction, if any.
+    /// </summary>
+    public ITransaction? CurrentTransaction => m_currentTransaction;
+
     #endregion
 }

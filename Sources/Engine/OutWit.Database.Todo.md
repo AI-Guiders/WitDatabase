@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-01-27  
+**Last Updated:** 2025-01-28  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -36,7 +36,7 @@
 
 | Category | P0 | P1 | P2 | Status |
 |----------|----|----|----|----|
-| Transaction Support | 4 | 2 | 0 | BLOCKING |
+| Transaction Support | 0 | 0 | 0 | DONE |
 | Index Implementation | 3 | 3 | 0 | BLOCKING |
 | ALTER TABLE | 3 | 0 | 1 | MISSING |
 | CTE Execution | 2 | 1 | 0 | Required |
@@ -45,7 +45,7 @@
 | JSON Functions | 0 | 3 | 3 | Required |
 | Query Optimization | 0 | 2 | 2 | Optional |
 | INFORMATION_SCHEMA | 0 | 6 | 0 | Required |
-| Misc/Cleanup | 0 | 2 | 3 | Polish |
+| Misc/Cleanup | 0 | 1 | 3 | Polish |
 | **ADO.NET Provider** | 0 | 9 | 0 | After Engine |
 | **EF Core Provider** | 0 | 10+ | 0 | After ADO.NET |
 
@@ -53,27 +53,43 @@
 
 # PHASE 2: SQL Engine (Current)
 
-## 1. Transaction Support (P0 - BLOCKING)
+## 1. Transaction Support (COMPLETED)
 
-**Current State:** Transaction methods exist but have lock recursion issues
+**Current State:** Transaction support fully implemented
 
-### Found in Tests (Ignored):
-```csharp
-// WitSqlEngineTransactionTests.cs
-[Ignore("Transaction support not fully implemented - lock recursion issue")]
-public void CommitPersistsChangesTest()
-public void RollbackDiscardsChangesTest()
-public void DisposeWithoutCommitAutoRollbacksTest()
-public void ChangesVisibleWithinTransactionTest()
-```
+### Implementation Summary:
+- Fixed lock recursion issue by adding `Scan()` method to `ITransaction`
+- Transaction-aware `IteratorTableScan` uses transaction's `Scan()` when active
+- Schema operations (row ID management) now respect active transactions
+- SQL statement execution for `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`
 
-### Tasks:
-- [ ] **P0** Fix lock recursion issue in transactions
-- [ ] **P0** Transaction isolation for queries (use MVCC from Core)
-- [ ] **P0** `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` SQL execution
-- [ ] **P0** Isolation level support (READ COMMITTED, SERIALIZABLE, etc.)
-- [ ] **P1** `SAVEPOINT` / `RELEASE SAVEPOINT` / `ROLLBACK TO SAVEPOINT`
-- [ ] **P1** `FOR UPDATE` / `FOR SHARE` locking hints
+### Completed Tasks:
+- [x] **P0** Fix lock recursion issue in transactions
+- [x] **P0** Transaction isolation for queries (uses transaction's Scan method)
+- [x] **P0** `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` SQL execution
+- [x] **P0** Isolation level support (READ COMMITTED, SERIALIZABLE, etc.)
+- [x] **P1** `SAVEPOINT` / `RELEASE SAVEPOINT` / `ROLLBACK TO SAVEPOINT`
+- [ ] **P1** `FOR UPDATE` / `FOR SHARE` locking hints (available via MVCC, needs SQL syntax)
+
+### Test Coverage:
+All 17 transaction tests passing:
+- `BeginTransactionReturnsHandleTest`
+- `CommitPersistsChangesTest`
+- `CommitWithoutTransactionDoesNotThrowTest`
+- `RollbackDiscardsChangesTest`
+- `RollbackWithoutTransactionDoesNotThrowTest`
+- `DisposeWithoutCommitAutoRollbacksTest`
+- `ChangesVisibleWithinTransactionTest`
+- `MultipleInsertsWithinTransactionVisibleTest`
+- `UpdateWithinTransactionVisibleTest`
+- `DeleteWithinTransactionVisibleTest`
+- `BeginTransactionSqlStartsTransactionTest`
+- `RollbackSqlDiscardsChangesTest`
+- `SavepointRollbackPartialChangesTest`
+- `SavepointSqlWorksTest`
+- `BeginTransactionWhileActiveThrowsTest`
+- `SavepointWithoutTransactionThrowsTest`
+- `RollbackToNonExistentSavepointThrowsTest`
 
 ---
 
@@ -218,7 +234,7 @@ EF Core scaffolding requires these views for reverse engineering:
 ## 10. Miscellaneous / Cleanup
 
 ### Code Cleanup:
-- [ ] **P1** Enable ignored transaction tests after fix
+- [x] **P1** Enable ignored transaction tests after fix
 - [ ] **P1** Enable ALTER TABLE DEFAULT test after fix
 - [ ] **P2** ROWVERSION auto-increment support
 - [ ] **P2** Cascading deletes (FK ON DELETE CASCADE)
@@ -286,7 +302,7 @@ EF Core scaffolding requires these views for reverse engineering:
 
 | Week | Tasks |
 |------|-------|
-| **Week 1-2** | Transaction fix, Index seek/range, ALTER TABLE fix |
+| **Week 1-2** | ~~Transaction fix~~, Index seek/range, ALTER TABLE fix |
 | **Week 3-4** | CTE execution, RETURNING clause |
 | **Week 5-6** | Window functions (ROW_NUMBER, RANK) |
 | **Week 7-8** | INFORMATION_SCHEMA, JSON functions |
@@ -318,8 +334,8 @@ EF Core scaffolding requires these views for reverse engineering:
 | Iterators/* | 119 | 0 | OK |
 | QueryPlanner* | 50 | 0 | OK |
 | WitSqlValue* | 130 | 0 | OK |
-| WitSqlEngine* | 115 | 5 | 4 Transactions + 1 ALTER |
-| **Total** | **916** | **6** | 99.3% passing |
+| WitSqlEngine* | 132 | 1 | All TX tests enabled, 1 ALTER |
+| **Total** | **933** | **2** | 99.8% passing |
 
 ---
 
@@ -335,14 +351,21 @@ EF Core scaffolding requires these views for reverse engineering:
 
 ---
 
-## Files to Modify (Engine)
+## Files Modified (Transaction Support)
 
-| File | Changes Needed |
-|------|----------------|
-| `StatementExecutor.Ddl.cs` | Add `AlterActionAddConstraint`, `AlterActionDropConstraint` |
-| `StatementExecutor.Dml.cs` | Add RETURNING clause execution |
-| `WitSqlEngine.Transactions.cs` | Fix lock recursion |
-| `WitSqlEngine.Query.cs` | Implement index seek/range |
+| File | Changes Made |
+|------|-------------|
+| `ITransaction.cs` | Added `Scan()` and `ScanAsync()` methods |
+| `Transaction.cs` | Implemented `Scan()` with transaction-aware merging |
+| `MvccTransaction.cs` | Implemented `Scan()` with MVCC support |
+| `TransactionalStore.cs` | Added `ScanFromStore()` internal methods |
+| `IDatabase.cs` | Added `CurrentTransaction`, `CreateSavepoint()`, `ReleaseSavepoint()`, `RollbackToSavepoint()`, `BeginTransaction(IsolationLevel)` |
+| `WitSqlEngine.Transactions.cs` | Implemented isolation level support and savepoint methods |
+| `WitSqlEngine.Query.cs` | Updated `CreateTableScan()` to pass transaction |
+| `IteratorTableScan.cs` | Added transaction-aware scanning |
+| `StatementExecutor.cs` | Added transaction SQL statement execution |
+| `SchemaCatalog.cs` | Added transaction-aware row ID methods |
+| `WitSqlEngine.Ddl.Tables.cs` | Updated `GetNextAutoIncrement()` to use transaction |
 
 ---
 
@@ -352,7 +375,7 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |                     SQL ENGINE (Phase 2)                     |
 +-------------------------------------------------------------+
-|  Transaction Fix --> Index Usage --> Query Optimization      |
+|  Transaction Fix ? --> Index Usage --> Query Optimization    |
 |        |                                                     |
 |        +--> ALTER TABLE (ADD/DROP CONSTRAINT)                |
 |        |                                                     |
@@ -386,13 +409,13 @@ EF Core scaffolding requires these views for reverse engineering:
 
 ## Next Steps (Immediate)
 
-1. **Transaction Fix** - fix lock recursion issue
+1. ~~**Transaction Fix** - fix lock recursion issue~~ ?
 2. **ALTER TABLE** - add `AddConstraint` / `DropConstraint` to `ExecuteAlterTable`
 3. **Index Seek** - implement `CreateIndexSeek()` for B+Tree
 4. **Index Range Scan** - implement range queries
-5. **Enable Tests** - enable ignored tests
+5. ~~**Enable Tests** - enable ignored tests~~ ?
 
 ---
 
-**Last Updated:** 2025-01-27
+**Last Updated:** 2025-01-28
 

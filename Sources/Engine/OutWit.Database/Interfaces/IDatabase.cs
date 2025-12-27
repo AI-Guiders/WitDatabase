@@ -1,3 +1,4 @@
+using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Definitions;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
@@ -116,6 +117,13 @@ public interface IDatabase
     IDisposable BeginTransaction();
 
     /// <summary>
+    /// Begin a transaction with specified isolation level.
+    /// </summary>
+    /// <param name="isolationLevel">The isolation level.</param>
+    /// <returns>A disposable transaction handle.</returns>
+    IDisposable BeginTransaction(IsolationLevel isolationLevel);
+
+    /// <summary>
     /// Commit current transaction.
     /// </summary>
     void Commit();
@@ -124,6 +132,29 @@ public interface IDatabase
     /// Rollback current transaction.
     /// </summary>
     void Rollback();
+
+    /// <summary>
+    /// Gets the currently active transaction, or null if none.
+    /// </summary>
+    ITransaction? CurrentTransaction { get; }
+
+    /// <summary>
+    /// Create a savepoint within the current transaction.
+    /// </summary>
+    /// <param name="name">The savepoint name.</param>
+    void CreateSavepoint(string name);
+
+    /// <summary>
+    /// Release a savepoint within the current transaction.
+    /// </summary>
+    /// <param name="name">The savepoint name.</param>
+    void ReleaseSavepoint(string name);
+
+    /// <summary>
+    /// Rollback to a savepoint within the current transaction.
+    /// </summary>
+    /// <param name="name">The savepoint name.</param>
+    void RollbackToSavepoint(string name);
 
     /// <summary>
     /// Get a view by name.

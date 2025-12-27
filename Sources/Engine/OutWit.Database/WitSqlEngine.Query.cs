@@ -101,7 +101,8 @@ public sealed partial class WitSqlEngine
         var table = m_schema.GetTable(tableName)
                     ?? throw new InvalidOperationException($"Table '{tableName}' not found");
 
-        return new IteratorTableScan(GetActiveStore(), table);
+        // Use transaction for scanning if one is active
+        return new IteratorTableScan(m_currentTransaction, m_database.Store, table);
     }
 
     /// <summary>

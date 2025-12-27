@@ -125,6 +125,17 @@ public sealed partial class SchemaCatalog : IDisposable
     /// </summary>
     public long GetNextRowId(string tableName)
     {
+        return GetNextRowId(tableName, transaction: null);
+    }
+
+    /// <summary>
+    /// Gets the next row ID for a table, optionally using an active transaction.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="transaction">The active transaction (if any) to use for persisting the row ID.</param>
+    /// <returns>The next row ID.</returns>
+    public long GetNextRowId(string tableName, ITransaction? transaction)
+    {
         m_lock.EnterWriteLock();
         try
         {
@@ -136,7 +147,7 @@ public sealed partial class SchemaCatalog : IDisposable
 
             var nextId = currentId + 1;
             m_tableRowIds[tableName] = nextId;
-            SaveTableRowId(tableName, nextId);
+            SaveTableRowId(tableName, nextId, transaction);
 
             return nextId;
         }
@@ -155,6 +166,18 @@ public sealed partial class SchemaCatalog : IDisposable
     /// <returns>The first row ID in the reserved batch.</returns>
     public long GetNextRowIdBatch(string tableName, int count)
     {
+        return GetNextRowIdBatch(tableName, count, transaction: null);
+    }
+
+    /// <summary>
+    /// Reserves a batch of row IDs for bulk insert operations, optionally using an active transaction.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="count">Number of IDs to reserve.</param>
+    /// <param name="transaction">The active transaction (if any).</param>
+    /// <returns>The first row ID in the reserved batch.</returns>
+    public long GetNextRowIdBatch(string tableName, int count, ITransaction? transaction)
+    {
         if (count <= 0)
             throw new ArgumentOutOfRangeException(nameof(count), "Count must be positive");
 
@@ -170,7 +193,7 @@ public sealed partial class SchemaCatalog : IDisposable
             var firstId = currentId + 1;
             var lastId = currentId + count;
             m_tableRowIds[tableName] = lastId;
-            SaveTableRowId(tableName, lastId);
+            SaveTableRowId(tableName, lastId, transaction);
 
             return firstId;
         }
@@ -204,6 +227,14 @@ public sealed partial class SchemaCatalog : IDisposable
     /// </summary>
     public void ResetRowId(string tableName, long startFrom = 0)
     {
+        ResetRowId(tableName, startFrom, transaction: null);
+    }
+
+    /// <summary>
+    /// Resets the row ID counter for a table, optionally using an active transaction.
+    /// </summary>
+    public void ResetRowId(string tableName, long startFrom, ITransaction? transaction)
+    {
         m_lock.EnterWriteLock();
         try
         {
@@ -211,7 +242,7 @@ public sealed partial class SchemaCatalog : IDisposable
                 throw new InvalidOperationException($"Table '{tableName}' not found");
 
             m_tableRowIds[tableName] = startFrom;
-            SaveTableRowId(tableName, startFrom);
+            SaveTableRowId(tableName, startFrom, transaction);
         }
         finally
         {
@@ -219,7 +250,7 @@ public sealed partial class SchemaCatalog : IDisposable
         }
     }
 
-    private void SaveTableRowId(string tableName, long rowId)
+    private void SaveTableRowId(string tableName, long rowId, ITransaction? transaction)
     {
         // Build key: "$schema:_rowid:{tableName}"
         var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
@@ -229,7 +260,15 @@ public sealed partial class SchemaCatalog : IDisposable
 
         Span<byte> rowIdBytes = stackalloc byte[8];
         System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(rowIdBytes, rowId);
-        m_store.Put(keyBytes.AsSpan(), rowIdBytes);
+        
+        if (transaction != null)
+        {
+            transaction.Put(keyBytes.AsSpan(), rowIdBytes);
+        }
+        else
+        {
+            m_store.Put(keyBytes.AsSpan(), rowIdBytes);
+        }
     }
 
     private void LoadTableRowId(string tableName)

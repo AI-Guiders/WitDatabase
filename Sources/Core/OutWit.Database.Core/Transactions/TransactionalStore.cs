@@ -364,6 +364,30 @@ public sealed class TransactionalStore : ITransactionalStore, IAsyncDisposable
     internal ValueTask<bool> DeleteFromStoreAsync(byte[] key, CancellationToken cancellationToken = default)
         => m_store.DeleteAsync(key, cancellationToken);
 
+    /// <summary>
+    /// Scans from the underlying store without acquiring locks.
+    /// Used by Transaction which already holds the write lock.
+    /// </summary>
+    internal IEnumerable<(byte[] Key, byte[] Value)> ScanFromStore(byte[]? startKey, byte[]? endKey)
+        => m_store.Scan(startKey, endKey);
+
+    /// <summary>
+    /// Scans from the underlying store asynchronously without acquiring locks.
+    /// Used by Transaction which already holds the write lock.
+    /// </summary>
+    internal async ValueTask<List<(byte[] Key, byte[] Value)>> ScanFromStoreAsync(
+        byte[]? startKey, 
+        byte[]? endKey, 
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<(byte[] Key, byte[] Value)>();
+        await foreach (var item in m_store.ScanAsync(startKey, endKey, cancellationToken).ConfigureAwait(false))
+        {
+            results.Add(item);
+        }
+        return results;
+    }
+
     internal void NotifyTransactionComplete(Transaction tx)
     {
         lock (m_txLock)

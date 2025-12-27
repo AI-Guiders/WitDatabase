@@ -10,11 +10,13 @@ namespace OutWit.Database.Iterators;
 /// <summary>
 /// Iterator for performing full table scans.
 /// Reads all rows from a table in storage order.
+/// Supports transaction-aware scanning when a transaction is active.
 /// </summary>
 internal sealed class IteratorTableScan : IteratorBase
 {
     #region Fields
 
+    private readonly ITransaction? m_transaction;
     private readonly IKeyValueStore m_store;
     private readonly DefinitionTable m_table;
     private readonly byte[] m_prefix;
@@ -29,10 +31,12 @@ internal sealed class IteratorTableScan : IteratorBase
     /// <summary>
     /// Creates a new table scan iterator.
     /// </summary>
-    /// <param name="store">The key-value store to scan.</param>
+    /// <param name="transaction">The active transaction (if any).</param>
+    /// <param name="store">The key-value store to scan (used when no transaction is active).</param>
     /// <param name="table">The table definition.</param>
-    public IteratorTableScan(IKeyValueStore store, DefinitionTable table)
+    public IteratorTableScan(ITransaction? transaction, IKeyValueStore store, DefinitionTable table)
     {
+        m_transaction = transaction;
         m_store = store;
         m_table = table;
         m_prefix = SchemaCatalog.GetTableDataPrefix(table.Name);
@@ -84,7 +88,19 @@ internal sealed class IteratorTableScan : IteratorBase
         m_prefix.CopyTo(endKey, 0);
         endKey[^1]++; // Increment last byte to get "next" prefix
 
-        var results = m_store.Scan(m_prefix, endKey);
+        // Use transaction's Scan if available, otherwise use store directly
+        IEnumerable<(byte[] Key, byte[] Value)> results;
+        if (m_transaction != null)
+        {
+            // Transaction-aware scan - sees uncommitted changes
+            results = m_transaction.Scan(m_prefix, endKey);
+        }
+        else
+        {
+            // Direct store scan - only sees committed data
+            results = m_store.Scan(m_prefix, endKey);
+        }
+
         m_enumerator = results.GetEnumerator();
     }
 

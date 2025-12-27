@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using OutWit.Database.Core.Comparers;
 using OutWit.Database.Core.Concurrency;
 using OutWit.Database.Core.Exceptions;
@@ -370,6 +371,92 @@ namespace OutWit.Database.Core.Transactions
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(Delete(key));
+        }
+
+        #endregion
+
+        #region Scan
+
+        /// <inheritdoc/>
+        public IEnumerable<(byte[] Key, byte[] Value)> Scan(byte[]? startKey, byte[]? endKey)
+        {
+            ThrowIfNotActive();
+
+            // Get results from MVCC store as of our snapshot
+            var storeResults = m_store.ScanAsOf(startKey, endKey, SnapshotTimestamp, TransactionId);
+
+            // Merge store results with local changes
+            return MergeScanResults(storeResults, startKey, endKey);
+        }
+
+        /// <inheritdoc/>
+        public async IAsyncEnumerable<(byte[] Key, byte[] Value)> ScanAsync(
+            byte[]? startKey, 
+            byte[]? endKey, 
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            ThrowIfNotActive();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Get results from MVCC store as of our snapshot
+            var storeResults = m_store.ScanAsOf(startKey, endKey, SnapshotTimestamp, TransactionId);
+
+            // Merge store results with local changes
+            foreach (var item in MergeScanResults(storeResults, startKey, endKey))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return item;
+            }
+        }
+
+        private IEnumerable<(byte[] Key, byte[] Value)> MergeScanResults(
+            IEnumerable<(byte[] Key, byte[] Value)> storeResults,
+            byte[]? startKey,
+            byte[]? endKey)
+        {
+            // Create a sorted dictionary for merging
+            var merged = new SortedDictionary<byte[], byte[]>(m_comparer);
+
+            // Add store results, excluding deleted keys
+            foreach (var (key, value) in storeResults)
+            {
+                if (!m_deletedKeys.Contains(key))
+                {
+                    merged[key] = value;
+                }
+            }
+
+            // Apply local changes (inserts, updates, and filter by range)
+            foreach (var (key, (newValue, _)) in m_changes)
+            {
+                // Check if key is in range
+                if (!IsKeyInRange(key, startKey, endKey))
+                    continue;
+
+                if (newValue == null)
+                {
+                    // Delete
+                    merged.Remove(key);
+                }
+                else
+                {
+                    // Insert or Update
+                    merged[key] = newValue;
+                }
+            }
+
+            return merged.Select(kvp => (kvp.Key, kvp.Value));
+        }
+
+        private bool IsKeyInRange(byte[] key, byte[]? startKey, byte[]? endKey)
+        {
+            if (startKey != null && m_comparer.Compare(key, startKey) < 0)
+                return false;
+
+            if (endKey != null && m_comparer.Compare(key, endKey) >= 0)
+                return false;
+
+            return true;
         }
 
         #endregion

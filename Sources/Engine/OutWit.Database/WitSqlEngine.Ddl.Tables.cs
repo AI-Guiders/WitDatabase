@@ -296,7 +296,8 @@ public sealed partial class WitSqlEngine
     /// <returns>The next auto-increment value.</returns>
     public long GetNextAutoIncrement(string tableName)
     {
-        return m_schema.GetNextRowId(tableName);
+        // Pass the current transaction to avoid lock conflicts
+        return m_schema.GetNextRowId(tableName, m_currentTransaction);
     }
 
     #endregion
