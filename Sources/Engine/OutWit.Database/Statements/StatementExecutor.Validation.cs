@@ -22,6 +22,356 @@ public sealed partial class StatementExecutor
 
     #endregion
 
+    #region Cascading Actions (ON DELETE/UPDATE CASCADE, SET NULL, etc.)
+
+    /// <summary>
+    /// Handles cascading actions when a row is deleted or its primary key is updated.
+    /// This method finds all foreign keys that reference this table and applies the appropriate action.
+    /// </summary>
+    /// <param name="tableName">The table from which the row is being deleted/updated.</param>
+    /// <param name="row">The row being deleted/updated.</param>
+    /// <param name="isDelete">True if this is a DELETE operation, false for UPDATE.</param>
+    private void HandleCascadingActions(string tableName, WitSqlRow row, bool isDelete)
+    {
+        var parentTable = m_context.Database.GetTable(tableName);
+        if (parentTable == null)
+            return;
+
+        // Get the primary key columns of the parent table
+        var pkColumns = parentTable.PrimaryKey?.ToList();
+        if (pkColumns == null || pkColumns.Count == 0)
+        {
+            // Check for single-column PK via column flags
+            var pkCol = parentTable.Columns.FirstOrDefault(c => c.IsPrimaryKey);
+            if (pkCol != null)
+            {
+                pkColumns = [pkCol.Name];
+            }
+            else
+            {
+                return; // No primary key, nothing to cascade
+            }
+        }
+
+        // Get the PK values from the row being deleted
+        var pkValues = pkColumns.Select(col => row[col]).ToArray();
+        
+        // If all PK values are null, nothing to cascade
+        if (pkValues.All(v => v.IsNull))
+            return;
+
+        // Find all tables that have foreign keys referencing this table
+        foreach (var childTableName in GetAllTableNames())
+        {
+            if (childTableName.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                continue; // Skip self-reference for now
+
+            var childTable = m_context.Database.GetTable(childTableName);
+            if (childTable == null)
+                continue;
+
+            // Check column-level FK constraints
+            foreach (var col in childTable.Columns)
+            {
+                if (col.ForeignKey != null && 
+                    col.ForeignKey.ForeignTable.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    ApplyCascadingAction(childTableName, childTable, col.ForeignKey, pkColumns, pkValues, isDelete);
+                }
+            }
+
+            // Check table-level FK constraints
+            if (childTable.ForeignKeys != null)
+            {
+                foreach (var fk in childTable.ForeignKeys)
+                {
+                    if (fk.ForeignTable.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ApplyCascadingAction(childTableName, childTable, fk, pkColumns, pkValues, isDelete);
+                    }
+                }
+            }
+
+            // Check named constraints
+            if (childTable.NamedConstraints != null)
+            {
+                foreach (var constraint in childTable.NamedConstraints)
+                {
+                    if (constraint.Type == ConstraintType.ForeignKey && 
+                        constraint.ForeignKey != null &&
+                        constraint.ForeignKey.ForeignTable.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ApplyCascadingAction(childTableName, childTable, constraint.ForeignKey, pkColumns, pkValues, isDelete);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets all table names in the database.
+    /// </summary>
+    private IEnumerable<string> GetAllTableNames()
+    {
+        // We need to get all tables from the database
+        // Use INFORMATION_SCHEMA or iterate through known tables
+        if (m_context.Database is WitSqlEngine engine)
+        {
+            return engine.GetAllTableNames();
+        }
+        
+        return [];
+    }
+
+    /// <summary>
+    /// Applies the cascading action for a specific foreign key constraint.
+    /// </summary>
+    private void ApplyCascadingAction(
+        string childTableName,
+        DefinitionTable childTable,
+        DefinitionForeignKey fk,
+        List<string> parentPkColumns,
+        WitSqlValue[] parentPkValues,
+        bool isDelete)
+    {
+        // Determine which action to apply
+        var action = isDelete ? fk.OnDelete : fk.OnUpdate;
+
+        // NoAction and Restrict don't cascade - they just prevent the operation
+        // For NoAction/Restrict, we should check if there are referencing rows and throw an error
+        if (action == ReferenceAction.NoAction || action == ReferenceAction.Restrict)
+        {
+            // Check if there are any child rows referencing this parent
+            if (HasReferencingRows(childTableName, fk, parentPkColumns, parentPkValues))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot delete row from '{parentPkColumns[0]}': foreign key constraint '{childTableName}' references it");
+            }
+            return;
+        }
+
+        // Find all child rows that reference the parent row
+        var childRowsToProcess = FindReferencingRows(childTableName, fk, parentPkColumns, parentPkValues);
+        
+        if (childRowsToProcess.Count == 0)
+            return;
+
+        switch (action)
+        {
+            case ReferenceAction.Cascade:
+                // Delete all referencing child rows
+                foreach (var (rowId, _) in childRowsToProcess)
+                {
+                    // Recursively handle cascades for this child row
+                    var childRow = GetRowById(childTableName, rowId);
+                    if (childRow.HasValue)
+                    {
+                        HandleCascadingActions(childTableName, childRow.Value, isDelete: true);
+                    }
+                    
+                    m_context.Database.DeleteRow(childTableName, rowId);
+                }
+                break;
+
+            case ReferenceAction.SetNull:
+                // Set the FK columns to NULL
+                foreach (var (rowId, oldRow) in childRowsToProcess)
+                {
+                    var newRow = SetColumnsToNull(oldRow, fk.Columns, childTable);
+                    m_context.Database.UpdateRow(childTableName, rowId, newRow);
+                }
+                break;
+
+            case ReferenceAction.SetDefault:
+                // Set the FK columns to their default values
+                foreach (var (rowId, oldRow) in childRowsToProcess)
+                {
+                    var newRow = SetColumnsToDefault(oldRow, fk.Columns, childTable);
+                    m_context.Database.UpdateRow(childTableName, rowId, newRow);
+                }
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Checks if there are any rows in the child table that reference the parent row.
+    /// </summary>
+    private bool HasReferencingRows(
+        string childTableName,
+        DefinitionForeignKey fk,
+        List<string> parentPkColumns,
+        WitSqlValue[] parentPkValues)
+    {
+        var foreignColumns = fk.ForeignColumns?.ToList() ?? parentPkColumns;
+        
+        var iterator = m_context.Database.CreateTableScan(childTableName);
+        iterator.Open();
+        
+        try
+        {
+            while (iterator.MoveNext())
+            {
+                if (RowReferencesParent(iterator.Current, fk.Columns, foreignColumns, parentPkValues))
+                    return true;
+            }
+        }
+        finally
+        {
+            iterator.Dispose();
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Finds all rows in the child table that reference the parent row.
+    /// </summary>
+    private List<(long RowId, WitSqlRow Row)> FindReferencingRows(
+        string childTableName,
+        DefinitionForeignKey fk,
+        List<string> parentPkColumns,
+        WitSqlValue[] parentPkValues)
+    {
+        var result = new List<(long RowId, WitSqlRow Row)>();
+        var foreignColumns = fk.ForeignColumns?.ToList() ?? parentPkColumns;
+        
+        var iterator = m_context.Database.CreateTableScan(childTableName);
+        iterator.Open();
+        
+        try
+        {
+            while (iterator.MoveNext())
+            {
+                if (RowReferencesParent(iterator.Current, fk.Columns, foreignColumns, parentPkValues))
+                {
+                    var rowId = iterator.Current["_rowid"].AsInt64();
+                    result.Add((rowId, iterator.Current));
+                }
+            }
+        }
+        finally
+        {
+            iterator.Dispose();
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Checks if a child row references the parent row through the foreign key.
+    /// </summary>
+    private static bool RowReferencesParent(
+        WitSqlRow childRow,
+        IReadOnlyList<string> fkColumns,
+        List<string> parentPkColumns,
+        WitSqlValue[] parentPkValues)
+    {
+        for (int i = 0; i < fkColumns.Count && i < parentPkValues.Length; i++)
+        {
+            var childValue = childRow[fkColumns[i]];
+            var parentValue = parentPkValues[i];
+            
+            // NULL values don't match
+            if (childValue.IsNull || parentValue.IsNull)
+                return false;
+            
+            if (!childValue.Equals(parentValue))
+                return false;
+        }
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Gets a row by its row ID.
+    /// </summary>
+    private WitSqlRow? GetRowById(string tableName, long rowId)
+    {
+        var iterator = m_context.Database.CreateTableScan(tableName);
+        iterator.Open();
+        
+        try
+        {
+            while (iterator.MoveNext())
+            {
+                if (iterator.Current["_rowid"].AsInt64() == rowId)
+                    return iterator.Current;
+            }
+        }
+        finally
+        {
+            iterator.Dispose();
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Creates a new row with specified columns set to NULL.
+    /// </summary>
+    private static WitSqlRow SetColumnsToNull(WitSqlRow oldRow, IReadOnlyList<string> columnsToNull, DefinitionTable table)
+    {
+        var newValues = new WitSqlValue[oldRow.ColumnCount];
+        var newColumns = new string[oldRow.ColumnCount];
+        
+        for (int i = 0; i < oldRow.ColumnCount; i++)
+        {
+            var colName = oldRow.GetColumnName(i);
+            newColumns[i] = colName;
+            
+            if (columnsToNull.Any(c => c.Equals(colName, StringComparison.OrdinalIgnoreCase)))
+            {
+                newValues[i] = WitSqlValue.Null;
+            }
+            else
+            {
+                newValues[i] = oldRow[i];
+            }
+        }
+        
+        return new WitSqlRow(newValues, newColumns);
+    }
+
+    /// <summary>
+    /// Creates a new row with specified columns set to their default values.
+    /// </summary>
+    private WitSqlRow SetColumnsToDefault(WitSqlRow oldRow, IReadOnlyList<string> columnsToDefault, DefinitionTable table)
+    {
+        var newValues = new WitSqlValue[oldRow.ColumnCount];
+        var newColumns = new string[oldRow.ColumnCount];
+        var evaluator = new ExpressionEvaluator(m_context);
+        
+        for (int i = 0; i < oldRow.ColumnCount; i++)
+        {
+            var colName = oldRow.GetColumnName(i);
+            newColumns[i] = colName;
+            
+            if (columnsToDefault.Any(c => c.Equals(colName, StringComparison.OrdinalIgnoreCase)))
+            {
+                // Get the default value for this column
+                var col = table.GetColumn(colName);
+                if (col?.DefaultValue != null)
+                {
+                    var defaultExpr = WitSql.ParseExpression(col.DefaultValue);
+                    var defaultValue = evaluator.Evaluate(defaultExpr, oldRow);
+                    newValues[i] = defaultValue;
+                }
+                else
+                {
+                    newValues[i] = WitSqlValue.Null;
+                }
+            }
+            else
+            {
+                newValues[i] = oldRow[i];
+            }
+        }
+        
+        return new WitSqlRow(newValues, newColumns);
+    }
+
+    #endregion
+
     #region UNIQUE Constraints
 
     private void ValidateUniqueConstraints(DefinitionTable table, WitSqlRow row, string tableName, long? excludeRowId = null)

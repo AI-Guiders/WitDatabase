@@ -69,6 +69,9 @@ public sealed partial class StatementExecutor
                 continue; // INSTEAD OF executed, skip normal delete
             }
 
+            // Handle cascading actions for foreign keys referencing this table
+            HandleCascadingActions(delete.TableName, oldRow, isDelete: true);
+
             // Collect RETURNING row before deletion
             if (returningRows != null && table != null)
             {

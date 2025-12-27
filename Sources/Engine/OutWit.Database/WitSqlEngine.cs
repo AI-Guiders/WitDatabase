@@ -26,6 +26,11 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     private readonly bool m_ownsStore;
     private ITransaction? m_currentTransaction;
 
+    /// <summary>
+    /// Default query timeout. Null means no timeout.
+    /// </summary>
+    private TimeSpan? m_defaultQueryTimeout;
+
     #endregion
 
     #region Constructors
@@ -58,6 +63,60 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     public WitSqlResult Execute(string sql,
         IDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default)
+    {
+        return Execute(sql, parameters, timeout: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Execute a SQL query with a timeout and return the result.
+    /// </summary>
+    /// <param name="sql">SQL query text.</param>
+    /// <param name="parameters">Query parameters (optional).</param>
+    /// <param name="timeout">Query timeout. Null uses default timeout.</param>
+    /// <param name="cancellationToken">Cancellation token (optional).</param>
+    /// <returns>The query result.</returns>
+    /// <exception cref="OperationCanceledException">Thrown when the query times out.</exception>
+    public WitSqlResult Execute(string sql,
+        IDictionary<string, object?>? parameters,
+        TimeSpan? timeout,
+        CancellationToken cancellationToken = default)
+    {
+        // Determine effective timeout
+        var effectiveTimeout = timeout ?? m_defaultQueryTimeout;
+
+        // Create a combined cancellation token if timeout is specified
+        CancellationToken effectiveToken;
+        CancellationTokenSource? timeoutCts = null;
+
+        if (effectiveTimeout.HasValue && effectiveTimeout.Value > TimeSpan.Zero)
+        {
+            timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(effectiveTimeout.Value);
+            effectiveToken = timeoutCts.Token;
+        }
+        else
+        {
+            effectiveToken = cancellationToken;
+        }
+
+        try
+        {
+            return ExecuteInternal(sql, parameters, effectiveToken);
+        }
+        catch (OperationCanceledException) when (timeoutCts?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
+        {
+            // Convert timeout cancellation to a more specific exception message
+            throw new TimeoutException($"Query execution exceeded the timeout of {effectiveTimeout}");
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
+        }
+    }
+
+    private WitSqlResult ExecuteInternal(string sql,
+        IDictionary<string, object?>? parameters,
+        CancellationToken cancellationToken)
     {
         // Try to get cached plan
         IReadOnlyList<Parser.Statements.WitSqlStatement> statements;
@@ -118,6 +177,20 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
 
     #endregion
 
+    #region Query Timeout
+
+    /// <summary>
+    /// Gets or sets the default query timeout.
+    /// Null means no timeout (queries can run indefinitely).
+    /// </summary>
+    public TimeSpan? DefaultQueryTimeout
+    {
+        get => m_defaultQueryTimeout;
+        set => m_defaultQueryTimeout = value;
+    }
+
+    #endregion
+
     #region Schema Information
 
     /// <summary>
@@ -132,6 +205,14 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     /// Gets the query plan cache for statistics and management.
     /// </summary>
     public QueryPlanCache PlanCache => m_planCache;
+
+    /// <summary>
+    /// Gets all table names in the database.
+    /// </summary>
+    public IEnumerable<string> GetAllTableNames()
+    {
+        return m_schema.TableNames;
+    }
 
     #endregion
 
