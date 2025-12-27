@@ -51,6 +51,10 @@ public sealed partial class WitSqlEngine
         if (secondaryIndex == null)
             return;
 
+        // Skip building if index already has data (e.g., restored from disk after restart)
+        if (secondaryIndex.Count > 0)
+            return;
+
         // Scan all rows in the table
         var tablePrefix = SchemaCatalog.GetTableDataPrefix(indexDef.TableName);
         var endPrefix = SchemaCatalog.GetTableDataEndPrefix(indexDef.TableName);

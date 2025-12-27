@@ -1,5 +1,8 @@
+using OutWit.Database.Context;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Definitions;
+using OutWit.Database.Expressions;
+using OutWit.Database.Parser;
 using OutWit.Database.Schema;
 using OutWit.Database.Types;
 using OutWit.Database.Utils;
@@ -21,11 +24,15 @@ internal sealed class IteratorIndexSeek : IteratorBase
     private readonly ISecondaryIndex m_index;
     private readonly DefinitionTable m_table;
     private readonly DefinitionIndex m_indexDefinition;
+    private readonly ContextExecution? m_context;
     private readonly byte[] m_keyValue;
     private readonly byte[] m_tablePrefix;
     private IReadOnlyList<WitSqlColumnInfo>? m_schema;
     private IEnumerator<byte[]>? m_primaryKeyEnumerator;
     private WitSqlRow m_current;
+    
+    // Cached info about virtual computed columns
+    private readonly List<(int Index, string Expression)>? m_virtualComputedColumns;
 
     #endregion
 
@@ -40,13 +47,15 @@ internal sealed class IteratorIndexSeek : IteratorBase
     /// <param name="table">The table definition.</param>
     /// <param name="indexDefinition">The index definition.</param>
     /// <param name="keyValue">The serialized index key value to seek.</param>
+    /// <param name="context">The execution context (optional, for evaluating VIRTUAL computed columns).</param>
     public IteratorIndexSeek(
         ITransaction? transaction,
         IKeyValueStore store,
         ISecondaryIndex index,
         DefinitionTable table,
         DefinitionIndex indexDefinition,
-        byte[] keyValue)
+        byte[] keyValue,
+        ContextExecution? context = null)
     {
         m_transaction = transaction;
         m_store = store;
@@ -54,7 +63,20 @@ internal sealed class IteratorIndexSeek : IteratorBase
         m_table = table;
         m_indexDefinition = indexDefinition;
         m_keyValue = keyValue;
+        m_context = context;
         m_tablePrefix = SchemaCatalog.GetTableDataPrefix(table.Name);
+        
+        // Cache virtual computed columns info
+        m_virtualComputedColumns = null;
+        for (int i = 0; i < table.Columns.Count; i++)
+        {
+            var col = table.Columns[i];
+            if (col.IsComputed && !col.IsStored && !string.IsNullOrEmpty(col.ComputedExpression))
+            {
+                m_virtualComputedColumns ??= new List<(int, string)>();
+                m_virtualComputedColumns.Add((i, col.ComputedExpression));
+            }
+        }
     }
 
     #endregion
@@ -127,6 +149,28 @@ internal sealed class IteratorIndexSeek : IteratorBase
         {
             values[i + 1] = dataRow[i];
             names[i + 1] = dataRow.ColumnNames[i];
+        }
+
+        // Evaluate VIRTUAL computed columns on-the-fly
+        if (m_virtualComputedColumns != null && m_context != null)
+        {
+            var rowForEval = new WitSqlRow(dataRow.Values.ToArray(), dataRow.ColumnNames.ToArray());
+            var evaluator = new ExpressionEvaluator(m_context);
+
+            foreach (var (colIndex, expression) in m_virtualComputedColumns)
+            {
+                try
+                {
+                    var expr = WitSql.ParseExpression(expression);
+                    var computedValue = evaluator.Evaluate(expr, rowForEval);
+                    values[colIndex + 1] = computedValue; // +1 because of _rowid
+                }
+                catch
+                {
+                    // If evaluation fails, keep NULL
+                    values[colIndex + 1] = WitSqlValue.Null;
+                }
+            }
         }
 
         return new WitSqlRow(values, names);

@@ -67,7 +67,7 @@ public sealed class WitSqlEngineAlterTableIntegrationTests
         m_engine.Execute("CREATE TABLE Users (Id INT PRIMARY KEY, Email VARCHAR(255), Age INT)");
         m_engine.Execute("INSERT INTO Users (Id, Email, Age) VALUES (1, 'test@test.com', 25)");
         
-        // Add CHECK constraint (not UNIQUE - avoids index persistence issues for now)
+        // Add CHECK constraint
         m_engine.Execute("ALTER TABLE Users ADD CONSTRAINT CHK_Age CHECK (Age >= 0)");
         
         // Dispose and recreate engine
@@ -89,6 +89,31 @@ public sealed class WitSqlEngineAlterTableIntegrationTests
         var ex = Assert.Throws<InvalidOperationException>(() =>
             m_engine.Execute("INSERT INTO Users (Id, Email, Age) VALUES (2, 'other@test.com', -5)")); // Negative age
         Assert.That(ex!.Message, Does.Contain("CHECK"));
+    }
+
+    [Test]
+    public void UniqueConstraintSurvivesEngineRestartTest()
+    {
+        // Create table and add UNIQUE constraint
+        m_engine.Execute("CREATE TABLE Users (Id INT PRIMARY KEY, Email VARCHAR(255))");
+        m_engine.Execute("INSERT INTO Users (Id, Email) VALUES (1, 'test@test.com')");
+        m_engine.Execute("ALTER TABLE Users ADD CONSTRAINT UQ_Email UNIQUE (Email)");
+        
+        // Dispose and recreate engine
+        m_engine.Dispose();
+        var database = WitDatabase.Open(m_testDbPath);
+        m_engine = new WitSqlEngine(database, ownsStore: true);
+        
+        // Verify constraint still exists
+        var table = m_engine.GetTable("Users");
+        Assert.That(table!.NamedConstraints, Has.Count.EqualTo(1));
+        Assert.That(table.NamedConstraints![0].Name, Is.EqualTo("UQ_Email"));
+        Assert.That(table.NamedConstraints![0].Type, Is.EqualTo(ConstraintType.Unique));
+        
+        // Verify UNIQUE constraint is enforced after restart
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            m_engine.Execute("INSERT INTO Users (Id, Email) VALUES (2, 'test@test.com')")); // Duplicate email
+        Assert.That(ex!.Message, Does.Contain("UNIQUE"));
     }
 
     [Test]
@@ -456,6 +481,60 @@ public sealed class WitSqlEngineAlterTableIntegrationTests
             var expectedValue = (i + 1) * 2;
             Assert.That(rows[i]["Computed"].AsInt64(), Is.EqualTo(expectedValue), $"Row {i + 1} has wrong computed value");
         }
+    }
+
+    #endregion
+
+    #region VIRTUAL Computed Column with Index Tests
+
+    [Test]
+    public void VirtualComputedColumnWorksWithIndexSeekTest()
+    {
+        m_engine.Execute(@"
+            CREATE TABLE Products (
+                Id INT PRIMARY KEY,
+                Name VARCHAR(200),
+                Price DECIMAL,
+                NameUpper AS (UPPER(Name)) VIRTUAL
+            )");
+        
+        m_engine.Execute("INSERT INTO Products (Id, Name, Price) VALUES (1, 'Apple', 1.50)");
+        m_engine.Execute("INSERT INTO Products (Id, Name, Price) VALUES (2, 'Banana', 2.00)");
+        m_engine.Execute("INSERT INTO Products (Id, Name, Price) VALUES (3, 'Cherry', 3.50)");
+        
+        // Create index on regular column
+        m_engine.Execute("CREATE INDEX IX_Products_Price ON Products (Price)");
+        
+        // Query using index - VIRTUAL column should still be evaluated
+        var rows = m_engine.Query("SELECT * FROM Products WHERE Price = 2.00");
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["Name"].AsString(), Is.EqualTo("Banana"));
+        Assert.That(rows[0]["NameUpper"].AsString(), Is.EqualTo("BANANA"));
+    }
+
+    [Test]
+    public void VirtualComputedColumnWorksWithIndexRangeScanTest()
+    {
+        m_engine.Execute(@"
+            CREATE TABLE Products (
+                Id INT PRIMARY KEY,
+                Name VARCHAR(200),
+                Price DECIMAL,
+                DoubledPrice AS (Price * 2) VIRTUAL
+            )");
+        
+        m_engine.Execute("INSERT INTO Products (Id, Name, Price) VALUES (1, 'Apple', 1.00)");
+        m_engine.Execute("INSERT INTO Products (Id, Name, Price) VALUES (2, 'Banana', 2.00)");
+        m_engine.Execute("INSERT INTO Products (Id, Name, Price) VALUES (3, 'Cherry', 3.00)");
+        
+        // Create index
+        m_engine.Execute("CREATE INDEX IX_Products_Price ON Products (Price)");
+        
+        // Range query - VIRTUAL column should be evaluated for all results
+        var rows = m_engine.Query("SELECT * FROM Products WHERE Price >= 1.50 AND Price <= 2.50 ORDER BY Id");
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["Name"].AsString(), Is.EqualTo("Banana"));
+        Assert.That(rows[0]["DoubledPrice"].AsDecimal(), Is.EqualTo(4.00m));
     }
 
     #endregion

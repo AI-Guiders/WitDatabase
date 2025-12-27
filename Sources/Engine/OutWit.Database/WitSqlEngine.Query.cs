@@ -140,6 +140,9 @@ public sealed partial class WitSqlEngine
             return CreateTableScan(tableName);
         }
 
+        // Create execution context for VIRTUAL computed columns evaluation
+        var context = new ContextExecution { Database = this };
+
         // Serialize key values to index key
         var columnTypes = GetIndexColumnTypes(table, indexDef);
         var keyBytes = WitTypeConverter.SerializeIndexKey(keyValues, columnTypes);
@@ -150,7 +153,8 @@ public sealed partial class WitSqlEngine
             secondaryIndex,
             table,
             indexDef,
-            keyBytes);
+            keyBytes,
+            context);
     }
 
     /// <summary>
@@ -187,6 +191,9 @@ public sealed partial class WitSqlEngine
             return CreateTableScan(tableName);
         }
 
+        // Create execution context for VIRTUAL computed columns evaluation
+        var context = new ContextExecution { Database = this };
+
         // Get column types for serialization
         var columnTypes = GetIndexColumnTypes(table, indexDef);
 
@@ -207,7 +214,8 @@ public sealed partial class WitSqlEngine
             startKeyBytes,
             startInclusive,
             endKeyBytes,
-            endInclusive);
+            endInclusive,
+            context);
     }
 
     #endregion

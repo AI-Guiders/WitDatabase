@@ -1,5 +1,8 @@
+using OutWit.Database.Context;
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Definitions;
+using OutWit.Database.Expressions;
+using OutWit.Database.Parser;
 using OutWit.Database.Schema;
 using OutWit.Database.Types;
 using OutWit.Database.Utils;
@@ -21,6 +24,7 @@ internal sealed class IteratorIndexRangeScan : IteratorBase
     private readonly ISecondaryIndex m_index;
     private readonly DefinitionTable m_table;
     private readonly DefinitionIndex m_indexDefinition;
+    private readonly ContextExecution? m_context;
     private readonly byte[]? m_startKey;
     private readonly byte[]? m_endKey;
     private readonly bool m_startInclusive;
@@ -29,6 +33,9 @@ internal sealed class IteratorIndexRangeScan : IteratorBase
     private IReadOnlyList<WitSqlColumnInfo>? m_schema;
     private IEnumerator<(byte[] IndexKey, byte[] PrimaryKey)>? m_rangeEnumerator;
     private WitSqlRow m_current;
+    
+    // Cached info about virtual computed columns
+    private readonly List<(int Index, string Expression)>? m_virtualComputedColumns;
 
     #endregion
 
@@ -46,6 +53,7 @@ internal sealed class IteratorIndexRangeScan : IteratorBase
     /// <param name="startInclusive">Whether start key is inclusive.</param>
     /// <param name="endKey">The end key (null for unbounded end).</param>
     /// <param name="endInclusive">Whether end key is inclusive.</param>
+    /// <param name="context">The execution context (optional, for evaluating VIRTUAL computed columns).</param>
     public IteratorIndexRangeScan(
         ITransaction? transaction,
         IKeyValueStore store,
@@ -55,7 +63,8 @@ internal sealed class IteratorIndexRangeScan : IteratorBase
         byte[]? startKey,
         bool startInclusive,
         byte[]? endKey,
-        bool endInclusive)
+        bool endInclusive,
+        ContextExecution? context = null)
     {
         m_transaction = transaction;
         m_store = store;
@@ -66,7 +75,20 @@ internal sealed class IteratorIndexRangeScan : IteratorBase
         m_startInclusive = startInclusive;
         m_endKey = endKey;
         m_endInclusive = endInclusive;
+        m_context = context;
         m_tablePrefix = SchemaCatalog.GetTableDataPrefix(table.Name);
+        
+        // Cache virtual computed columns info
+        m_virtualComputedColumns = null;
+        for (int i = 0; i < table.Columns.Count; i++)
+        {
+            var col = table.Columns[i];
+            if (col.IsComputed && !col.IsStored && !string.IsNullOrEmpty(col.ComputedExpression))
+            {
+                m_virtualComputedColumns ??= new List<(int, string)>();
+                m_virtualComputedColumns.Add((i, col.ComputedExpression));
+            }
+        }
     }
 
     #endregion
@@ -139,6 +161,28 @@ internal sealed class IteratorIndexRangeScan : IteratorBase
         {
             values[i + 1] = dataRow[i];
             names[i + 1] = dataRow.ColumnNames[i];
+        }
+
+        // Evaluate VIRTUAL computed columns on-the-fly
+        if (m_virtualComputedColumns != null && m_context != null)
+        {
+            var rowForEval = new WitSqlRow(dataRow.Values.ToArray(), dataRow.ColumnNames.ToArray());
+            var evaluator = new ExpressionEvaluator(m_context);
+
+            foreach (var (colIndex, expression) in m_virtualComputedColumns)
+            {
+                try
+                {
+                    var expr = WitSql.ParseExpression(expression);
+                    var computedValue = evaluator.Evaluate(expr, rowForEval);
+                    values[colIndex + 1] = computedValue; // +1 because of _rowid
+                }
+                catch
+                {
+                    // If evaluation fails, keep NULL
+                    values[colIndex + 1] = WitSqlValue.Null;
+                }
+            }
         }
 
         return new WitSqlRow(values, names);

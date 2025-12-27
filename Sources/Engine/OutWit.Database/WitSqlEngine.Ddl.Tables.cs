@@ -446,18 +446,42 @@ public sealed partial class WitSqlEngine
         // Add constraint to schema
         m_schema.AddConstraint(tableName, constraint);
 
-        // For UNIQUE constraints, create an implicit unique index
+        // For UNIQUE constraints, create an implicit unique index (if not already exists)
         if (constraint.Type == ConstraintType.Unique && constraint.Columns != null)
         {
             var indexName = $"UQ_{tableName}_{constraint.Name}";
-            var index = new DefinitionIndex
+            
+            // Check if index already exists in schema
+            var existingIndexDef = GetIndex(indexName);
+            if (existingIndexDef != null)
+                return; // Index already exists in schema
+            
+            // Check if physical index already exists (e.g., restored from disk after engine restart)
+            var existingPhysicalIndex = m_database.GetIndex(indexName);
+            if (existingPhysicalIndex != null)
+            {
+                // Physical index exists but schema doesn't know about it
+                // Just add schema metadata without rebuilding
+                var index = new DefinitionIndex
+                {
+                    Name = indexName,
+                    TableName = tableName,
+                    Columns = constraint.Columns.ToList(),
+                    IsUnique = true
+                };
+                m_schema.CreateIndex(index);
+                return;
+            }
+            
+            // Create new index (both schema and physical)
+            var newIndex = new DefinitionIndex
             {
                 Name = indexName,
                 TableName = tableName,
                 Columns = constraint.Columns.ToList(),
                 IsUnique = true
             };
-            CreateIndex(index);
+            CreateIndex(newIndex);
         }
     }
 
