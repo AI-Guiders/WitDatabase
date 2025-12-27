@@ -17,6 +17,7 @@ public sealed partial class StatementExecutor
         ValidateUniqueConstraints(table, row, tableName, excludeRowId);
         ValidateCheckConstraints(table, row, tableName);
         ValidateForeignKeyConstraints(table, row, tableName);
+        ValidateNamedConstraints(table, row, tableName, excludeRowId);
     }
 
     #endregion
@@ -270,6 +271,120 @@ public sealed partial class StatementExecutor
             throw new InvalidOperationException(
                 $"FOREIGN KEY constraint failed: {tableName} -> {fk.ForeignTable} (values: {valuesStr})");
         }
+    }
+
+    #endregion
+
+    #region Named Constraints (via ALTER TABLE ADD CONSTRAINT)
+
+    /// <summary>
+    /// Validates named constraints added via ALTER TABLE ADD CONSTRAINT.
+    /// </summary>
+    private void ValidateNamedConstraints(DefinitionTable table, WitSqlRow row, string tableName, long? excludeRowId = null)
+    {
+        if (table.NamedConstraints == null || table.NamedConstraints.Count == 0)
+            return;
+
+        var evaluator = new ExpressionEvaluator(m_context);
+
+        foreach (var constraint in table.NamedConstraints)
+        {
+            switch (constraint.Type)
+            {
+                case ConstraintType.Check:
+                    ValidateNamedCheckConstraint(constraint, row, tableName, evaluator);
+                    break;
+
+                case ConstraintType.Unique:
+                    ValidateNamedUniqueConstraint(constraint, row, tableName, excludeRowId);
+                    break;
+
+                case ConstraintType.ForeignKey:
+                    ValidateNamedForeignKeyConstraint(constraint, row, tableName);
+                    break;
+
+                // PRIMARY KEY constraints are not added via ALTER TABLE
+            }
+        }
+    }
+
+    private static void ValidateNamedCheckConstraint(
+        DefinitionNamedConstraint constraint, 
+        WitSqlRow row, 
+        string tableName,
+        ExpressionEvaluator evaluator)
+    {
+        if (string.IsNullOrEmpty(constraint.CheckExpression))
+            return;
+
+        var checkExpr = WitSql.ParseExpression(constraint.CheckExpression);
+        var result = evaluator.Evaluate(checkExpr, row);
+
+        // Skip if result is NULL (SQL standard: NULL is not FALSE)
+        if (result.IsNull)
+            return;
+
+        if (!result.AsBool())
+        {
+            throw new InvalidOperationException(
+                $"CHECK constraint '{constraint.Name}' failed for table {tableName}");
+        }
+    }
+
+    private void ValidateNamedUniqueConstraint(
+        DefinitionNamedConstraint constraint, 
+        WitSqlRow row, 
+        string tableName,
+        long? excludeRowId)
+    {
+        if (constraint.Columns == null || constraint.Columns.Count == 0)
+            return;
+
+        // Check if all values are NULL - NULLs don't violate UNIQUE
+        bool allNull = constraint.Columns.All(col => row[col].IsNull);
+        if (allNull)
+            return;
+
+        // Scan existing rows to check for duplicates
+        var iterator = m_context.Database.CreateTableScan(tableName);
+        iterator.Open();
+
+        try
+        {
+            while (iterator.MoveNext())
+            {
+                var existingRow = iterator.Current;
+
+                // Skip the row being updated
+                if (excludeRowId.HasValue)
+                {
+                    var rowIdValue = existingRow["_rowid"];
+                    if (!rowIdValue.IsNull && rowIdValue.AsInt64() == excludeRowId.Value)
+                        continue;
+                }
+
+                if (IsUniqueViolation(row, existingRow, constraint.Columns))
+                {
+                    throw new InvalidOperationException(
+                        $"UNIQUE constraint '{constraint.Name}' failed for table {tableName}");
+                }
+            }
+        }
+        finally
+        {
+            iterator.Dispose();
+        }
+    }
+
+    private void ValidateNamedForeignKeyConstraint(
+        DefinitionNamedConstraint constraint, 
+        WitSqlRow row, 
+        string tableName)
+    {
+        if (constraint.ForeignKey == null)
+            return;
+
+        ValidateForeignKeyReference(constraint.ForeignKey, row, tableName);
     }
 
     #endregion

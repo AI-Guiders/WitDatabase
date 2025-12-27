@@ -272,5 +272,21 @@ All computed column features implemented:
 
 ---
 
+## Known Issues / TODO for v2
+
+### UNIQUE Constraint Index Persistence
+- [ ] When engine restarts, UNIQUE constraint index is recreated causing "duplicate values exist" error
+- Workaround: Use CHECK constraints for validation; index is already created on first run
+
+### Cascading Updates for STORED Columns
+- [ ] When source table FK value changes, STORED computed columns in dependent tables are not recalculated
+- This is a v2 enhancement - requires tracking dependencies between tables
+
+### VIRTUAL columns in Index Iterators
+- [ ] VIRTUAL computed columns are not evaluated in `IteratorIndexSeek` and `IteratorIndexRangeScan`
+- Only `IteratorTableScan` evaluates VIRTUAL columns on-the-fly
+
+---
+
 **Last Updated:** 2025-01-30  
 **Completed:** 2025-01-30

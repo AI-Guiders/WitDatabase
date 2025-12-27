@@ -79,11 +79,16 @@ public sealed partial class StatementExecutor
                 var columnNames = table.Columns.Select(c => c.Name).ToArray();
                 long rowId = 0;
 
-                // Initialize with defaults and auto-increment
+                // Initialize with defaults and auto-increment (skip computed columns)
                 for (int i = 0; i < table.Columns.Count; i++)
                 {
                     var col = table.Columns[i];
-                    if (col.IsAutoIncrement)
+                    if (col.IsComputed)
+                    {
+                        // Computed columns will be calculated after all regular values are set
+                        values[i] = WitSqlValue.Null;
+                    }
+                    else if (col.IsAutoIncrement)
                     {
                         rowId = m_context.Database.GetNextAutoIncrement(table.Name);
                         values[i] = WitSqlValue.FromInt(rowId);
@@ -108,6 +113,13 @@ public sealed partial class StatementExecutor
                         var colIndex = table.GetOrdinal(insert.ColumnNames[i]);
                         if (colIndex >= 0)
                         {
+                            var col = table.Columns[colIndex];
+                            // Don't allow setting computed columns directly
+                            if (col.IsComputed)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Cannot INSERT into computed column '{col.Name}'");
+                            }
                             values[colIndex] = iterator.Current[i];
                         }
                     }
@@ -115,9 +127,28 @@ public sealed partial class StatementExecutor
                 else
                 {
                     // Positional: INSERT INTO table SELECT ...
-                    for (int i = 0; i < iterator.Current.ColumnCount && i < table.Columns.Count; i++)
+                    // Skip computed columns for positional matching
+                    int valueIndex = 0;
+                    for (int i = 0; i < table.Columns.Count && valueIndex < iterator.Current.ColumnCount; i++)
                     {
-                        values[i] = iterator.Current[i];
+                        var col = table.Columns[i];
+                        if (!col.IsComputed)
+                        {
+                            values[i] = iterator.Current[valueIndex];
+                            valueIndex++;
+                        }
+                    }
+                }
+
+                // Calculate STORED computed columns
+                var intermediateRow = new WitSqlRow(values, columnNames);
+                for (int i = 0; i < table.Columns.Count; i++)
+                {
+                    var col = table.Columns[i];
+                    if (col.IsComputed && col.IsStored && !string.IsNullOrEmpty(col.ComputedExpression))
+                    {
+                        var expr = Parser.WitSql.ParseExpression(col.ComputedExpression);
+                        values[i] = evaluator.Evaluate(expr, intermediateRow);
                     }
                 }
 
@@ -263,6 +294,17 @@ public sealed partial class StatementExecutor
         var table = m_context.Database.GetTable(update.TableName)
             ?? throw new InvalidOperationException($"Table '{update.TableName}' not found");
 
+        // Validate that we're not trying to UPDATE computed columns directly
+        foreach (var setClause in update.SetClauses)
+        {
+            var col = table.GetColumn(setClause.ColumnName);
+            if (col != null && col.IsComputed)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot UPDATE computed column '{setClause.ColumnName}'");
+            }
+        }
+
         // Create a full scan and filter
         var iterator = m_context.Database.CreateTableScan(update.TableName);
 
@@ -307,7 +349,7 @@ public sealed partial class StatementExecutor
                 var intermediateRow = new WitSqlRow(newValues, columnNames);
 
                 // Recalculate STORED computed columns
-                // Note: currentRow has _rowid at index 0, so table column index needs +1 offset
+                // Note: currentRow has _rowid at index 0, so we search by column name
                 foreach (var computedCol in storedComputedColumns)
                 {
                     // Find the column in the row (which includes _rowid as first column)

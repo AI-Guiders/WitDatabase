@@ -341,8 +341,9 @@ EF Core scaffolding requires these views for reverse engineering:
 | WitSqlValue* | 148 | 0 | OK |
 | WitSqlEngineIndex* | 67 | 0 | OK |
 | WitSqlEngine* | 132 | 0 | OK |
-| WitSqlEngineAlterTableConstraint* | 44 | 0 | Computed columns complete |
-| **Total** | **1140+** | **0** | 100% passing |
+| WitSqlEngineAlterTableConstraint* | 44 | 0 | Computed columns |
+| WitSqlEngineAlterTableIntegration* | 13 | 0 | Persistence tests |
+| **Total** | **1137** | **0** | 100% passing |
 
 ---
 
