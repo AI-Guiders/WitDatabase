@@ -96,57 +96,6 @@ public sealed partial class StatementExecutor
 
     #endregion
 
-    #region Transaction Control
-
-    private WitSqlResult ExecuteBeginTransaction(WitSqlStatementBeginTransaction statement)
-    {
-        m_context.Database.BeginTransaction();
-        return new WitSqlResult();
-    }
-
-    private WitSqlResult ExecuteCommit(WitSqlStatementCommit statement)
-    {
-        m_context.Database.Commit();
-        return new WitSqlResult();
-    }
-
-    private WitSqlResult ExecuteRollback(WitSqlStatementRollback statement)
-    {
-        if (statement.SavepointName != null)
-        {
-            // ROLLBACK TO SAVEPOINT
-            m_context.Database.RollbackToSavepoint(statement.SavepointName);
-        }
-        else
-        {
-            // ROLLBACK (entire transaction)
-            m_context.Database.Rollback();
-        }
-        return new WitSqlResult();
-    }
-
-    private WitSqlResult ExecuteSavepoint(WitSqlStatementSavepoint statement)
-    {
-        m_context.Database.CreateSavepoint(statement.Name);
-        return new WitSqlResult();
-    }
-
-    private WitSqlResult ExecuteReleaseSavepoint(WitSqlStatementReleaseSavepoint statement)
-    {
-        m_context.Database.ReleaseSavepoint(statement.Name);
-        return new WitSqlResult();
-    }
-
-    private WitSqlResult ExecuteSetTransaction(WitSqlStatementSetTransaction statement)
-    {
-        // SET TRANSACTION ISOLATION LEVEL - currently we don't support changing isolation level
-        // after transaction has started. This would need to be applied to the next BEGIN TRANSACTION.
-        // For now, we just ignore it (most databases require this before BEGIN)
-        return new WitSqlResult();
-    }
-
-    #endregion
-
     #region Helpers
 
     private IEnumerable<WitSqlRow> EnumerateRows(IResultIterator iterator)

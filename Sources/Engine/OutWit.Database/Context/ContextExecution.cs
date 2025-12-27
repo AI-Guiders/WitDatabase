@@ -1,3 +1,4 @@
+using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Values;
 
@@ -48,4 +49,10 @@ public sealed class ContextExecution
     /// Null when not executing inside a trigger.
     /// </summary>
     public ContextTrigger? TriggerContext { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pending isolation level for the next transaction.
+    /// Set by SET TRANSACTION ISOLATION LEVEL and consumed by BEGIN TRANSACTION.
+    /// </summary>
+    public IsolationLevel? PendingIsolationLevel { get; set; }
 }
