@@ -109,6 +109,25 @@ namespace OutWit.Database.Values
         };
 
         /// <summary>
+        /// Gets whether this value is truthy (not null and not false/zero).
+        /// Used for WHERE clause evaluation in SQL.
+        /// </summary>
+        public bool IsTrue => m_type switch
+        {
+            WitSqlType.Null => false,
+            WitSqlType.Boolean or WitSqlType.Integer => m_intValue != 0,
+            WitSqlType.Real => m_realValue != 0,
+            WitSqlType.Text => IsTruthyString((string)m_objectValue!),
+            WitSqlType.Decimal => (decimal)m_objectValue! != 0,
+            _ => true // Non-null blobs, guids, etc. are truthy
+        };
+
+        /// <summary>
+        /// Gets whether this value is falsy (null or false/zero).
+        /// </summary>
+        public bool IsFalse => !IsTrue;
+
+        /// <summary>
         /// Gets the value as Decimal.
         /// </summary>
         /// <exception cref="InvalidCastException">If conversion is not possible.</exception>

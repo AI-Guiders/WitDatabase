@@ -1,4 +1,7 @@
+using OutWit.Database.Context;
 using OutWit.Database.Definitions;
+using OutWit.Database.Expressions;
+using OutWit.Database.Parser;
 using OutWit.Database.Schema;
 using OutWit.Database.Types;
 using OutWit.Database.Utils;
@@ -141,7 +144,11 @@ public sealed partial class WitSqlEngine
             if (secondaryIndex == null)
                 continue;
 
-            // Build the index key from the row values
+            // Check partial index WHERE condition
+            if (!EvaluatePartialIndexCondition(indexDef, row))
+                continue; // Row doesn't match partial index condition
+
+            // Build the index key from the row values (supports expression indexes)
             var indexKey = BuildIndexKey(table, indexDef, row);
             if (indexKey == null)
                 continue; // Skip if any key column is null and index doesn't support nulls
@@ -178,9 +185,13 @@ public sealed partial class WitSqlEngine
 
             var primaryKey = BuildPrimaryKey(rowId);
 
+            // Check if old row was in index (partial index condition)
+            bool oldRowInIndex = oldRow != null && EvaluatePartialIndexCondition(indexDef, oldRow.Value);
+            bool newRowInIndex = EvaluatePartialIndexCondition(indexDef, newRow);
+
             // Build old and new index keys
-            var oldIndexKey = oldRow != null ? BuildIndexKey(table, indexDef, oldRow.Value) : null;
-            var newIndexKey = BuildIndexKey(table, indexDef, newRow);
+            var oldIndexKey = oldRowInIndex ? BuildIndexKey(table, indexDef, oldRow!.Value) : null;
+            var newIndexKey = newRowInIndex ? BuildIndexKey(table, indexDef, newRow) : null;
 
             // Check if the indexed columns actually changed
             bool keysEqual = oldIndexKey != null && newIndexKey != null && 
@@ -228,6 +239,10 @@ public sealed partial class WitSqlEngine
             if (secondaryIndex == null)
                 continue;
 
+            // Check partial index WHERE condition
+            if (!EvaluatePartialIndexCondition(indexDef, oldRow))
+                continue; // Row wasn't in this partial index
+
             var indexKey = BuildIndexKey(table, indexDef, oldRow);
             if (indexKey == null)
                 continue;
@@ -238,7 +253,38 @@ public sealed partial class WitSqlEngine
     }
 
     /// <summary>
+    /// Evaluates the WHERE condition of a partial/filtered index.
+    /// </summary>
+    /// <param name="indexDef">The index definition.</param>
+    /// <param name="row">The row to evaluate against.</param>
+    /// <returns>True if row should be included in index, false otherwise.</returns>
+    private bool EvaluatePartialIndexCondition(DefinitionIndex indexDef, WitSqlRow row)
+    {
+        // If no WHERE clause, all rows are included
+        if (string.IsNullOrEmpty(indexDef.WhereExpression))
+            return true;
+
+        try
+        {
+            // Parse and evaluate the WHERE expression
+            var expression = WitSql.ParseExpression(indexDef.WhereExpression);
+            var context = new ContextExecution { Database = this };
+            var evaluator = new ExpressionEvaluator(context);
+            var result = evaluator.Evaluate(expression, row);
+            
+            // Return true if expression evaluates to true (non-null, non-false)
+            return result.IsTrue;
+        }
+        catch
+        {
+            // If evaluation fails, exclude from index for safety
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Builds an index key from row values based on index definition.
+    /// Supports expression indexes by evaluating expressions.
     /// </summary>
     /// <returns>The serialized index key, or null if any key column is null.</returns>
     private byte[]? BuildIndexKey(DefinitionTable table, DefinitionIndex indexDef, WitSqlRow row)
@@ -249,28 +295,79 @@ public sealed partial class WitSqlEngine
         for (int i = 0; i < indexDef.Columns.Count; i++)
         {
             var columnName = indexDef.Columns[i];
+            WitSqlValue value;
+            WitDataType columnType;
             
-            // Skip _rowid - it's a system column not in the index
-            if (columnName.Equals("_rowid", StringComparison.OrdinalIgnoreCase))
-                return null;
-                
-            var column = table.GetColumn(columnName);
-            if (column == null)
-                return null;
+            // Check if this is an expression column
+            var expressionSql = indexDef.GetColumnExpression(i);
+            if (!string.IsNullOrEmpty(expressionSql))
+            {
+                // Evaluate the expression
+                value = EvaluateIndexExpression(expressionSql, row);
+                // For expression indexes, determine type from the result
+                columnType = DetermineTypeFromValue(value);
+            }
+            else
+            {
+                // Skip _rowid - it's a system column not in the index
+                if (columnName.Equals("_rowid", StringComparison.OrdinalIgnoreCase))
+                    return null;
+                    
+                var column = table.GetColumn(columnName);
+                if (column == null)
+                    return null;
 
-            columnTypes[i] = column.Type;
+                columnType = column.Type;
 
-            if (!row.TryGetValue(columnName, out var value))
-                value = WitSqlValue.Null;
+                if (!row.TryGetValue(columnName, out value))
+                    value = WitSqlValue.Null;
+            }
 
             // Skip null values in index (standard SQL behavior for most DBs)
             if (value.IsNull)
                 return null;
 
             keyValues[i] = value;
+            columnTypes[i] = columnType;
         }
 
         return WitTypeConverter.SerializeIndexKey(keyValues, columnTypes);
+    }
+
+    /// <summary>
+    /// Evaluates an expression for an expression index.
+    /// </summary>
+    private WitSqlValue EvaluateIndexExpression(string expressionSql, WitSqlRow row)
+    {
+        try
+        {
+            var expression = WitSql.ParseExpression(expressionSql);
+            var context = new ContextExecution { Database = this };
+            var evaluator = new ExpressionEvaluator(context);
+            return evaluator.Evaluate(expression, row);
+        }
+        catch
+        {
+            // If evaluation fails, return null
+            return WitSqlValue.Null;
+        }
+    }
+
+    /// <summary>
+    /// Determines the data type from a WitSqlValue for expression indexes.
+    /// </summary>
+    private static WitDataType DetermineTypeFromValue(WitSqlValue value)
+    {
+        return value.Type switch
+        {
+            WitSqlType.Integer => WitDataType.Int64,
+            WitSqlType.Real => WitDataType.Float64,
+            WitSqlType.Text => WitDataType.StringVariable,
+            WitSqlType.Blob => WitDataType.BinaryVariable,
+            WitSqlType.Boolean => WitDataType.Boolean,
+            WitSqlType.Null => WitDataType.StringVariable, // Default for nulls
+            _ => WitDataType.StringVariable
+        };
     }
 
     /// <summary>

@@ -1,4 +1,7 @@
+using OutWit.Database.Context;
 using OutWit.Database.Definitions;
+using OutWit.Database.Expressions;
+using OutWit.Database.Parser;
 using OutWit.Database.Schema;
 using OutWit.Database.Types;
 using OutWit.Database.Utils;
@@ -35,6 +38,7 @@ public sealed partial class WitSqlEngine
 
     /// <summary>
     /// Builds an index from existing data in the table.
+    /// Supports partial indexes (WHERE clause), expression indexes, and covering indexes.
     /// </summary>
     /// <param name="indexDef">The index definition.</param>
     private void BuildIndexFromExistingData(DefinitionIndex indexDef)
@@ -59,7 +63,11 @@ public sealed partial class WitSqlEngine
             // Deserialize row
             var row = table.DeserializeRow(value);
             
-            // Build index key
+            // Check partial index WHERE condition
+            if (!EvaluatePartialIndexCondition(indexDef, row))
+                continue; // Skip rows that don't match the partial index condition
+
+            // Build index key (supports expression indexes)
             var indexKey = BuildIndexKey(table, indexDef, row);
             if (indexKey == null)
                 continue; // Skip rows with null values in indexed columns

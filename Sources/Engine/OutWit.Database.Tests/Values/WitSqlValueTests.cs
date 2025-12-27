@@ -34,6 +34,107 @@ public class WitSqlValueTests
 
     #endregion
 
+    #region IsTrue and IsFalse Tests
+
+    [Test]
+    public void IsTrueForNullReturnsFalseTest()
+    {
+        Assert.That(WitSqlValue.Null.IsTrue, Is.False);
+        Assert.That(WitSqlValue.Null.IsFalse, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForBooleanTrueReturnsTrueTest()
+    {
+        Assert.That(WitSqlValue.True.IsTrue, Is.True);
+        Assert.That(WitSqlValue.True.IsFalse, Is.False);
+    }
+
+    [Test]
+    public void IsTrueForBooleanFalseReturnsFalseTest()
+    {
+        Assert.That(WitSqlValue.False.IsTrue, Is.False);
+        Assert.That(WitSqlValue.False.IsFalse, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForNonZeroIntegerReturnsTrueTest()
+    {
+        Assert.That(WitSqlValue.FromInt(1).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromInt(42).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromInt(-1).IsTrue, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForZeroIntegerReturnsFalseTest()
+    {
+        Assert.That(WitSqlValue.FromInt(0).IsTrue, Is.False);
+        Assert.That(WitSqlValue.FromInt(0).IsFalse, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForNonZeroRealReturnsTrueTest()
+    {
+        Assert.That(WitSqlValue.FromReal(1.0).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromReal(0.1).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromReal(-0.5).IsTrue, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForZeroRealReturnsFalseTest()
+    {
+        Assert.That(WitSqlValue.FromReal(0.0).IsTrue, Is.False);
+        Assert.That(WitSqlValue.FromReal(0.0).IsFalse, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForNonEmptyTextReturnsTrueTest()
+    {
+        Assert.That(WitSqlValue.FromText("hello").IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromText("1").IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromText("true").IsTrue, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForEmptyOrFalsyTextReturnsFalseTest()
+    {
+        Assert.That(WitSqlValue.FromText("").IsTrue, Is.False);
+        Assert.That(WitSqlValue.FromText("0").IsTrue, Is.False);
+        Assert.That(WitSqlValue.FromText("false").IsTrue, Is.False);
+        Assert.That(WitSqlValue.FromText("FALSE").IsTrue, Is.False);
+    }
+
+    [Test]
+    public void IsTrueForNonZeroDecimalReturnsTrueTest()
+    {
+        Assert.That(WitSqlValue.FromDecimal(1m).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromDecimal(0.01m).IsTrue, Is.True);
+    }
+
+    [Test]
+    public void IsTrueForZeroDecimalReturnsFalseTest()
+    {
+        Assert.That(WitSqlValue.FromDecimal(0m).IsTrue, Is.False);
+    }
+
+    [Test]
+    public void IsTrueForBlobReturnsTrueTest()
+    {
+        // Non-null blobs are truthy
+        Assert.That(WitSqlValue.FromBlob([1, 2, 3]).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromBlob([]).IsTrue, Is.True); // Even empty blob is truthy (not null)
+    }
+
+    [Test]
+    public void IsTrueForGuidReturnsTrueTest()
+    {
+        // Non-null guids are truthy
+        Assert.That(WitSqlValue.FromGuid(Guid.NewGuid()).IsTrue, Is.True);
+        Assert.That(WitSqlValue.FromGuid(Guid.Empty).IsTrue, Is.True); // Even empty guid is truthy (not null)
+    }
+
+    #endregion
+
     #region ToString Tests
 
     [Test]

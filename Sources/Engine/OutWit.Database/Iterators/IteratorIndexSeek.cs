@@ -10,6 +10,7 @@ namespace OutWit.Database.Iterators;
 /// <summary>
 /// Iterator for performing index seek (equality lookup) operations.
 /// Reads rows from a table that match a specific index key value.
+/// Supports covering indexes with INCLUDE columns.
 /// </summary>
 internal sealed class IteratorIndexSeek : IteratorBase
 {
@@ -131,6 +132,37 @@ internal sealed class IteratorIndexSeek : IteratorBase
         return new WitSqlRow(values, names);
     }
 
+    /// <summary>
+    /// Checks if this index covers all required columns for a query.
+    /// A covering index includes the key columns plus any INCLUDE columns.
+    /// </summary>
+    /// <param name="requiredColumns">The columns required by the query.</param>
+    /// <returns>True if the index covers all required columns.</returns>
+    public bool CoverColumns(IEnumerable<string> requiredColumns)
+    {
+        var indexedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        // Add key columns
+        foreach (var col in m_indexDefinition.Columns)
+        {
+            indexedColumns.Add(col);
+        }
+        
+        // Add INCLUDE columns
+        if (m_indexDefinition.IncludeColumns != null)
+        {
+            foreach (var col in m_indexDefinition.IncludeColumns)
+            {
+                indexedColumns.Add(col);
+            }
+        }
+        
+        // Always include _rowid
+        indexedColumns.Add("_rowid");
+        
+        return requiredColumns.All(col => indexedColumns.Contains(col));
+    }
+
     #endregion
 
     #region IResultIterator
@@ -206,6 +238,16 @@ internal sealed class IteratorIndexSeek : IteratorBase
             return -1;
         }
     }
+
+    /// <summary>
+    /// Gets whether this is a covering index that includes additional columns.
+    /// </summary>
+    public bool IsCoveringIndex => m_indexDefinition.IsCovering;
+
+    /// <summary>
+    /// Gets the INCLUDE columns for this covering index.
+    /// </summary>
+    public IReadOnlyList<string>? IncludeColumns => m_indexDefinition.IncludeColumns;
 
     #endregion
 }

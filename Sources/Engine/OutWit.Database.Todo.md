@@ -119,9 +119,9 @@ All 46 transaction and locking tests passing:
 
 ---
 
-## 2. Index Implementation (P0 - COMPLETE)
+## 2. Index Implementation (P0/P1 - COMPLETE)
 
-**Current State:** Index implementation complete - metadata, iterators, auto-update, and building from existing data
+**Current State:** Index implementation complete - metadata, iterators, auto-update, building from existing data, partial indexes, expression indexes (engine support), and covering indexes
 
 ### Found in Code:
 ```csharp
@@ -138,11 +138,9 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
 - [x] **P0** Index key serialization (sort-order preserving)
 - [x] **P0** Index auto-update on INSERT/UPDATE/DELETE
 - [x] **P0** Index building from existing data (CREATE INDEX on non-empty table)
-
-### Remaining Tasks (P1 - Deferred):
-- [ ] **P1** Partial index evaluation (WHERE clause on index)
-- [ ] **P1** Expression index evaluation (functional indexes)
-- [ ] **P1** Covering index support (INCLUDE columns)
+- [x] **P1** Partial index evaluation (WHERE clause on index)
+- [x] **P1** Expression index evaluation (functional indexes) - engine support ready, parser syntax TBD
+- [x] **P1** Covering index support (INCLUDE columns)
 
 ### Implementation Files Created:
 - `Iterators/IteratorIndexSeek.cs` - Index equality lookup iterator
@@ -150,11 +148,13 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
 
 ### Updated Files:
 - `WitSqlEngine.Query.cs` - Added `CreateIndexSeek()`, `CreateIndexRangeScan()`, `SerializeIndexKey()`
-- `WitSqlEngine.Dml.cs` - Added index auto-update on INSERT/UPDATE/DELETE
-- `WitSqlEngine.Ddl.Indexes.cs` - Added physical secondary index creation/drop, index building from existing data
+- `WitSqlEngine.Dml.cs` - Added index auto-update on INSERT/UPDATE/DELETE, partial index condition evaluation, expression index evaluation
+- `WitSqlEngine.Ddl.Indexes.cs` - Added physical secondary index creation/drop, index building from existing data with partial index support
 - `Schema/SchemaCatalog.cs` - Added `GetTableDataEndPrefix()` for table scanning
-- `Values/WitSqlValue.Getters.cs` - Added `AsLong()`, `AsULong()`, `AsUInt64()` methods
+- `Values/WitSqlValue.Getters.cs` - Added `AsLong()`, `AsULong()`, `AsUInt64()`, `IsTrue`, `IsFalse` properties
 - `Types/WitTypeConverter.cs` - Fixed string serialization for lexicographic ordering
+- `Iterators/IteratorIndexSeek.cs` - Added `CoverColumns()` method for covering index support
+- `Iterators/IteratorIndexRangeScan.cs` - Added `CoverColumns()` method for covering index support
 
 ### Test Coverage:
 - **27 Index Tests** (`WitSqlEngineIndexTests.cs`):
@@ -169,6 +169,11 @@ public IResultIterator CreateIndexRangeScan(string tableName, string indexName, 
   - UPDATE: Updates indexed columns, removes null from index, adds non-null to index
   - DELETE: Removes entries from all indexes
   - Range scan: Reflects inserts, updates, and deletes correctly
+
+- **17 Advanced Index Tests** (`WitSqlEngineAdvancedIndexTests.cs`):
+  - Partial indexes: WHERE clause filtering on INSERT/UPDATE/DELETE
+  - Covering indexes: INCLUDE columns metadata and storage
+  - Combined: partial + covering indexes
 
 ---
 
@@ -407,11 +412,13 @@ EF Core scaffolding requires these views for reverse engineering:
 | File | Changes Made |
 |------|-------------|
 | `WitSqlEngine.Query.cs` | Added `CreateIndexSeek()`, `CreateIndexRangeScan()`, `SerializeIndexKey()` |
-| `WitSqlEngine.Dml.cs` | Added index auto-update on INSERT/UPDATE/DELETE |
-| `WitSqlEngine.Ddl.Indexes.cs` | Added physical secondary index creation/drop, index building from existing data |
+| `WitSqlEngine.Dml.cs` | Added index auto-update on INSERT/UPDATE/DELETE, partial index condition evaluation, expression index evaluation |
+| `WitSqlEngine.Ddl.Indexes.cs` | Added physical secondary index creation/drop, index building from existing data with partial index support |
 | `Schema/SchemaCatalog.cs` | Added `GetTableDataEndPrefix()` for table scanning |
-| `Values/WitSqlValue.Getters.cs` | Added `AsLong()`, `AsULong()`, `AsUInt64()` methods |
+| `Values/WitSqlValue.Getters.cs` | Added `AsLong()`, `AsULong()`, `AsUInt64()`, `IsTrue`, `IsFalse` properties |
 | `Types/WitTypeConverter.cs` | Fixed string serialization for lexicographic ordering |
+| `Iterators/IteratorIndexSeek.cs` | Added `CoverColumns()` method for covering index support |
+| `Iterators/IteratorIndexRangeScan.cs` | Added `CoverColumns()` method for covering index support |
 
 ---
 
