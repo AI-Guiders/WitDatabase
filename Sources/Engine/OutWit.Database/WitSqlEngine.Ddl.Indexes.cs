@@ -34,6 +34,9 @@ public sealed partial class WitSqlEngine
             // Build index from existing data in the table
             BuildIndexFromExistingData(index);
         }
+        
+        // Invalidate query plan cache (index may change optimal plan)
+        InvalidatePlanCacheForTable(index.TableName);
     }
 
     /// <summary>
@@ -141,6 +144,10 @@ public sealed partial class WitSqlEngine
     /// <param name="indexName">The index name to drop.</param>
     public void DropIndex(string indexName)
     {
+        // Get index definition to know the table name before dropping
+        var indexDef = m_schema.GetIndex(indexName);
+        var tableName = indexDef?.TableName;
+        
         // Remove metadata from schema catalog
         m_schema.DropIndex(indexName);
         
@@ -148,6 +155,12 @@ public sealed partial class WitSqlEngine
         if (m_database.SupportsIndexes)
         {
             m_database.DropIndex(indexName);
+        }
+        
+        // Invalidate query plan cache (index was used in optimal plans)
+        if (tableName != null)
+        {
+            InvalidatePlanCacheForTable(tableName);
         }
     }
 

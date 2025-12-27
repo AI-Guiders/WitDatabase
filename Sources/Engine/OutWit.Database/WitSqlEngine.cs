@@ -4,6 +4,7 @@ using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Definitions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Parser;
+using OutWit.Database.Query;
 using OutWit.Database.Schema;
 using OutWit.Database.Statements;
 using OutWit.Database.Values;
@@ -21,6 +22,7 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     private readonly WitDatabase m_database;
     private readonly SchemaCatalog m_schema;
     private readonly InformationSchema m_informationSchema;
+    private readonly QueryPlanCache m_planCache;
     private readonly bool m_ownsStore;
     private ITransaction? m_currentTransaction;
 
@@ -38,6 +40,7 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
         m_database = database;
         m_schema = new SchemaCatalog(database.Store);
         m_informationSchema = new InformationSchema(m_schema);
+        m_planCache = new QueryPlanCache();
         m_ownsStore = ownsStore;
     }
 
@@ -56,9 +59,26 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
         IDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default)
     {
-        var statements = WitSql.Parse(sql);
-        if (statements.Count == 0)
-            throw new InvalidOperationException("No SQL statement found");
+        // Try to get cached plan
+        IReadOnlyList<Parser.Statements.WitSqlStatement> statements;
+        if (m_planCache.TryGet(sql, out var cachedEntry) && cachedEntry != null)
+        {
+            // Use cached parsed statement
+            statements = [cachedEntry.Statement];
+        }
+        else
+        {
+            // Parse and cache
+            statements = WitSql.Parse(sql);
+            if (statements.Count == 0)
+                throw new InvalidOperationException("No SQL statement found");
+
+            // Cache single statements (multi-statement SQL is rare and not worth caching)
+            if (statements.Count == 1)
+            {
+                m_planCache.Add(sql, statements[0]);
+            }
+        }
 
         var context = new ContextExecution
         {
@@ -106,6 +126,33 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     public InformationSchema GetInformationSchema()
     {
         return m_informationSchema;
+    }
+
+    /// <summary>
+    /// Gets the query plan cache for statistics and management.
+    /// </summary>
+    public QueryPlanCache PlanCache => m_planCache;
+
+    #endregion
+
+    #region Cache Invalidation
+
+    /// <summary>
+    /// Invalidates the query plan cache.
+    /// Called automatically after DDL operations.
+    /// </summary>
+    internal void InvalidatePlanCache()
+    {
+        m_planCache.Invalidate();
+    }
+
+    /// <summary>
+    /// Invalidates query plans for a specific table.
+    /// Called after DDL operations on that table.
+    /// </summary>
+    internal void InvalidatePlanCacheForTable(string tableName)
+    {
+        m_planCache.InvalidateTable(tableName);
     }
 
     #endregion

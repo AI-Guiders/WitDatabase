@@ -26,6 +26,7 @@ public sealed partial class WitSqlEngine
     public void CreateTable(DefinitionTable table)
     {
         m_schema.CreateTable(table);
+        InvalidatePlanCacheForTable(table.Name);
     }
 
     #endregion
@@ -39,6 +40,7 @@ public sealed partial class WitSqlEngine
     public void DropTable(string tableName)
     {
         m_schema.DropTable(tableName);
+        InvalidatePlanCacheForTable(tableName);
     }
 
     #endregion
@@ -79,6 +81,10 @@ public sealed partial class WitSqlEngine
         }
 
         m_schema.RenameTable(oldName, newName);
+        
+        // Invalidate cache for both old and new names
+        InvalidatePlanCacheForTable(oldName);
+        InvalidatePlanCacheForTable(newName);
     }
 
     #endregion
