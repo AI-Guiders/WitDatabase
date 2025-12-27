@@ -678,6 +678,109 @@ public sealed partial class WitSqlEngine
 
     #endregion
 
+    #region Add Computed Column
+
+    /// <summary>
+    /// Add a computed column to an existing table.
+    /// For STORED computed columns, evaluates expression for all existing rows.
+    /// For VIRTUAL computed columns, just updates metadata (evaluated on query).
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="column">The computed column definition.</param>
+    public void AddComputedColumn(string tableName, DefinitionColumn column)
+    {
+        if (string.IsNullOrEmpty(column.ComputedExpression))
+        {
+            throw new InvalidOperationException("Computed column must have a computed expression");
+        }
+
+        var table = m_schema.GetTable(tableName)
+            ?? throw new InvalidOperationException($"Table '{tableName}' not found");
+
+        // Parse the computed expression
+        var expression = WitSql.ParseExpression(column.ComputedExpression);
+
+        // Create execution context for evaluating computed expression
+        var context = new ContextExecution { Database = this };
+        var evaluator = new ExpressionEvaluator(context);
+
+        if (column.IsStored)
+        {
+            // For STORED computed columns, evaluate expression for all existing rows
+            var prefix = SchemaCatalog.GetTableDataPrefix(tableName);
+            var rowsToUpdate = new List<(long rowId, WitSqlValue[] newValues)>();
+
+            foreach (var (key, value) in m_database.Scan(prefix, GetNextPrefix(prefix)))
+            {
+                var rowId = SchemaCatalog.ParseRowId(key, tableName);
+                var existingRow = table.DeserializeRow(value);
+                var values = existingRow.Values.ToArray();
+
+                // Evaluate computed expression for this row
+                var computedValue = evaluator.Evaluate(expression, existingRow);
+
+                // Create new row with additional column
+                var newValues = new WitSqlValue[values.Length + 1];
+                Array.Copy(values, newValues, values.Length);
+                newValues[values.Length] = computedValue;
+
+                rowsToUpdate.Add((rowId, newValues));
+            }
+
+            // Update schema first so serialization uses correct column count
+            m_schema.AddColumn(tableName, column);
+
+            // Get updated table definition for serialization
+            var updatedTable = m_schema.GetTable(tableName)!;
+
+            // Apply updates
+            foreach (var (rowId, newValues) in rowsToUpdate)
+            {
+                var storeKey = SchemaCatalog.CreateRowKey(tableName, rowId);
+                var data = updatedTable.SerializeValuesArray(newValues);
+                PutToStore(storeKey, data);
+            }
+        }
+        else
+        {
+            // For VIRTUAL computed columns, just add metadata
+            // The value will be computed on-the-fly during queries
+            // We still need to add NULL placeholder values for existing rows
+            var prefix = SchemaCatalog.GetTableDataPrefix(tableName);
+            var rowsToUpdate = new List<(long rowId, WitSqlValue[] newValues)>();
+
+            foreach (var (key, value) in m_database.Scan(prefix, GetNextPrefix(prefix)))
+            {
+                var rowId = SchemaCatalog.ParseRowId(key, tableName);
+                var existingRow = table.DeserializeRow(value);
+                var values = existingRow.Values.ToArray();
+
+                // Add NULL placeholder for virtual column
+                var newValues = new WitSqlValue[values.Length + 1];
+                Array.Copy(values, newValues, values.Length);
+                newValues[values.Length] = WitSqlValue.Null;
+
+                rowsToUpdate.Add((rowId, newValues));
+            }
+
+            // Update schema
+            m_schema.AddColumn(tableName, column);
+
+            // Get updated table definition for serialization
+            var updatedTable = m_schema.GetTable(tableName)!;
+
+            // Apply updates
+            foreach (var (rowId, newValues) in rowsToUpdate)
+            {
+                var storeKey = SchemaCatalog.CreateRowKey(tableName, rowId);
+                var data = updatedTable.SerializeValuesArray(newValues);
+                PutToStore(storeKey, data);
+            }
+        }
+    }
+
+    #endregion
+
     #region Auto Increment
 
     /// <summary>

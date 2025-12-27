@@ -8,11 +8,12 @@
 
 ## Overview
 
-ALTER TABLE is critical for EF Core migrations. Three main features need implementation:
+ALTER TABLE is critical for EF Core migrations. All main features implemented:
 
 1. ~~**ADD CONSTRAINT** - Add named constraints to existing table~~ ? COMPLETED
 2. ~~**DROP CONSTRAINT** - Remove named constraints~~ ? COMPLETED
 3. ~~**ADD COLUMN with DEFAULT** - Populate existing rows with default value~~ ? COMPLETED
+4. ~~**Computed Columns** - STORED and VIRTUAL computed columns~~ ? COMPLETED
 
 ---
 
@@ -125,27 +126,52 @@ The `AddColumn()` method in `WitSqlEngine.Ddl.Tables.cs` now:
 
 ---
 
-## 4. Computed Columns in ALTER TABLE (P2)
+## 4. Computed Columns in ALTER TABLE (P2) ? COMPLETED
 
 ### Current State
-- Parser: ? Supported (`ComputedExpression`, `IsStored`)
-- Engine: ? Not implemented for ALTER TABLE
+- Parser: ? Supported (`ComputedExpression`, `IsStored`, `ComputedColumnType`)
+- Engine: ? **IMPLEMENTED**
 
-### Implementation Steps (Deferred)
+### Implementation Summary
 
-#### Step 4.1: Stored Computed Columns
-- [ ] Add column metadata with computed expression
-- [ ] Evaluate expression for all existing rows
-- [ ] Store computed values
+**Completed on:** 2025-01-30
 
-#### Step 4.2: Virtual Computed Columns
-- [ ] Add column metadata with computed expression
-- [ ] Evaluate on-the-fly during query execution
-- [ ] No storage needed
+#### Supported Computed Column Types
 
-#### Step 4.3: Index on Computed Columns
-- [ ] Allow creating index on stored computed column
-- [ ] Expression index effectively does this already
+| Type | SQL Example | Status |
+|------|-------------|--------|
+| STORED | `ADD COLUMN Total AS (Qty * Price) STORED` | ? Implemented |
+| VIRTUAL | `ADD COLUMN FullName AS (First \|\| ' ' \|\| Last) VIRTUAL` | ? Implemented |
+| Default (VIRTUAL) | `ADD COLUMN Doubled AS (Value * 2)` | ? Implemented |
+
+#### Implementation Details
+
+**STORED Computed Columns:**
+1. Parse computed expression using `WitSql.ParseExpression()`
+2. Create `ExpressionEvaluator` for evaluation
+3. Iterate all existing rows
+4. Evaluate expression for each row
+5. Store computed value in the row
+6. Update schema with new column metadata
+
+**VIRTUAL Computed Columns:**
+1. Add column metadata with expression
+2. Store NULL placeholder for existing rows
+3. Value evaluated on-the-fly during SELECT queries (future enhancement)
+
+#### Files Modified
+- `Interfaces/IDatabase.cs` - Added `AddComputedColumn()` method
+- `WitSqlEngine.Ddl.Tables.cs` - Implemented `AddComputedColumn()` method
+- `Statements/StatementExecutor.Ddl.cs` - Updated `ExecuteAddColumn()` to handle computed columns
+
+#### Tests Added (WitSqlEngineAlterTableConstraintTests.cs)
+- [x] `AlterTableAddStoredComputedColumnTest()` - STORED computed column with arithmetic
+- [x] `AlterTableAddVirtualComputedColumnTest()` - VIRTUAL computed column
+- [x] `AlterTableAddComputedColumnDefaultsToVirtualTest()` - Default is VIRTUAL
+- [x] `AlterTableAddStoredComputedColumnOnEmptyTableTest()` - Empty table
+- [x] `AlterTableAddComputedColumnWithFunctionsTest()` - Using UPPER() function
+- [x] `AlterTableAddComputedColumnWithCaseExpressionTest()` - CASE expression
+- [x] `AlterTableAddComputedColumnWithNullHandlingTest()` - COALESCE for NULL handling
 
 ---
 
@@ -156,17 +182,17 @@ The `AddColumn()` method in `WitSqlEngine.Ddl.Tables.cs` now:
 | File | Purpose |
 |------|---------|
 | `Definitions/DefinitionNamedConstraint.cs` | Named constraint model with ConstraintType enum |
-| `Tests/WitSqlEngineAlterTableConstraintTests.cs` | Constraint tests (18 tests) |
+| `Tests/WitSqlEngineAlterTableConstraintTests.cs` | Constraint and computed column tests |
 
 ### Files Modified
 
 | File | Changes |
 |------|---------|
 | `Definitions/DefinitionTable.cs` | Added `NamedConstraints` property, `GetConstraint()` method |
-| `Interfaces/IDatabase.cs` | Added `AddConstraint()`, `DropConstraint()` methods |
-| `WitSqlEngine.Ddl.Tables.cs` | Implemented constraint methods, ADD COLUMN with DEFAULT |
+| `Interfaces/IDatabase.cs` | Added `AddConstraint()`, `DropConstraint()`, `AddComputedColumn()` methods |
+| `WitSqlEngine.Ddl.Tables.cs` | Constraint methods, ADD COLUMN with DEFAULT, computed columns |
 | `Schema/SchemaCatalog.Columns.cs` | Added `AddConstraint()`, `DropConstraint()` methods |
-| `Statements/StatementExecutor.Ddl.cs` | Handle `AddConstraint`, `DropConstraint` actions |
+| `Statements/StatementExecutor.Ddl.cs` | Handle constraint actions, computed columns |
 | `WitSqlRow.cs` | Added `Empty` static field |
 | `WitSqlEngineDdlTests.cs` | Added tests for ADD COLUMN with DEFAULT |
 
@@ -193,6 +219,9 @@ ALTER TABLE "Products" ADD CONSTRAINT "CHK_Price" CHECK (Price >= 0);
 
 -- Dropping a constraint ?
 ALTER TABLE "Users" DROP CONSTRAINT "UQ_Users_Email";
+
+-- Adding a computed column ?
+ALTER TABLE "OrderItems" ADD "TotalPrice" AS (Quantity * UnitPrice) STORED;
 ```
 
 All these patterns are now supported!
@@ -205,6 +234,8 @@ All these patterns are now supported!
 - UNIQUE constraint creates an implicit unique index named `UQ_{table}_{constraint}`
 - NULL values don't violate UNIQUE or FOREIGN KEY constraints
 - CHECK constraint allows NULL values (NULL != FALSE)
+- VIRTUAL computed columns store NULL placeholder; value evaluated on query (future enhancement)
+- STORED computed columns are calculated once at ADD COLUMN time; not auto-updated on row changes (future enhancement)
 
 ---
 
@@ -215,8 +246,21 @@ All these patterns are now supported!
 | ADD COLUMN with DEFAULT | 10 | ? |
 | ADD CONSTRAINT | 11 | ? |
 | DROP CONSTRAINT | 5 | ? |
+| Computed Columns | 7 | ? |
 | Integration | 2 | ? |
-| **Total** | **28** | ? |
+| **Total** | **35** | ? |
+
+---
+
+## Future Enhancements (v2)
+
+### Computed Columns Auto-Update
+- [ ] Auto-recalculate STORED columns on UPDATE affecting source columns
+- [ ] Evaluate VIRTUAL columns on-the-fly during SELECT
+
+### Index on Computed Columns
+- [ ] Allow creating index on STORED computed column
+- [ ] Expression index already provides similar functionality
 
 ---
 

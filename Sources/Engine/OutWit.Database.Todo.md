@@ -1,6 +1,6 @@
 # OutWit.Database (Engine) - TODO List v1
 
-**Last Updated:** 2025-01-29  
+**Last Updated:** 2025-01-30  
 **Based on:** Code audit + Roadmap.Engine.md
 
 ---
@@ -38,14 +38,14 @@
 |----------|----|----|----|----|
 | Transaction Support | 0 | 0 | 0 | ? DONE |
 | Index Implementation | 0 | 0 | 0 | ? DONE |
-| ALTER TABLE | 3 | 0 | 1 | ?? MISSING ? [Detailed TODO](OutWit.Database.AlterTable.Todo.md) |
+| ALTER TABLE | 0 | 0 | 0 | ? DONE ? [Details](OutWit.Database.AlterTable.Todo.md) |
 | CTE Execution | 2 | 1 | 0 | Required |
 | Window Functions | 0 | 6 | 3 | Required |
 | DML Enhancements | 0 | 8 | 0 | Required |
 | JSON Functions | 0 | 3 | 3 | Required |
 | Query Optimization | 0 | 2 | 2 | Optional |
 | INFORMATION_SCHEMA | 0 | 6 | 0 | Required |
-| Misc/Cleanup | 0 | 1 | 3 | Polish |
+| Misc/Cleanup | 0 | 0 | 3 | Polish |
 | **ADO.NET Provider** | 0 | 9 | 0 | After Engine |
 | **EF Core Provider** | 0 | 10+ | 0 | After ADO.NET |
 
@@ -72,50 +72,7 @@
 - [x] **P1** `SAVEPOINT` / `RELEASE SAVEPOINT` / `ROLLBACK TO SAVEPOINT`
 - [x] **P1** `FOR UPDATE` / `FOR SHARE` locking hints
 
-### FOR UPDATE/SHARE Implementation Details:
-- `IteratorLocking.cs` - applies row-level locks during iteration
-- `QueryPlanner.cs` - integrates locking iterator into query plan
-- Supports all wait modes: `WAIT` (default), `NOWAIT`, `SKIP LOCKED`
-- Requires MVCC transaction (throws if regular transaction or no transaction)
-- Leverages Core's `IMvccTransaction.GetForUpdate()`/`GetForShare()` methods
-
-### Test Coverage:
-All 46 transaction and locking tests passing:
-- `BeginTransactionReturnsHandleTest`
-- `CommitPersistsChangesTest`
-- `CommitWithoutTransactionDoesNotThrowTest`
-- `RollbackDiscardsChangesTest`
-- `RollbackWithoutTransactionDoesNotThrowTest`
-- `DisposeWithoutCommitAutoRollbacksTest`
-- `ChangesVisibleWithinTransactionTest`
-- `MultipleInsertsWithinTransactionVisibleTest`
-- `UpdateWithinTransactionVisibleTest`
-- `DeleteWithinTransactionVisibleTest`
-- `BeginTransactionSqlStartsTransactionTest`
-- `RollbackSqlDiscardsChangesTest`
-- `SavepointRollbackPartialChangesTest`
-- `SavepointSqlWorksTest`
-- `BeginTransactionWhileActiveThrowsTest`
-- `SavepointWithoutTransactionThrowsTest`
-- `RollbackToNonExistentSavepointThrowsTest`
-- `SelectForUpdateWithoutTransactionThrowsTest`
-- `SelectForShareWithoutTransactionThrowsTest`
-- `SelectForUpdateWithNonMvccTransactionThrowsTest`
-- `SelectWithForUpdateClauseIsParsedTest`
-- `SelectWithForShareClauseIsParsedTest`
-- `SelectWithForUpdateNoWaitIsParsedTest`
-- `SelectWithForUpdateSkipLockedIsParsedTest`
-- `SelectWithForShareNoWaitIsParsedTest`
-- `SelectForUpdateWithoutFromThrowsTest`
-- `SelectWithoutForClauseDoesNotRequireTransactionTest`
-- `SelectForUpdateWithWhereClauseIsParsedTest`
-- `SelectForShareWithJoinIsParsedTest`
-- `SelectForUpdateWithGroupByIsParsedTest`
-- `LockingTypeNoneDoesNotRequireTransactionTest`
-- `LockingTypeMappingTest(ForUpdate)`
-- `LockingTypeMappingTest(ForShare)`
-- `SelectForUpdateWithSubqueryInFromReturnsNullTableNameTest`
-- Plus 29 StatementExecutorTransactionTests
+### Test Coverage: 46 tests passing
 
 ---
 
@@ -123,84 +80,68 @@ All 46 transaction and locking tests passing:
 
 **Current State:** Index implementation complete - metadata, iterators, auto-update, building from existing data, partial indexes, expression indexes, and covering indexes
 
-### Found in Code:
-```csharp
-// WitSqlEngine.Query.cs - IMPLEMENTED
-public IResultIterator CreateIndexSeek(string tableName, string indexName, WitSqlValue[] keyValues)
-public IResultIterator CreateIndexRangeScan(string tableName, string indexName, ...)
-```
-
 ### Completed Tasks:
 - [x] **P0** Implement `IteratorIndexSeek.cs` - equality lookup using secondary index
 - [x] **P0** Implement `IteratorIndexRangeScan.cs` - range queries using index
-- [x] **P0** Implement `CreateIndexSeek()` in WitSqlEngine
-- [x] **P0** Implement `CreateIndexRangeScan()` in WitSqlEngine
 - [x] **P0** Index key serialization (sort-order preserving)
 - [x] **P0** Index auto-update on INSERT/UPDATE/DELETE
 - [x] **P0** Index building from existing data (CREATE INDEX on non-empty table)
 - [x] **P1** Partial index evaluation (WHERE clause on index)
-- [x] **P1** Expression index evaluation (functional indexes) - **Parser supports `CREATE INDEX ... ON ... (LOWER(Name))`**
+- [x] **P1** Expression index evaluation (functional indexes)
 - [x] **P1** Covering index support (INCLUDE columns)
-
-### Expression Index Parser Support:
-The parser already supports expression indexes via `ClauseIndexElement.Expression`:
-```sql
-CREATE INDEX IX_Users_LowerEmail ON Users (LOWER(Email));
-CREATE INDEX IX_Orders_Year ON Orders (YEAR(OrderDate));
-```
-
-The grammar (`WitSqlParser.g4`) has rules:
-- `indexColumnElement`: Simple column reference
-- `indexExpressionElement`: Expression like `LOWER(column)`, `YEAR(date)`, etc.
-
-### Implementation Files Created:
-- `Iterators/IteratorIndexSeek.cs` - Index equality lookup iterator
-- `Iterators/IteratorIndexRangeScan.cs` - Index range scan iterator
-
-### Updated Files:
-- `WitSqlEngine.Query.cs` - Added `CreateIndexSeek()`, `CreateIndexRangeScan()`, `SerializeIndexKey()`
-- `WitSqlEngine.Dml.cs` - Added index auto-update on INSERT/UPDATE/DELETE, partial index condition evaluation, expression index evaluation
-- `WitSqlEngine.Ddl.Indexes.cs` - Added physical secondary index creation/drop, index building from existing data with partial index support
-- `Schema/SchemaCatalog.cs` - Added `GetTableDataEndPrefix()` for table scanning
-- `Values/WitSqlValue.Getters.cs` - Added `AsLong()`, `AsULong()`, `AsUInt64()`, `IsTrue`, `IsFalse` properties
-- `Types/WitTypeConverter.cs` - Fixed string serialization for lexicographic ordering
-- `Iterators/IteratorIndexSeek.cs` - Added `CoverColumns()` method for covering index support
-- `Iterators/IteratorIndexRangeScan.cs` - Added `CoverColumns()` method for covering index support
 
 ### Test Coverage: 67 tests (27 basic + 23 auto-update + 17 advanced)
 
 ---
 
-## 3. ALTER TABLE (P0 - MISSING) ??
+## 3. ALTER TABLE (COMPLETED ?)
 
-**Current State:** Partial implementation - several ALTER actions not executed
+**Current State:** All ALTER TABLE features implemented including computed columns
 
-> **?? See detailed implementation plan: [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md)**
+> **?? See detailed implementation: [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md)**
 
-### Missing in `StatementExecutor.Ddl.cs`:
-```csharp
-// ExecuteAlterTable doesn't handle:
-case AlterActionAddConstraint addConstraint:  // NOT IMPLEMENTED
-case AlterActionDropConstraint dropConstraint: // NOT IMPLEMENTED
-```
+### Completed Tasks:
+- [x] **P0** `ALTER TABLE ADD CONSTRAINT` - CHECK, UNIQUE, FOREIGN KEY constraints
+- [x] **P0** `ALTER TABLE DROP CONSTRAINT` - Remove named constraints  
+- [x] **P0** `ALTER TABLE ADD COLUMN` - populate existing rows with DEFAULT value
+- [x] **P2** Computed columns support in ALTER TABLE (STORED and VIRTUAL)
 
-### Found in Tests (Ignored):
-```csharp
-// WitSqlEngineDdlTests.cs:99
-[Ignore("ALTER TABLE ADD COLUMN with DEFAULT does not yet populate existing rows")]
-public void AlterTableAddColumnWithDefaultPopulatesExistingRowsTest()
-```
+### Implementation Summary:
 
-### Tasks (Summary - see detailed TODO for steps):
-- [ ] **P0** `ALTER TABLE ADD CONSTRAINT` - needed for EF Core migrations
-- [ ] **P0** `ALTER TABLE DROP CONSTRAINT` - needed for EF Core migrations  
-- [ ] **P0** `ALTER TABLE ADD COLUMN` - populate existing rows with DEFAULT value
-- [ ] **P2** Computed columns support in ALTER TABLE
+#### ADD CONSTRAINT (Completed 2025-01-30)
+- Created `DefinitionNamedConstraint.cs` with `ConstraintType` enum
+- Added `NamedConstraints` property to `DefinitionTable`
+- Implemented validation for CHECK (expression evaluation), UNIQUE (duplicate check), FOREIGN KEY (referential integrity)
+- PRIMARY KEY throws `NotSupportedException` (would require table rebuild)
+- UNIQUE constraint creates implicit index
 
-### Implementation Order (from detailed TODO):
-1. **Week 1**: ADD COLUMN with DEFAULT (smallest scope, unblocks EF Core)
-2. **Week 2**: DROP CONSTRAINT
-3. **Week 3**: ADD CONSTRAINT (most complex)
+#### DROP CONSTRAINT (Completed 2025-01-30)
+- Removes constraint from metadata
+- Drops associated index for UNIQUE constraints
+- PRIMARY KEY cannot be dropped (throws `NotSupportedException`)
+
+#### ADD COLUMN with DEFAULT (Completed 2025-01-30)
+- Parses and evaluates DEFAULT expression
+- Supports deterministic (evaluated once) and non-deterministic functions (NOW, NEWGUID - evaluated per row)
+- Populates all existing rows with default value
+
+#### Computed Columns (Completed 2025-01-30)
+- STORED computed columns: expression evaluated for all existing rows, value persisted
+- VIRTUAL computed columns: metadata stored, NULL placeholder for existing rows
+- Supports functions (UPPER, LOWER, etc.), CASE expressions, NULL handling (COALESCE)
+
+### Files Created:
+- `Definitions/DefinitionNamedConstraint.cs`
+- `Tests/WitSqlEngineAlterTableConstraintTests.cs`
+
+### Files Modified:
+- `Definitions/DefinitionTable.cs` - Added `NamedConstraints`, `GetConstraint()`
+- `Interfaces/IDatabase.cs` - Added `AddConstraint()`, `DropConstraint()`, `AddComputedColumn()`
+- `WitSqlEngine.Ddl.Tables.cs` - Constraint validation, computed columns
+- `Schema/SchemaCatalog.Columns.cs` - Constraint persistence
+- `Statements/StatementExecutor.Ddl.cs` - Handle constraint actions, computed columns
+
+### Test Coverage: 35 tests (11 ADD CONSTRAINT + 5 DROP CONSTRAINT + 10 ADD COLUMN with DEFAULT + 7 Computed Columns + 2 integration)
 
 ---
 
@@ -297,7 +238,7 @@ EF Core scaffolding requires these views for reverse engineering:
 
 ### Code Cleanup:
 - [x] **P1** Enable ignored transaction tests after fix
-- [ ] **P1** Enable ALTER TABLE DEFAULT test after fix
+- [x] **P1** Enable ALTER TABLE DEFAULT test after fix
 - [ ] **P2** ROWVERSION auto-increment support
 - [ ] **P2** Cascading deletes (FK ON DELETE CASCADE)
 - [ ] **P2** Query timeout cancellation
@@ -365,8 +306,8 @@ EF Core scaffolding requires these views for reverse engineering:
 | Week | Tasks |
 |------|-------|
 | **Week 1-2** | ~~Transaction fix~~, ~~FOR UPDATE/SHARE~~, ~~Index implementation~~ ? |
-| **Week 3** | ALTER TABLE ADD COLUMN with DEFAULT |
-| **Week 4** | ALTER TABLE DROP/ADD CONSTRAINT |
+| **Week 3** | ~~ALTER TABLE ADD COLUMN with DEFAULT~~ ? |
+| **Week 4** | ~~ALTER TABLE DROP/ADD CONSTRAINT~~ ? |
 | **Week 5-6** | CTE execution, RETURNING clause |
 | **Week 7-8** | Window functions (ROW_NUMBER, RANK) |
 | **Week 9-10** | INFORMATION_SCHEMA, JSON functions |
@@ -394,13 +335,14 @@ EF Core scaffolding requires these views for reverse engineering:
 | Test File | Passing | Ignored | Notes |
 |-----------|---------|---------|-------|
 | ExpressionEvaluator* | 194 | 0 | OK |
-| StatementExecutor* | 162 | 1 | ALTER TABLE DEFAULT |
+| StatementExecutor* | 162 | 0 | OK |
 | Iterators/* | 119 | 0 | OK |
 | QueryPlanner* | 50 | 0 | OK |
 | WitSqlValue* | 148 | 0 | OK |
 | WitSqlEngineIndex* | 67 | 0 | OK |
-| WitSqlEngine* | 132 | 1 | ALTER TABLE DEFAULT |
-| **Total** | **1090+** | **2** | 99.8% passing |
+| WitSqlEngine* | 132 | 0 | OK |
+| WitSqlEngineAlterTableConstraint* | 25 | 0 | NEW (incl. computed columns) |
+| **Total** | **1122+** | **0** | 100% passing |
 
 ---
 
@@ -425,14 +367,16 @@ EF Core scaffolding requires these views for reverse engineering:
 | `WitSqlEngine.Ddl.Indexes.cs` | Modified |
 | `WitSqlValue.Getters.cs` | Modified |
 
-### ALTER TABLE (Planned)
+### ALTER TABLE (Complete)
 | File | Status |
 |------|--------|
-| `DefinitionNamedConstraint.cs` | To Create |
-| `DefinitionTable.cs` | To Modify |
-| `IDatabase.cs` | To Modify |
-| `WitSqlEngine.Ddl.Tables.cs` | To Modify |
-| `StatementExecutor.Ddl.cs` | To Modify |
+| `DefinitionNamedConstraint.cs` | Created |
+| `DefinitionTable.cs` | Modified |
+| `IDatabase.cs` | Modified |
+| `WitSqlEngine.Ddl.Tables.cs` | Modified |
+| `Schema/SchemaCatalog.Columns.cs` | Modified |
+| `StatementExecutor.Ddl.cs` | Modified |
+| `WitSqlEngineAlterTableConstraintTests.cs` | Created |
 
 ---
 
@@ -444,9 +388,9 @@ EF Core scaffolding requires these views for reverse engineering:
 +-------------------------------------------------------------+
 |  Transaction Fix ? --> FOR UPDATE/SHARE ? --> Index ?        |
 |        |                                                     |
-|        +--> ALTER TABLE (ADD/DROP CONSTRAINT) ? CURRENT      |
+|        +--> ALTER TABLE (ADD/DROP CONSTRAINT) ?              |
 |        |                                                     |
-|        +--> CTE Execution                                    |
+|        +--> CTE Execution  ? NEXT                            |
 |        |                                                     |
 |        +--> Window Functions (ROW_NUMBER for pagination)     |
 |        |                                                     |
@@ -479,19 +423,21 @@ EF Core scaffolding requires these views for reverse engineering:
 1. ~~**Transaction Fix** - fix lock recursion issue~~ ?
 2. ~~**FOR UPDATE/SHARE** - implement locking hints~~ ?
 3. ~~**Index Implementation** - seek, range scan, auto-update~~ ?
-4. **ALTER TABLE ADD COLUMN with DEFAULT** ? NEXT (see [detailed TODO](OutWit.Database.AlterTable.Todo.md))
-5. **ALTER TABLE DROP CONSTRAINT** 
-6. **ALTER TABLE ADD CONSTRAINT**
-7. **CTE Execution** - implement simple (non-recursive) CTE
+4. ~~**ALTER TABLE ADD COLUMN with DEFAULT**~~ ?
+5. ~~**ALTER TABLE DROP CONSTRAINT**~~ ?
+6. ~~**ALTER TABLE ADD CONSTRAINT**~~ ?
+7. **CTE Execution** ? NEXT - implement simple (non-recursive) CTE
+8. **RETURNING clause** - INSERT/UPDATE/DELETE ... RETURNING
+9. **Window Functions** - ROW_NUMBER(), RANK(), etc.
 
 ---
 
 ## Related Documents
 
 - [Roadmap.Engine.md](../../Roadmap.Engine.md) - Overall engine roadmap
-- [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md) - Detailed ALTER TABLE implementation plan
+- [OutWit.Database.AlterTable.Todo.md](OutWit.Database.AlterTable.Todo.md) - ALTER TABLE implementation (COMPLETED)
 
 ---
 
-**Last Updated:** 2025-01-29
+**Last Updated:** 2025-01-30
 

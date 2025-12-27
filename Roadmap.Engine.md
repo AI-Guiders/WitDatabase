@@ -1,8 +1,8 @@
 # OutWit.Database (Engine) - Roadmap
 
-**Version:** 2.3  
+**Version:** 2.4  
 **Based on:** WitSql.md specification v1.2  
-**Last Updated:** 2025-01-29
+**Last Updated:** 2025-01-30
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Progress Summary
 
-**Current Status: ~75% - Core SQL Execution + Transactions + Indexes Complete**
+**Current Status: ~80% - Core SQL Execution + Transactions + Indexes + ALTER TABLE Complete**
 
 The Engine component (`OutWit.Database`) is responsible for:
 - SQL execution against the Core storage layer
@@ -55,6 +55,7 @@ The Engine component (`OutWit.Database`) is responsible for:
 - ? **Transaction support** (BEGIN/COMMIT/ROLLBACK, Isolation Levels, Savepoints)
 - ? **FOR UPDATE / FOR SHARE** locking hints with NOWAIT/SKIP LOCKED
 - ? **Index Implementation** (Index seek, range scan, auto-update, partial indexes, expression indexes, covering indexes)
+- ? **ALTER TABLE** (ADD/DROP CONSTRAINT, ADD COLUMN with DEFAULT)
 
 ---
 
@@ -134,9 +135,10 @@ The Engine component (`OutWit.Database`) is responsible for:
 | DEFAULT values | [x] | P0 | v1 | SS2.1 |
 | `DROP TABLE` execution | [x] | P0 | v1 | SS2.2 |
 | `ALTER TABLE` execution | [x] | P1 | v1 | SS2.3 |
-| `ALTER TABLE ADD CONSTRAINT` | [ ] | P0 | v1 | SS2.3 |
-| `ALTER TABLE DROP CONSTRAINT` | [ ] | P0 | v1 | SS2.3 |
-| `ALTER TABLE ADD COLUMN` with DEFAULT (populate existing rows) | [ ] | P0 | v1 | SS2.3 |
+| `ALTER TABLE ADD CONSTRAINT` | [x] | P0 | v1 | SS2.3 |
+| `ALTER TABLE DROP CONSTRAINT` | [x] | P0 | v1 | SS2.3 |
+| `ALTER TABLE ADD COLUMN` with DEFAULT (populate existing rows) | [x] | P0 | v1 | SS2.3 |
+| Computed columns in ALTER TABLE | [x] | P2 | v1 | SS2.3 |
 
 ### 3.2 Index Operations
 
@@ -488,29 +490,36 @@ The Engine component (`OutWit.Database`) is responsible for:
 | Expression indexes (functional) | [x] | P1 | v1 | SS19.2 |
 | Covering indexes (INCLUDE cols) | [x] | P1 | v1 | SS19.3 |
 
-### Implementation Details:
-- **Index Iterators**: `IteratorIndexSeek.cs` for equality, `IteratorIndexRangeScan.cs` for ranges
-- **Index Auto-Update**: DML operations automatically update all affected secondary indexes
-- **Partial Indexes**: WHERE clause evaluated via `ExpressionEvaluator`
-- **Expression Indexes**: Expressions evaluated and serialized for key building
-- **Covering Indexes**: INCLUDE columns stored in index metadata, `CoverColumns()` method for query optimizer
-
 ---
 
-## 11. Schema Information
+## 11. ALTER TABLE Implementation ? COMPLETE
 
 | Feature | Status | Priority | Version | Spec |
 |---------|--------|----------|---------|------|
-| INFORMATION_SCHEMA.TABLES | [ ] | P1 | v1 | SS13.1 |
-| INFORMATION_SCHEMA.COLUMNS | [ ] | P1 | v1 | SS13.1 |
-| INFORMATION_SCHEMA.KEY_COLUMN_USAGE | [ ] | P1 | v1 | SS13.1 |
-| INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS | [ ] | P1 | v1 | SS13.1 |
-| INFORMATION_SCHEMA.INDEXES | [ ] | P1 | v1 | SS13.1 |
-| INFORMATION_SCHEMA.VIEWS | [ ] | P1 | v1 | SS13.1 |
+| ADD COLUMN | [x] | P0 | v1 | SS2.3 |
+| DROP COLUMN | [x] | P0 | v1 | SS2.3 |
+| RENAME COLUMN | [x] | P1 | v1 | SS2.3 |
+| RENAME TABLE | [x] | P1 | v1 | SS2.3 |
+| ALTER COLUMN TYPE | [x] | P1 | v1 | SS2.3 |
+| ALTER COLUMN SET/DROP DEFAULT | [x] | P1 | v1 | SS2.3 |
+| ALTER COLUMN SET/DROP NOT NULL | [x] | P1 | v1 | SS2.3 |
+| ADD COLUMN with DEFAULT (populate rows) | [x] | P0 | v1 | SS2.3 |
+| ADD CONSTRAINT CHECK | [x] | P0 | v1 | SS2.3 |
+| ADD CONSTRAINT UNIQUE | [x] | P0 | v1 | SS2.3 |
+| ADD CONSTRAINT FOREIGN KEY | [x] | P0 | v1 | SS2.3 |
+| ADD CONSTRAINT PRIMARY KEY | [ ] | - | - | Not supported |
+| DROP CONSTRAINT | [x] | P0 | v1 | SS2.3 |
+| Computed columns | [ ] | P2 | v1 | SS2.3 |
 
----
-
-## 12. ADO.NET Provider
+### Implementation Details:
+- **Named Constraints**: `DefinitionNamedConstraint` class with CHECK, UNIQUE, FOREIGN KEY, PRIMARY KEY types
+- **ADD CONSTRAINT Validation**:
+  - CHECK: Evaluates expression against all existing rows
+  - UNIQUE: Verifies no duplicates (NULL excluded from uniqueness)
+  - FOREIGN KEY: Validates referential integrity (NULL allowed)
+  - PRIMARY KEY: Throws `NotSupportedException` (requires table rebuild)
+- **DROP CONSTRAINT**: Removes from metadata, drops associated UNIQUE index
+- **ADD COLUMN with DEFAULT**: Evaluates expression, supports non-deterministic functions (NOW, NEWGUID)
 
 | Feature | Status | Priority | Version |
 |---------|--------|----------|---------|
@@ -684,11 +693,24 @@ The Engine component (`OutWit.Database`) is responsible for:
 | WitSqlEngineIndexTests | 27 | ? Passing |
 | WitSqlEngineIndexAutoUpdateTests | 23 | ? Passing |
 | WitSqlEngineAdvancedIndexTests | 17 | ? Passing |
-| **Total** | **1090+** | ? Passing |
+| WitSqlEngineAlterTableConstraintTests | 18 | ? Passing |
+| **Total** | **1115+** | ? Passing |
 
 ---
 
 ## Recent Changes
+
+### 2025-01-30
+- ? **ALTER TABLE Implementation Complete**:
+  - `ALTER TABLE ADD CONSTRAINT` - CHECK, UNIQUE, FOREIGN KEY constraints
+  - `ALTER TABLE DROP CONSTRAINT` - Remove named constraints
+  - `ALTER TABLE ADD COLUMN` with DEFAULT - populates existing rows
+  - **Computed Columns** - STORED and VIRTUAL computed columns
+  - Created `DefinitionNamedConstraint.cs`
+  - Added `AddComputedColumn()` method to `IDatabase`
+  - STORED columns evaluate expression for all existing rows
+  - VIRTUAL columns store NULL placeholder (evaluated on query - future)
+- ? 35 new ALTER TABLE tests (constraints + computed columns)
 
 ### 2025-01-29
 - ? **Index Implementation Complete**:
@@ -730,4 +752,4 @@ The Engine component (`OutWit.Database`) is responsible for:
 
 ---
 
-**Last Updated:** 2025-01-29
+**Last Updated:** 2025-01-30

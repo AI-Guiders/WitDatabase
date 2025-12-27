@@ -250,7 +250,25 @@ public sealed partial class StatementExecutor
     {
         var colDef = addColumn.WitSqlColumn;
 
-        var col = new DefinitionColumn
+        // Check if this is a computed column
+        if (colDef.IsComputed)
+        {
+            var col = new DefinitionColumn
+            {
+                Name = colDef.Name,
+                // For computed columns, infer type from expression or use default
+                Type = colDef.DataType != null ? MapDataType(colDef.DataType) : WitDataType.StringVariable,
+                Nullable = true,
+                ComputedExpression = WitSqlExpressionSerializer.Serialize(colDef.ComputedExpression!),
+                IsStored = colDef.ComputedType == ComputedColumnType.Stored
+            };
+
+            m_context.Database.AddComputedColumn(tableName, col);
+            return;
+        }
+
+        // Regular column
+        var regularCol = new DefinitionColumn
         {
             Name = colDef.Name,
             Type = colDef.DataType != null ? MapDataType(colDef.DataType) : WitDataType.StringVariable,
@@ -265,17 +283,17 @@ public sealed partial class StatementExecutor
                 switch (constraint)
                 {
                     case ColumnConstraintNotNull notNull:
-                        col.Nullable = !notNull.IsNotNull;
+                        regularCol.Nullable = !notNull.IsNotNull;
                         break;
 
                     case ColumnConstraintDefault def:
-                        col.DefaultValue = WitSqlExpressionSerializer.Serialize(def.Value);
+                        regularCol.DefaultValue = WitSqlExpressionSerializer.Serialize(def.Value);
                         break;
                 }
             }
         }
 
-        m_context.Database.AddColumn(tableName, col);
+        m_context.Database.AddColumn(tableName, regularCol);
     }
 
     private void ExecuteAlterColumn(string tableName, AlterActionAlterColumn action)

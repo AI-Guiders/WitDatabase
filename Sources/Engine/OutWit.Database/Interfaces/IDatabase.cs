@@ -62,6 +62,13 @@ public interface IDatabase
     void AddColumn(string tableName, DefinitionColumn metadataColumn);
 
     /// <summary>
+    /// Add a computed column to an existing table.
+    /// For STORED computed columns, evaluates expression for all existing rows.
+    /// For VIRTUAL computed columns, just updates metadata (evaluated on query).
+    /// </summary>
+    void AddComputedColumn(string tableName, DefinitionColumn computedColumn);
+
+    /// <summary>
     /// Drop a column from an existing table.
     /// </summary>
     void DropColumn(string tableName, string columnName);
