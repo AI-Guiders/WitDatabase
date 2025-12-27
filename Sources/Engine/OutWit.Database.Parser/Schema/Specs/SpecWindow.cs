@@ -1,5 +1,6 @@
 using OutWit.Common.Abstract;
 using OutWit.Common.Collections;
+using OutWit.Common.Values;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Clauses;
 
@@ -15,7 +16,8 @@ public sealed class SpecWindow : ModelBase
             return false;
 
         return PartitionBy.Is(spec.PartitionBy)
-               && OrderBy.Is(spec.OrderBy);
+               && OrderBy.Is(spec.OrderBy)
+               && Frame.Check(spec.Frame);
     }
 
     public override SpecWindow Clone()
@@ -23,7 +25,8 @@ public sealed class SpecWindow : ModelBase
         return new SpecWindow
         {
             PartitionBy = PartitionBy?.Select(expression => (WitSqlExpression)expression.Clone()).ToList(),
-            OrderBy = OrderBy?.Select(item => item.Clone()).ToList()
+            OrderBy = OrderBy?.Select(item => item.Clone()).ToList(),
+            Frame = Frame?.Clone()
         };
     }
 
@@ -34,6 +37,11 @@ public sealed class SpecWindow : ModelBase
 
     public IReadOnlyList<WitSqlExpression>? PartitionBy { get; init; }
     public IReadOnlyList<ClauseOrderByItem>? OrderBy { get; init; }
+    
+    /// <summary>
+    /// Optional frame clause (ROWS/RANGE BETWEEN ... AND ...).
+    /// </summary>
+    public SpecFrame? Frame { get; init; }
 
     #endregion
 }

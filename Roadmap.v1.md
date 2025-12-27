@@ -331,9 +331,9 @@
 | `OVER ()` | N/A | [x] | [x] | SS7 |
 | `OVER (PARTITION BY ...)` | N/A | [x] | [x] | SS7 |
 | `OVER (ORDER BY ...)` | N/A | [x] | [x] | SS7 |
-| `ROWS/RANGE frame_clause` | N/A | [x] | [ ] | SS7 |
-| `UNBOUNDED PRECEDING/FOLLOWING` | N/A | [x] | [ ] | SS7 |
-| `n PRECEDING/FOLLOWING`, `CURRENT ROW` | N/A | [x] | [ ] | SS7 |
+| `ROWS/RANGE frame_clause` | N/A | [x] | [x] | SS7 |
+| `UNBOUNDED PRECEDING/FOLLOWING` | N/A | [x] | [x] | SS7 |
+| `n PRECEDING/FOLLOWING`, `CURRENT ROW` | N/A | [x] | [x] | SS7 |
 | `ROW_NUMBER()` | N/A | [x] | [x] | SS7.1 |
 | `RANK()` | N/A | [x] | [x] | SS7.1 |
 | `DENSE_RANK()` | N/A | [x] | [x] | SS7.1 |

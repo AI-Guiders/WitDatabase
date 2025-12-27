@@ -378,8 +378,70 @@ internal sealed partial class WitSqlVisitor
         return new SpecWindow
         {
             PartitionBy = context.expression()?.Select(VisitExpression).ToList(),
-            OrderBy = context.orderByClause() is { } orderBy ? VisitOrderByClause(orderBy) : null
+            OrderBy = context.orderByClause() is { } orderBy ? VisitOrderByClause(orderBy) : null,
+            Frame = context.frameClause() is { } frame ? VisitFrameClause(frame) : null
         };
+    }
+
+    private SpecFrame VisitFrameClause(WitSqlParser.FrameClauseContext context)
+    {
+        var frameType = context.ROWS() != null ? FrameType.Rows : FrameType.Range;
+
+        var frameBounds = context.frameBound();
+
+        if (frameBounds.Length == 1)
+        {
+            // Single bound: ROWS/RANGE frameBound (end is implicitly CURRENT ROW)
+            return new SpecFrame
+            {
+                FrameType = frameType,
+                Start = VisitFrameBound(frameBounds[0]),
+                End = new SpecFrameBound { BoundType = FrameBoundType.CurrentRow }
+            };
+        }
+        else
+        {
+            // BETWEEN ... AND ...
+            return new SpecFrame
+            {
+                FrameType = frameType,
+                Start = VisitFrameBound(frameBounds[0]),
+                End = VisitFrameBound(frameBounds[1])
+            };
+        }
+    }
+
+    private SpecFrameBound VisitFrameBound(WitSqlParser.FrameBoundContext context)
+    {
+        if (context.UNBOUNDED() != null)
+        {
+            if (context.PRECEDING() != null)
+            {
+                return new SpecFrameBound { BoundType = FrameBoundType.UnboundedPreceding };
+            }
+            else
+            {
+                return new SpecFrameBound { BoundType = FrameBoundType.UnboundedFollowing };
+            }
+        }
+
+        if (context.CURRENT() != null)
+        {
+            return new SpecFrameBound { BoundType = FrameBoundType.CurrentRow };
+        }
+
+        // n PRECEDING or n FOLLOWING
+        var intLiteral = context.INTEGER_LITERAL();
+        var offset = intLiteral != null ? int.Parse(intLiteral.GetText()) : 1;
+
+        if (context.PRECEDING() != null)
+        {
+            return new SpecFrameBound { BoundType = FrameBoundType.Preceding, Offset = offset };
+        }
+        else
+        {
+            return new SpecFrameBound { BoundType = FrameBoundType.Following, Offset = offset };
+        }
     }
 
     private WitSqlExpressionCase VisitCaseExpression(WitSqlParser.CaseExprContext context)

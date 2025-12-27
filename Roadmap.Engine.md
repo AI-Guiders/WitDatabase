@@ -338,7 +338,10 @@ The Engine component (`OutWit.Database`) is responsible for:
 | OVER clause handling | [x] | P1 | v1 | SS7 |
 | PARTITION BY | [x] | P1 | v1 | SS7 |
 | ORDER BY in window | [x] | P1 | v1 | SS7 |
-| Frame clause (ROWS/RANGE) | [ ] | P2 | v2 | SS7 |
+| Frame clause (ROWS/RANGE) | [x] | P1 | v1 | SS7 |
+| UNBOUNDED PRECEDING/FOLLOWING | [x] | P1 | v1 | SS7 |
+| n PRECEDING/FOLLOWING | [x] | P1 | v1 | SS7 |
+| CURRENT ROW | [x] | P1 | v1 | SS7 |
 | ROW_NUMBER | [x] | P1 | v1 | SS7.1 |
 | RANK / DENSE_RANK | [x] | P1 | v1 | SS7.1 |
 | NTILE | [x] | P1 | v1 | SS7.1 |
@@ -347,14 +350,15 @@ The Engine component (`OutWit.Database`) is responsible for:
 | FIRST_VALUE / LAST_VALUE / NTH_VALUE | [x] | P1 | v1 | SS7.2 |
 | Aggregate window functions (SUM, AVG, COUNT, MIN, MAX OVER) | [x] | P1 | v1 | SS7 |
 
-### Implementation Details (Completed 2025-02-01):
+### Implementation Details (Completed 2025-02-05):
 - **IteratorWindow.cs** - blocking operator that reads all rows, partitions by PARTITION BY, sorts by ORDER BY, evaluates window functions
 - **Ranking functions**: ROW_NUMBER, RANK (with ties/skip), DENSE_RANK (no gaps), NTILE, PERCENT_RANK, CUME_DIST
 - **Value functions**: FIRST_VALUE, LAST_VALUE, NTH_VALUE, LAG (with offset/default), LEAD (with offset/default)
-- **Aggregate functions**: SUM, AVG, COUNT, MIN, MAX with OVER clause (partition-level aggregation)
+- **Aggregate functions**: SUM, AVG, COUNT, MIN, MAX with OVER clause (frame-aware aggregation)
+- **Frame clause**: ROWS/RANGE BETWEEN with UNBOUNDED PRECEDING/FOLLOWING, n PRECEDING/FOLLOWING, CURRENT ROW
 - **WindowOrderComparer** - handles ORDER BY with ASC/DESC and NULLS FIRST/LAST
 
-### Test Coverage: 24 tests passing
+### Test Coverage: 37 tests passing (24 base + 12 frame tests + 1 multi-frame)
 
 ---
 

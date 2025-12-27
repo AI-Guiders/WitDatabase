@@ -194,7 +194,7 @@ public sealed class IteratorWindow : IteratorBase
             var sortedPartition = SortPartition(partition, windowSpec.OrderBy);
 
             // Evaluate window function for each row in the partition
-            EvaluateWindowFunction(selectIndex, funcName, func, sortedPartition);
+            EvaluateWindowFunction(selectIndex, funcName, func, sortedPartition, windowSpec.Frame);
         }
     }
 
@@ -253,7 +253,8 @@ public sealed class IteratorWindow : IteratorBase
         int selectIndex,
         string funcName,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         var partitionSize = sortedIndices.Count;
 
@@ -263,12 +264,68 @@ public sealed class IteratorWindow : IteratorBase
         }
         else if (VALUE_FUNCTIONS.Contains(funcName))
         {
-            EvaluateValueFunction(selectIndex, funcName, func, sortedIndices);
+            EvaluateValueFunction(selectIndex, funcName, func, sortedIndices, frame);
         }
         else if (AGGREGATE_FUNCTIONS.Contains(funcName))
         {
-            EvaluateAggregateWindowFunction(selectIndex, funcName, func, sortedIndices);
+            EvaluateAggregateWindowFunction(selectIndex, funcName, func, sortedIndices, frame);
         }
+    }
+
+    #endregion
+
+    #region Frame Calculation
+
+    /// <summary>
+    /// Calculates the frame boundaries for a given row within the partition.
+    /// </summary>
+    private (int Start, int End) GetFrameBounds(
+        int rowIndex,
+        int partitionSize,
+        SpecFrame? frame)
+    {
+        // Default frame when no frame clause specified:
+        // - If ORDER BY is present: RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        // - If no ORDER BY: entire partition
+        if (frame == null)
+        {
+            // Entire partition (no frame = whole partition for aggregate window functions)
+            return (0, partitionSize - 1);
+        }
+
+        int start = CalculateFrameBoundIndex(frame.Start, rowIndex, partitionSize, isStart: true);
+        int end = frame.End != null 
+            ? CalculateFrameBoundIndex(frame.End, rowIndex, partitionSize, isStart: false)
+            : rowIndex; // Default end is CURRENT ROW
+
+        // Ensure bounds are valid
+        start = Math.Max(0, Math.Min(start, partitionSize - 1));
+        end = Math.Max(0, Math.Min(end, partitionSize - 1));
+
+        // If start > end, return empty frame
+        if (start > end)
+        {
+            return (0, -1); // Empty frame
+        }
+
+        return (start, end);
+    }
+
+    private static int CalculateFrameBoundIndex(
+        SpecFrameBound bound,
+        int currentIndex,
+        int partitionSize,
+        bool isStart)
+    {
+        return bound.BoundType switch
+        {
+            FrameBoundType.UnboundedPreceding => 0,
+            FrameBoundType.UnboundedFollowing => partitionSize - 1,
+            FrameBoundType.CurrentRow => currentIndex,
+            FrameBoundType.Preceding => currentIndex - (bound.Offset ?? 1),
+            FrameBoundType.Following => currentIndex + (bound.Offset ?? 1),
+            _ => isStart ? 0 : partitionSize - 1
+        };
     }
 
     #endregion
@@ -509,20 +566,21 @@ public sealed class IteratorWindow : IteratorBase
         int selectIndex,
         string funcName,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         switch (funcName)
         {
             case "FIRST_VALUE":
-                EvaluateFirstValue(selectIndex, func, sortedIndices);
+                EvaluateFirstValue(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "LAST_VALUE":
-                EvaluateLastValue(selectIndex, func, sortedIndices);
+                EvaluateLastValue(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "NTH_VALUE":
-                EvaluateNthValue(selectIndex, func, sortedIndices);
+                EvaluateNthValue(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "LAG":
@@ -538,41 +596,60 @@ public sealed class IteratorWindow : IteratorBase
     private void EvaluateFirstValue(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (sortedIndices.Count == 0 || func.Arguments == null || func.Arguments.Count == 0)
             return;
 
-        var firstRow = m_windowedRows![sortedIndices[0]].SourceRow;
-        var firstValue = m_evaluator.Evaluate(func.Arguments[0], firstRow);
-
-        foreach (var idx in sortedIndices)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            m_windowedRows[idx].WindowValues[selectIndex] = firstValue;
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            if (start > end)
+            {
+                // Empty frame
+                m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = WitSqlValue.Null;
+                continue;
+            }
+
+            var firstRow = m_windowedRows![sortedIndices[start]].SourceRow;
+            var firstValue = m_evaluator.Evaluate(func.Arguments[0], firstRow);
+            m_windowedRows[sortedIndices[i]].WindowValues[selectIndex] = firstValue;
         }
     }
 
     private void EvaluateLastValue(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (sortedIndices.Count == 0 || func.Arguments == null || func.Arguments.Count == 0)
             return;
 
-        var lastRow = m_windowedRows![sortedIndices[^1]].SourceRow;
-        var lastValue = m_evaluator.Evaluate(func.Arguments[0], lastRow);
-
-        foreach (var idx in sortedIndices)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            m_windowedRows[idx].WindowValues[selectIndex] = lastValue;
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            if (start > end)
+            {
+                // Empty frame
+                m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = WitSqlValue.Null;
+                continue;
+            }
+
+            var lastRow = m_windowedRows![sortedIndices[end]].SourceRow;
+            var lastValue = m_evaluator.Evaluate(func.Arguments[0], lastRow);
+            m_windowedRows[sortedIndices[i]].WindowValues[selectIndex] = lastValue;
         }
     }
 
     private void EvaluateNthValue(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (sortedIndices.Count == 0 || func.Arguments == null || func.Arguments.Count < 2)
             return;
@@ -581,20 +658,27 @@ public sealed class IteratorWindow : IteratorBase
         var n = (int)m_evaluator.Evaluate(func.Arguments[1],
             m_windowedRows![sortedIndices[0]].SourceRow).AsInt64();
 
-        WitSqlValue nthValue;
-        if (n >= 1 && n <= sortedIndices.Count)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            var nthRow = m_windowedRows[sortedIndices[n - 1]].SourceRow;
-            nthValue = m_evaluator.Evaluate(func.Arguments[0], nthRow);
-        }
-        else
-        {
-            nthValue = WitSqlValue.Null;
-        }
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            if (start > end)
+            {
+                m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = WitSqlValue.Null;
+                continue;
+            }
 
-        foreach (var idx in sortedIndices)
-        {
-            m_windowedRows[idx].WindowValues[selectIndex] = nthValue;
+            int frameSize = end - start + 1;
+            if (n >= 1 && n <= frameSize)
+            {
+                var nthRow = m_windowedRows[sortedIndices[start + n - 1]].SourceRow;
+                var nthValue = m_evaluator.Evaluate(func.Arguments[0], nthRow);
+                m_windowedRows[sortedIndices[i]].WindowValues[selectIndex] = nthValue;
+            }
+            else
+            {
+                m_windowedRows[sortedIndices[i]].WindowValues[selectIndex] = WitSqlValue.Null;
+            }
         }
     }
 
@@ -678,34 +762,32 @@ public sealed class IteratorWindow : IteratorBase
         int selectIndex,
         string funcName,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (sortedIndices.Count == 0)
             return;
 
-        // For now, evaluate over the entire partition (no frame support yet)
-        // TODO: Add frame clause support (ROWS/RANGE BETWEEN)
-
         switch (funcName)
         {
             case "COUNT":
-                EvaluateWindowCount(selectIndex, func, sortedIndices);
+                EvaluateWindowCount(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "SUM":
-                EvaluateWindowSum(selectIndex, func, sortedIndices);
+                EvaluateWindowSum(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "AVG":
-                EvaluateWindowAvg(selectIndex, func, sortedIndices);
+                EvaluateWindowAvg(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "MIN":
-                EvaluateWindowMin(selectIndex, func, sortedIndices);
+                EvaluateWindowMin(selectIndex, func, sortedIndices, frame);
                 break;
 
             case "MAX":
-                EvaluateWindowMax(selectIndex, func, sortedIndices);
+                EvaluateWindowMax(selectIndex, func, sortedIndices, frame);
                 break;
         }
     }
@@ -713,149 +795,168 @@ public sealed class IteratorWindow : IteratorBase
     private void EvaluateWindowCount(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
-        long count;
-
-        if (func.IsStar)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            count = sortedIndices.Count;
-        }
-        else if (func.Arguments != null && func.Arguments.Count > 0)
-        {
-            count = sortedIndices.Count(idx =>
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            long count = 0;
+            if (start <= end)
             {
-                var value = m_evaluator.Evaluate(func.Arguments[0],
-                    m_windowedRows![idx].SourceRow);
-                return !value.IsNull;
-            });
-        }
-        else
-        {
-            count = sortedIndices.Count;
-        }
+                if (func.IsStar)
+                {
+                    count = end - start + 1;
+                }
+                else if (func.Arguments != null && func.Arguments.Count > 0)
+                {
+                    for (int j = start; j <= end; j++)
+                    {
+                        var value = m_evaluator.Evaluate(func.Arguments[0],
+                            m_windowedRows![sortedIndices[j]].SourceRow);
+                        if (!value.IsNull)
+                            count++;
+                    }
+                }
+                else
+                {
+                    count = end - start + 1;
+                }
+            }
 
-        var countValue = WitSqlValue.FromInt(count);
-        foreach (var idx in sortedIndices)
-        {
-            m_windowedRows![idx].WindowValues[selectIndex] = countValue;
+            m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = WitSqlValue.FromInt(count);
         }
     }
 
     private void EvaluateWindowSum(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
             return;
 
-        WitSqlValue? sum = null;
-
-        foreach (var idx in sortedIndices)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            var value = m_evaluator.Evaluate(func.Arguments[0],
-                m_windowedRows![idx].SourceRow);
-
-            if (!value.IsNull)
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            WitSqlValue? sum = null;
+            if (start <= end)
             {
-                sum = sum == null ? value : sum.Value.Add(value);
+                for (int j = start; j <= end; j++)
+                {
+                    var value = m_evaluator.Evaluate(func.Arguments[0],
+                        m_windowedRows![sortedIndices[j]].SourceRow);
+                    if (!value.IsNull)
+                    {
+                        sum = sum == null ? value : sum.Value.Add(value);
+                    }
+                }
             }
-        }
 
-        var sumValue = sum ?? WitSqlValue.Null;
-        foreach (var idx in sortedIndices)
-        {
-            m_windowedRows![idx].WindowValues[selectIndex] = sumValue;
+            m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = sum ?? WitSqlValue.Null;
         }
     }
 
     private void EvaluateWindowAvg(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
             return;
 
-        WitSqlValue? sum = null;
-        long count = 0;
-
-        foreach (var idx in sortedIndices)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            var value = m_evaluator.Evaluate(func.Arguments[0],
-                m_windowedRows![idx].SourceRow);
-
-            if (!value.IsNull)
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            WitSqlValue? sum = null;
+            long count = 0;
+            
+            if (start <= end)
             {
-                sum = sum == null ? value : sum.Value.Add(value);
-                count++;
+                for (int j = start; j <= end; j++)
+                {
+                    var value = m_evaluator.Evaluate(func.Arguments[0],
+                        m_windowedRows![sortedIndices[j]].SourceRow);
+                    if (!value.IsNull)
+                    {
+                        sum = sum == null ? value : sum.Value.Add(value);
+                        count++;
+                    }
+                }
             }
-        }
 
-        var avgValue = count > 0 && sum != null
-            ? sum.Value.Divide(WitSqlValue.FromInt(count))
-            : WitSqlValue.Null;
+            var avgValue = count > 0 && sum != null
+                ? sum.Value.Divide(WitSqlValue.FromInt(count))
+                : WitSqlValue.Null;
 
-        foreach (var idx in sortedIndices)
-        {
-            m_windowedRows![idx].WindowValues[selectIndex] = avgValue;
+            m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = avgValue;
         }
     }
 
     private void EvaluateWindowMin(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
             return;
 
-        WitSqlValue? min = null;
-
-        foreach (var idx in sortedIndices)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            var value = m_evaluator.Evaluate(func.Arguments[0],
-                m_windowedRows![idx].SourceRow);
-
-            if (!value.IsNull && (min == null || value < min.Value))
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            WitSqlValue? min = null;
+            if (start <= end)
             {
-                min = value;
+                for (int j = start; j <= end; j++)
+                {
+                    var value = m_evaluator.Evaluate(func.Arguments[0],
+                        m_windowedRows![sortedIndices[j]].SourceRow);
+                    if (!value.IsNull && (min == null || value < min.Value))
+                    {
+                        min = value;
+                    }
+                }
             }
-        }
 
-        var minValue = min ?? WitSqlValue.Null;
-        foreach (var idx in sortedIndices)
-        {
-            m_windowedRows![idx].WindowValues[selectIndex] = minValue;
+            m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = min ?? WitSqlValue.Null;
         }
     }
 
     private void EvaluateWindowMax(
         int selectIndex,
         WitSqlExpressionFunctionCall func,
-        List<int> sortedIndices)
+        List<int> sortedIndices,
+        SpecFrame? frame)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
             return;
 
-        WitSqlValue? max = null;
-
-        foreach (var idx in sortedIndices)
+        for (int i = 0; i < sortedIndices.Count; i++)
         {
-            var value = m_evaluator.Evaluate(func.Arguments[0],
-                m_windowedRows![idx].SourceRow);
-
-            if (!value.IsNull && (max == null || value > max.Value))
+            var (start, end) = GetFrameBounds(i, sortedIndices.Count, frame);
+            
+            WitSqlValue? max = null;
+            if (start <= end)
             {
-                max = value;
+                for (int j = start; j <= end; j++)
+                {
+                    var value = m_evaluator.Evaluate(func.Arguments[0],
+                        m_windowedRows![sortedIndices[j]].SourceRow);
+                    if (!value.IsNull && (max == null || value > max.Value))
+                    {
+                        max = value;
+                    }
+                }
             }
-        }
 
-        var maxValue = max ?? WitSqlValue.Null;
-        foreach (var idx in sortedIndices)
-        {
-            m_windowedRows![idx].WindowValues[selectIndex] = maxValue;
+            m_windowedRows![sortedIndices[i]].WindowValues[selectIndex] = max ?? WitSqlValue.Null;
         }
     }
 
