@@ -34,6 +34,8 @@ public sealed class IteratorExcept : IteratorBase
         m_left = left;
         m_right = right;
         m_isAll = isAll;
+        
+        SetOperationSchemaValidator.ValidateSchemaCompatibility(left.Schema, right.Schema, "EXCEPT");
     }
 
     #endregion

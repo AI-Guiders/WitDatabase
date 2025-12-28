@@ -1,3 +1,4 @@
+using OutWit.Database.Constants;
 using OutWit.Database.Context;
 using OutWit.Database.Expressions;
 using OutWit.Database.Interfaces;
@@ -21,34 +22,6 @@ namespace OutWit.Database.Iterators;
 /// </remarks>
 public sealed partial class IteratorWindow : IteratorBase
 {
-    #region Constants
-
-    /// <summary>
-    /// Window functions that assign ranking/position to rows.
-    /// </summary>
-    private static readonly HashSet<string> RANKING_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ROW_NUMBER", "RANK", "DENSE_RANK", "NTILE", "PERCENT_RANK", "CUME_DIST"
-    };
-
-    /// <summary>
-    /// Window functions that access values from other rows.
-    /// </summary>
-    private static readonly HashSet<string> VALUE_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "FIRST_VALUE", "LAST_VALUE", "NTH_VALUE", "LAG", "LEAD"
-    };
-
-    /// <summary>
-    /// Aggregate functions that can be used as window functions.
-    /// </summary>
-    private static readonly HashSet<string> AGGREGATE_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "COUNT", "SUM", "AVG", "MIN", "MAX"
-    };
-
-    #endregion
-
     #region Fields
 
     private readonly IResultIterator m_source;
@@ -119,7 +92,7 @@ public sealed partial class IteratorWindow : IteratorBase
         var funcName = func.FunctionName.ToUpperInvariant();
 
         // Ranking functions return integers
-        if (RANKING_FUNCTIONS.Contains(funcName))
+        if (SqlFunctions.IsWindowRanking(funcName))
         {
             return funcName switch
             {
@@ -257,15 +230,15 @@ public sealed partial class IteratorWindow : IteratorBase
     {
         var partitionSize = sortedIndices.Count;
 
-        if (RANKING_FUNCTIONS.Contains(funcName))
+        if (SqlFunctions.IsWindowRanking(funcName))
         {
             EvaluateRankingFunction(selectIndex, funcName, func, sortedIndices, partitionSize);
         }
-        else if (VALUE_FUNCTIONS.Contains(funcName))
+        else if (SqlFunctions.IsWindowValue(funcName))
         {
             EvaluateValueFunction(selectIndex, funcName, func, sortedIndices, frame);
         }
-        else if (AGGREGATE_FUNCTIONS.Contains(funcName))
+        else if (SqlFunctions.IsAggregate(funcName))
         {
             EvaluateAggregateWindowFunction(selectIndex, funcName, func, sortedIndices, frame);
         }

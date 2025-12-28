@@ -1,3 +1,4 @@
+using OutWit.Database.Constants;
 using OutWit.Database.Context;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Iterators;
@@ -12,27 +13,6 @@ namespace OutWit.Database.Query;
 public sealed partial class QueryPlanner
 {
     #region Constants
-
-    private static readonly HashSet<string> AGGREGATE_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "COUNT", "SUM", "AVG", "MIN", "MAX", "GROUP_CONCAT"
-    };
-
-    /// <summary>
-    /// Window functions that assign ranking/position to rows.
-    /// </summary>
-    private static readonly HashSet<string> WINDOW_RANKING_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ROW_NUMBER", "RANK", "DENSE_RANK", "NTILE", "PERCENT_RANK", "CUME_DIST"
-    };
-
-    /// <summary>
-    /// Window functions that access values from other rows.
-    /// </summary>
-    private static readonly HashSet<string> WINDOW_VALUE_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "FIRST_VALUE", "LAST_VALUE", "NTH_VALUE", "LAG", "LEAD"
-    };
 
     /// <summary>
     /// Maximum recursion depth for recursive CTEs to prevent infinite loops.

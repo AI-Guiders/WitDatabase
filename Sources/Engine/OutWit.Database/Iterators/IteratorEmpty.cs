@@ -31,6 +31,9 @@ public sealed class IteratorEmpty : IteratorBase
     /// <inheritdoc/>
     public override bool MoveNext()
     {
+        if (!IsOpen)
+            throw new InvalidOperationException("Iterator must be opened before calling MoveNext()");
+
         return false;
     }
 
@@ -42,7 +45,16 @@ public sealed class IteratorEmpty : IteratorBase
     public override IReadOnlyList<WitSqlColumnInfo> Schema { get; }
 
     /// <inheritdoc/>
-    public override WitSqlRow Current => throw new InvalidOperationException("No current row in empty iterator");
+    public override WitSqlRow Current
+    {
+        get
+        {
+            if (!IsOpen)
+                throw new InvalidOperationException("Iterator must be opened before accessing Current");
+
+            throw new InvalidOperationException("No current row in empty iterator");
+        }
+    }
 
     /// <inheritdoc/>
     public override long EstimatedRowCount => 0;

@@ -33,6 +33,8 @@ public sealed class IteratorIntersect : IteratorBase
         m_left = left;
         m_right = right;
         m_isAll = isAll;
+
+        SetOperationSchemaValidator.ValidateSchemaCompatibility(left.Schema, right.Schema, "INTERSECT");
     }
 
     #endregion
@@ -125,7 +127,6 @@ public sealed class IteratorIntersect : IteratorBase
     #endregion
 
     #region Properties
-
 
     /// <inheritdoc/>
     public override IReadOnlyList<WitSqlColumnInfo> Schema => m_left.Schema;

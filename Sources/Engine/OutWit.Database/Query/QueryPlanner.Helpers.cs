@@ -1,3 +1,4 @@
+using OutWit.Database.Constants;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Schema.TableSources;
@@ -40,7 +41,7 @@ public sealed partial class QueryPlanner
         {
             // Aggregate function WITHOUT OVER clause = regular aggregate
             WitSqlExpressionFunctionCall func => 
-                AGGREGATE_FUNCTIONS.Contains(func.FunctionName) && func.Over == null,
+                SqlFunctions.IsAggregate(func.FunctionName) && func.Over == null,
             WitSqlExpressionBinary binary => 
                 ContainsNonWindowAggregateFunction(binary.Left) || ContainsNonWindowAggregateFunction(binary.Right),
             WitSqlExpressionUnary unary => 
@@ -83,7 +84,7 @@ public sealed partial class QueryPlanner
 
         return expression switch
         {
-            WitSqlExpressionFunctionCall func => AGGREGATE_FUNCTIONS.Contains(func.FunctionName),
+            WitSqlExpressionFunctionCall func => SqlFunctions.IsAggregate(func.FunctionName),
             WitSqlExpressionBinary binary => ContainsAggregateFunction(binary.Left) || ContainsAggregateFunction(binary.Right),
             WitSqlExpressionUnary unary => ContainsAggregateFunction(unary.Operand),
             WitSqlExpressionCase caseExpr => ContainsAggregateFunctionInCase(caseExpr),
@@ -174,12 +175,11 @@ public sealed partial class QueryPlanner
         var funcName = func.FunctionName.ToUpperInvariant();
 
         // Check if it's a ranking or value window function
-        if (WINDOW_RANKING_FUNCTIONS.Contains(funcName) || 
-            WINDOW_VALUE_FUNCTIONS.Contains(funcName))
+        if (SqlFunctions.IsWindowRanking(funcName) || SqlFunctions.IsWindowValue(funcName))
             return true;
 
         // Aggregate functions with OVER are also window functions
-        if (AGGREGATE_FUNCTIONS.Contains(funcName))
+        if (SqlFunctions.IsAggregate(funcName))
             return true;
 
         return false;

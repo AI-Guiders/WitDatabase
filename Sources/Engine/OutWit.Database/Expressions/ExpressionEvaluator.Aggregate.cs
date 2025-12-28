@@ -1,3 +1,4 @@
+using OutWit.Database.Constants;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Values;
@@ -11,15 +12,6 @@ namespace OutWit.Database.Expressions;
 /// </summary>
 public sealed partial class ExpressionEvaluator
 {
-    #region Constants
-
-    private static readonly HashSet<string> AGGREGATE_FUNCTIONS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "COUNT", "SUM", "AVG", "MIN", "MAX", "GROUP_CONCAT"
-    };
-
-    #endregion
-
     #region Aggregate Expression Evaluation
 
     /// <summary>
@@ -53,7 +45,7 @@ public sealed partial class ExpressionEvaluator
 
     private static bool IsAggregateFunction(WitSqlExpressionFunctionCall func)
     {
-        return AGGREGATE_FUNCTIONS.Contains(func.FunctionName);
+        return SqlFunctions.IsAggregate(func.FunctionName);
     }
 
     private WitSqlValue EvaluateAggregateFunctionOverGroup(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
