@@ -1,4 +1,3 @@
-using OutWit.Database.Context;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Values;
@@ -6,10 +5,11 @@ using OutWit.Database.Values;
 namespace OutWit.Database.Expressions;
 
 /// <summary>
-/// Evaluates SQL expressions that may contain aggregate functions.
-/// Used for HAVING clause evaluation where aggregates need to be computed over a group of rows.
+/// Aggregate expression evaluation: evaluates expressions over groups of rows for HAVING clauses.
+/// Handles aggregate functions (COUNT, SUM, AVG, MIN, MAX, GROUP_CONCAT) and mixed expressions
+/// containing both aggregate and non-aggregate components.
 /// </summary>
-public sealed class AggregateExpressionEvaluator
+public sealed partial class ExpressionEvaluator
 {
     #region Constants
 
@@ -20,48 +20,30 @@ public sealed class AggregateExpressionEvaluator
 
     #endregion
 
-    #region Fields
-
-    private readonly ExpressionEvaluator m_baseEvaluator;
-
-    #endregion
-
-    #region Constructors
-
-    /// <summary>
-    /// Creates a new aggregate expression evaluator.
-    /// </summary>
-    /// <param name="context">The execution context.</param>
-    public AggregateExpressionEvaluator(ContextExecution context)
-    {
-        m_baseEvaluator = new ExpressionEvaluator(context);
-    }
-
-    #endregion
-
-    #region Evaluate
+    #region Aggregate Expression Evaluation
 
     /// <summary>
     /// Evaluates an expression that may contain aggregate functions over a group of rows.
+    /// Used for HAVING clause evaluation where aggregates need to be computed over the group.
     /// </summary>
     /// <param name="expression">The expression to evaluate.</param>
     /// <param name="groupRows">The rows in the current group.</param>
     /// <param name="resultRow">The aggregated result row (for non-aggregate column access).</param>
     /// <returns>The evaluated value.</returns>
-    public WitSqlValue Evaluate(WitSqlExpression expression, IReadOnlyList<WitSqlRow> groupRows, WitSqlRow resultRow)
+    public WitSqlValue EvaluateAggregate(WitSqlExpression expression, IReadOnlyList<WitSqlRow> groupRows, WitSqlRow resultRow)
     {
         return expression switch
         {
             WitSqlExpressionFunctionCall func when IsAggregateFunction(func) 
-                => EvaluateAggregateFunction(func, groupRows),
+                => EvaluateAggregateFunctionOverGroup(func, groupRows),
             WitSqlExpressionBinary bin 
-                => EvaluateBinary(bin, groupRows, resultRow),
+                => EvaluateAggregateBinary(bin, groupRows, resultRow),
             WitSqlExpressionUnary unary 
-                => EvaluateUnary(unary, groupRows, resultRow),
+                => EvaluateAggregateUnary(unary, groupRows, resultRow),
             WitSqlExpressionColumnRef col 
-                => EvaluateColumnRef(col, resultRow),
+                => EvaluateAggregateColumnRef(col, resultRow),
             // For non-aggregate expressions, delegate to base evaluator using result row
-            _ => m_baseEvaluator.Evaluate(expression, resultRow)
+            _ => Evaluate(expression, resultRow)
         };
     }
 
@@ -74,23 +56,23 @@ public sealed class AggregateExpressionEvaluator
         return AGGREGATE_FUNCTIONS.Contains(func.FunctionName);
     }
 
-    private WitSqlValue EvaluateAggregateFunction(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateFunctionOverGroup(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         var funcName = func.FunctionName.ToUpperInvariant();
 
         return funcName switch
         {
-            "COUNT" => EvaluateCount(func, groupRows),
-            "SUM" => EvaluateSum(func, groupRows),
-            "AVG" => EvaluateAvg(func, groupRows),
-            "MIN" => EvaluateMin(func, groupRows),
-            "MAX" => EvaluateMax(func, groupRows),
-            "GROUP_CONCAT" => EvaluateGroupConcat(func, groupRows),
+            "COUNT" => EvaluateAggregateCount(func, groupRows),
+            "SUM" => EvaluateAggregateSum(func, groupRows),
+            "AVG" => EvaluateAggregateAvg(func, groupRows),
+            "MIN" => EvaluateAggregateMin(func, groupRows),
+            "MAX" => EvaluateAggregateMax(func, groupRows),
+            "GROUP_CONCAT" => EvaluateAggregateGroupConcat(func, groupRows),
             _ => WitSqlValue.Null
         };
     }
 
-    private WitSqlValue EvaluateCount(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateCount(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         if (func.IsStar)
         {
@@ -107,7 +89,7 @@ public sealed class AggregateExpressionEvaluator
             var distinctValues = new HashSet<WitSqlValue>();
             foreach (var row in groupRows)
             {
-                var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+                var value = Evaluate(func.Arguments[0], row);
                 if (!value.IsNull)
                 {
                     distinctValues.Add(value);
@@ -119,7 +101,7 @@ public sealed class AggregateExpressionEvaluator
         long count = 0;
         foreach (var row in groupRows)
         {
-            var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+            var value = Evaluate(func.Arguments[0], row);
             if (!value.IsNull)
             {
                 count++;
@@ -128,7 +110,7 @@ public sealed class AggregateExpressionEvaluator
         return WitSqlValue.FromInt(count);
     }
 
-    private WitSqlValue EvaluateSum(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateSum(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
         {
@@ -138,7 +120,7 @@ public sealed class AggregateExpressionEvaluator
         WitSqlValue? sum = null;
         foreach (var row in groupRows)
         {
-            var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+            var value = Evaluate(func.Arguments[0], row);
             if (!value.IsNull)
             {
                 sum = sum == null ? value : sum.Value.Add(value);
@@ -147,7 +129,7 @@ public sealed class AggregateExpressionEvaluator
         return sum ?? WitSqlValue.Null;
     }
 
-    private WitSqlValue EvaluateAvg(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateAvg(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
         {
@@ -158,7 +140,7 @@ public sealed class AggregateExpressionEvaluator
         long count = 0;
         foreach (var row in groupRows)
         {
-            var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+            var value = Evaluate(func.Arguments[0], row);
             if (!value.IsNull)
             {
                 sum = sum == null ? value : sum.Value.Add(value);
@@ -174,7 +156,7 @@ public sealed class AggregateExpressionEvaluator
         return sum.Value.Divide(WitSqlValue.FromInt(count));
     }
 
-    private WitSqlValue EvaluateMin(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateMin(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
         {
@@ -184,7 +166,7 @@ public sealed class AggregateExpressionEvaluator
         WitSqlValue? min = null;
         foreach (var row in groupRows)
         {
-            var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+            var value = Evaluate(func.Arguments[0], row);
             if (!value.IsNull && (min == null || value < min.Value))
             {
                 min = value;
@@ -193,7 +175,7 @@ public sealed class AggregateExpressionEvaluator
         return min ?? WitSqlValue.Null;
     }
 
-    private WitSqlValue EvaluateMax(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateMax(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
         {
@@ -203,7 +185,7 @@ public sealed class AggregateExpressionEvaluator
         WitSqlValue? max = null;
         foreach (var row in groupRows)
         {
-            var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+            var value = Evaluate(func.Arguments[0], row);
             if (!value.IsNull && (max == null || value > max.Value))
             {
                 max = value;
@@ -212,7 +194,7 @@ public sealed class AggregateExpressionEvaluator
         return max ?? WitSqlValue.Null;
     }
 
-    private WitSqlValue EvaluateGroupConcat(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
+    private WitSqlValue EvaluateAggregateGroupConcat(WitSqlExpressionFunctionCall func, IReadOnlyList<WitSqlRow> groupRows)
     {
         if (func.Arguments == null || func.Arguments.Count == 0)
         {
@@ -222,7 +204,7 @@ public sealed class AggregateExpressionEvaluator
         var values = new List<string>();
         foreach (var row in groupRows)
         {
-            var value = m_baseEvaluator.Evaluate(func.Arguments[0], row);
+            var value = Evaluate(func.Arguments[0], row);
             if (!value.IsNull)
             {
                 values.Add(value.AsString());
@@ -239,28 +221,28 @@ public sealed class AggregateExpressionEvaluator
 
     #endregion
 
-    #region Binary/Unary Operations
+    #region Aggregate Binary/Unary Operations
 
-    private WitSqlValue EvaluateBinary(WitSqlExpressionBinary bin, IReadOnlyList<WitSqlRow> groupRows, WitSqlRow resultRow)
+    private WitSqlValue EvaluateAggregateBinary(WitSqlExpressionBinary bin, IReadOnlyList<WitSqlRow> groupRows, WitSqlRow resultRow)
     {
-        var left = Evaluate(bin.Left, groupRows, resultRow);
+        var left = EvaluateAggregate(bin.Left, groupRows, resultRow);
 
         // Short-circuit evaluation for AND/OR
         if (bin.Operator == BinaryOperatorType.And)
         {
             if (left.IsNull || !left.AsBool())
                 return left.IsNull ? WitSqlValue.Null : WitSqlValue.False;
-            return Evaluate(bin.Right, groupRows, resultRow);
+            return EvaluateAggregate(bin.Right, groupRows, resultRow);
         }
 
         if (bin.Operator == BinaryOperatorType.Or)
         {
             if (!left.IsNull && left.AsBool())
                 return WitSqlValue.True;
-            return Evaluate(bin.Right, groupRows, resultRow);
+            return EvaluateAggregate(bin.Right, groupRows, resultRow);
         }
 
-        var right = Evaluate(bin.Right, groupRows, resultRow);
+        var right = EvaluateAggregate(bin.Right, groupRows, resultRow);
 
         return bin.Operator switch
         {
@@ -286,9 +268,9 @@ public sealed class AggregateExpressionEvaluator
         };
     }
 
-    private WitSqlValue EvaluateUnary(WitSqlExpressionUnary unary, IReadOnlyList<WitSqlRow> groupRows, WitSqlRow resultRow)
+    private WitSqlValue EvaluateAggregateUnary(WitSqlExpressionUnary unary, IReadOnlyList<WitSqlRow> groupRows, WitSqlRow resultRow)
     {
-        var operand = Evaluate(unary.Operand, groupRows, resultRow);
+        var operand = EvaluateAggregate(unary.Operand, groupRows, resultRow);
 
         return unary.Operator switch
         {
@@ -300,7 +282,7 @@ public sealed class AggregateExpressionEvaluator
         };
     }
 
-    private static WitSqlValue EvaluateColumnRef(WitSqlExpressionColumnRef col, WitSqlRow resultRow)
+    private static WitSqlValue EvaluateAggregateColumnRef(WitSqlExpressionColumnRef col, WitSqlRow resultRow)
     {
         // Try to get from result row (which has aliased columns)
         return resultRow[col.ColumnName];

@@ -1,5 +1,5 @@
-using OutWit.Database.Context;
 using OutWit.Database.Iterators;
+using OutWit.Database.Model;
 using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Values;
 

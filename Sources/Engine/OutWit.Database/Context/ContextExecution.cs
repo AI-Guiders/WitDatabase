@@ -1,5 +1,6 @@
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Interfaces;
+using OutWit.Database.Model;
 using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Statements;
 using OutWit.Database.Values;
@@ -78,20 +79,4 @@ public sealed class ContextExecution
     /// Contains the values that would have been inserted if there was no conflict.
     /// </summary>
     public WitSqlRow? ExcludedRow { get; set; }
-}
-
-/// <summary>
-/// Represents a cached CTE result.
-/// </summary>
-public sealed class CteCacheEntry
-{
-    /// <summary>
-    /// The cached rows from the CTE execution.
-    /// </summary>
-    public required IReadOnlyList<WitSqlRow> Rows { get; init; }
-
-    /// <summary>
-    /// The schema of the cached CTE result.
-    /// </summary>
-    public required IReadOnlyList<WitSqlColumnInfo> Schema { get; init; }
 }

@@ -32,7 +32,6 @@ public sealed class IteratorGroupBy : IteratorBase
     private readonly IReadOnlyList<ClauseSelectItem> m_selectList;
     private readonly WitSqlExpression? m_havingClause;
     private readonly ExpressionEvaluator m_evaluator;
-    private readonly AggregateExpressionEvaluator? m_aggregateEvaluator;
     private readonly IReadOnlyList<WitSqlColumnInfo> m_schema;
 
     private Dictionary<string, AggregateGroup>? m_groups;
@@ -63,7 +62,6 @@ public sealed class IteratorGroupBy : IteratorBase
         m_selectList = selectList;
         m_havingClause = havingClause;
         m_evaluator = new ExpressionEvaluator(context);
-        m_aggregateEvaluator = havingClause != null ? new AggregateExpressionEvaluator(context) : null;
         m_schema = BuildSchema(selectList);
     }
 
@@ -250,10 +248,10 @@ public sealed class IteratorGroupBy : IteratorBase
 
     private bool PassesHavingFilter(AggregateGroup group, WitSqlRow resultRow)
     {
-        if (m_havingClause == null || m_aggregateEvaluator == null)
+        if (m_havingClause == null)
             return true;
 
-        var result = m_aggregateEvaluator.Evaluate(m_havingClause, group.AllRows, resultRow);
+        var result = m_evaluator.EvaluateAggregate(m_havingClause, group.AllRows, resultRow);
         return !result.IsNull && result.AsBool();
     }
 
