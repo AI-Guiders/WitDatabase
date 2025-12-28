@@ -41,7 +41,7 @@ public sealed class TransactionHandle : IDisposable
         m_disposed = true;
 
         // Auto-rollback if not committed
-        if (m_manager.Transaction != null)
+        if (m_manager.CurrentTransaction != null)
             m_manager.Rollback();
     }
 

@@ -20,7 +20,6 @@ public sealed class IteratorJoin : IteratorBase
     private readonly JoinType m_joinType;
     private readonly WitSqlExpression? m_onCondition;
     private readonly ExpressionEvaluator m_evaluator;
-    private readonly IReadOnlyList<WitSqlColumnInfo> m_schema;
 
     private List<WitSqlRow>? m_rightRows;
     private int m_rightIndex;
@@ -55,7 +54,7 @@ public sealed class IteratorJoin : IteratorBase
         m_joinType = joinType;
         m_onCondition = onCondition;
         m_evaluator = new ExpressionEvaluator(context);
-        m_schema = BuildSchema();
+        Schema = BuildSchema();
     }
 
     #endregion
@@ -460,7 +459,7 @@ public sealed class IteratorJoin : IteratorBase
     #region Properties
 
     /// <inheritdoc/>
-    public override IReadOnlyList<WitSqlColumnInfo> Schema => m_schema;
+    public override IReadOnlyList<WitSqlColumnInfo> Schema { get; }
 
     /// <inheritdoc/>
     public override WitSqlRow Current => m_current;

@@ -10,7 +10,7 @@ public interface ITransactionManager
     /// <summary>
     /// Gets the current active transaction, if any.
     /// </summary>
-    ITransaction? Transaction { get; }
+    ITransaction? CurrentTransaction { get; }
 
     /// <summary>
     /// Rollback the current transaction.

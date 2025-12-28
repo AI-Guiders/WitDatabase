@@ -40,12 +40,6 @@ public sealed class IteratorIntersect : IteratorBase
     #region IResultIterator
 
     /// <inheritdoc/>
-    public override IReadOnlyList<WitSqlColumnInfo> Schema => m_left.Schema;
-
-    /// <inheritdoc/>
-    public override WitSqlRow Current => m_current;
-
-    /// <inheritdoc/>
     public override void Open()
     {
         base.Open();
@@ -127,6 +121,17 @@ public sealed class IteratorIntersect : IteratorBase
         m_left.Dispose();
         m_right.Dispose();
     }
+
+    #endregion
+
+    #region Properties
+
+
+    /// <inheritdoc/>
+    public override IReadOnlyList<WitSqlColumnInfo> Schema => m_left.Schema;
+
+    /// <inheritdoc/>
+    public override WitSqlRow Current => m_current;
 
     #endregion
 }

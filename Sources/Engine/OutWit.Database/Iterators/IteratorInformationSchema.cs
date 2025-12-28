@@ -14,7 +14,6 @@ public sealed class IteratorInformationSchema : IResultIterator
     #region Fields
 
     private readonly IEnumerable<WitSqlRow> m_rowSource;
-    private readonly IReadOnlyList<WitSqlColumnInfo> m_schema;
     private IEnumerator<WitSqlRow>? m_enumerator;
     private WitSqlRow m_currentRow;
     private bool m_disposed;
@@ -42,16 +41,13 @@ public sealed class IteratorInformationSchema : IResultIterator
                 TableName = InformationSchema.SCHEMA_NAME
             };
         }
-        m_schema = schema;
+        Schema = schema;
     }
 
     #endregion
 
     #region IResultIterator
-
-    /// <inheritdoc />
-    public IReadOnlyList<WitSqlColumnInfo> Schema => m_schema;
-
+    
     /// <inheritdoc />
     public void Open()
     {
@@ -75,25 +71,11 @@ public sealed class IteratorInformationSchema : IResultIterator
     }
 
     /// <inheritdoc />
-    public WitSqlRow Current
-    {
-        get
-        {
-            if (m_enumerator == null)
-                throw new InvalidOperationException("No current row. Call Open() and MoveNext() first.");
-            return m_currentRow;
-        }
-    }
-
-    /// <inheritdoc />
     public void Reset()
     {
         m_enumerator?.Dispose();
         m_enumerator = null;
     }
-
-    /// <inheritdoc />
-    public long EstimatedRowCount => -1;
 
     #endregion
 
@@ -109,4 +91,29 @@ public sealed class IteratorInformationSchema : IResultIterator
     }
 
     #endregion
+
+
+    #region Properties
+
+    /// <inheritdoc />
+    public IReadOnlyList<WitSqlColumnInfo> Schema { get; }
+
+
+    /// <inheritdoc />
+    public WitSqlRow Current
+    {
+        get
+        {
+            if (m_enumerator == null)
+                throw new InvalidOperationException("No current row. Call Open() and MoveNext() first.");
+            return m_currentRow;
+        }
+    }
+
+
+    /// <inheritdoc />
+    public long EstimatedRowCount => -1;
+
+    #endregion
+
 }

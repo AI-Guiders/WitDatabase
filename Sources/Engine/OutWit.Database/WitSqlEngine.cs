@@ -1,7 +1,6 @@
 ﻿using OutWit.Database.Context;
 using OutWit.Database.Core.Builder;
 using OutWit.Database.Core.Interfaces;
-using OutWit.Database.Definitions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Parser;
 using OutWit.Database.Query;
@@ -264,11 +263,6 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
     /// Number of rows affected by last INSERT/UPDATE/DELETE (for CHANGES function).
     /// </summary>
     public long LastChangesCount { get; private set; }
-
-    /// <summary>
-    /// Gets the current active transaction, if any.
-    /// </summary>
-    ITransaction? ITransactionManager.Transaction => m_currentTransaction;
 
     /// <summary>
     /// Gets the current active transaction, if any.

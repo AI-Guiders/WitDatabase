@@ -71,15 +71,6 @@ public sealed class IteratorInMemory : IteratorBase
     #region IResultIterator
 
     /// <inheritdoc/>
-    public override IReadOnlyList<WitSqlColumnInfo> Schema { get; }
-
-    /// <inheritdoc/>
-    public override WitSqlRow Current => m_rows[m_currentIndex];
-
-    /// <inheritdoc/>
-    public override long EstimatedRowCount => m_rows.Count;
-
-    /// <inheritdoc/>
     public override void Open()
     {
         base.Open();
@@ -109,6 +100,19 @@ public sealed class IteratorInMemory : IteratorBase
     {
         // Nothing to dispose - rows are owned by caller
     }
+
+    #endregion
+
+    #region Properties
+
+    /// <inheritdoc/>
+    public override IReadOnlyList<WitSqlColumnInfo> Schema { get; }
+
+    /// <inheritdoc/>
+    public override WitSqlRow Current => m_rows[m_currentIndex];
+
+    /// <inheritdoc/>
+    public override long EstimatedRowCount => m_rows.Count;
 
     #endregion
 }
