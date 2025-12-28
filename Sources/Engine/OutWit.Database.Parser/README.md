@@ -101,165 +101,167 @@ if (!result.IsSuccess)
 
 ```
 OutWit.Database.Parser/
-??? Grammars/                    # ANTLR4 grammar files
-?   ??? WitSqlLexer.g4          # Lexer rules (tokens)
-?   ??? WitSqlParser.g4         # Parser rules (grammar)
-??? Expressions/                 # Expression AST nodes
-?   ??? WitSqlExpression.cs     # Base class
-?   ??? WitSqlExpressionBinary.cs
-?   ??? WitSqlExpressionUnary.cs
-?   ??? WitSqlExpressionLiteral.cs
-?   ??? WitSqlExpressionColumnRef.cs
-?   ??? WitSqlExpressionFunctionCall.cs
-?   ??? WitSqlExpressionCase.cs
-?   ??? WitSqlExpressionCast.cs
-?   ??? WitSqlExpressionBetween.cs
-?   ??? WitSqlExpressionIn.cs
-?   ??? WitSqlExpressionLike.cs
-?   ??? WitSqlExpressionGlob.cs
-?   ??? WitSqlExpressionIsNull.cs
-?   ??? WitSqlExpressionExists.cs
-?   ??? WitSqlExpressionSubquery.cs
-?   ??? WitSqlExpressionQuantified.cs
-?   ??? WitSqlExpressionParameter.cs
-?   ??? WitSqlExpressionIif.cs
-?   ??? WitSqlExpressionCollate.cs
-??? Statements/                  # Statement AST nodes
-?   ??? WitSqlStatement.cs      # Base class
-?   ??? WitSqlStatementSelect.cs
-?   ??? WitSqlStatementInsert.cs
-?   ??? WitSqlStatementUpdate.cs
-?   ??? WitSqlStatementDelete.cs
-?   ??? WitSqlStatementMerge.cs
-?   ??? WitSqlStatementCreateTable.cs
-?   ??? WitSqlStatementDropTable.cs
-?   ??? WitSqlStatementAlterTable.cs
-?   ??? WitSqlStatementCreateIndex.cs
-?   ??? WitSqlStatementDropIndex.cs
-?   ??? WitSqlStatementCreateView.cs
-?   ??? WitSqlStatementDropView.cs
-?   ??? WitSqlStatementCreateTrigger.cs
-?   ??? WitSqlStatementDropTrigger.cs
-?   ??? WitSqlStatementCreateSequence.cs
-?   ??? WitSqlStatementDropSequence.cs
-?   ??? WitSqlStatementAlterSequence.cs
-?   ??? WitSqlStatementTruncate.cs
-?   ??? WitSqlStatementBeginTransaction.cs
-?   ??? WitSqlStatementCommit.cs
-?   ??? WitSqlStatementRollback.cs
-?   ??? WitSqlStatementSavepoint.cs
-?   ??? WitSqlStatementReleaseSavepoint.cs
-?   ??? WitSqlStatementSetTransaction.cs
-?   ??? WitSqlStatementSignal.cs
-??? Schema/                      # Supporting schema types
-?   ??? WitSqlColumn.cs
-?   ??? WitSqlDataType.cs
-?   ??? Types/                   # Enums and type definitions
-?   ?   ??? BinaryOperator.cs
-?   ?   ??? UnaryOperatorType.cs
-?   ?   ??? LiteralType.cs
-?   ?   ??? JoinType.cs
-?   ?   ??? SetOperationType.cs
-?   ?   ??? IsolationLevelType.cs
-?   ?   ??? LockingType.cs
-?   ?   ??? ParameterType.cs
-?   ?   ??? QuantifierType.cs
-?   ?   ??? ...
-?   ??? Clauses/                 # Clause definitions
-?   ?   ??? ClauseSelectItem.cs
-?   ?   ??? ClauseOrderByItem.cs
-?   ?   ??? ClauseCteDefinition.cs
-?   ?   ??? ClauseOnConflict.cs
-?   ?   ??? ...
-?   ??? TableSources/            # FROM clause sources
-?   ?   ??? TableSource.cs
-?   ?   ??? TableSourceSimple.cs
-?   ?   ??? TableSourceJoin.cs
-?   ?   ??? TableSourceSubquery.cs
-?   ??? ColumnConstraints/       # Column-level constraints
-?   ?   ??? ColumnConstraint.cs
-?   ?   ??? ColumnConstraintPrimaryKey.cs
-?   ?   ??? ColumnConstraintNotNull.cs
-?   ?   ??? ...
-?   ??? TableConstraints/        # Table-level constraints
-?   ?   ??? TableConstraint.cs
-?   ?   ??? TableConstraintPrimaryKey.cs
-?   ?   ??? ...
-?   ??? AlterActions/            # ALTER TABLE actions
-?   ?   ??? AlterAction.cs
-?   ?   ??? AlterActionAddColumn.cs
-?   ?   ??? ...
-?   ??? MergeClauses/            # MERGE statement clauses
-?       ??? ClauseMergeWhen.cs
-??? Visitor/                     # ANTLR visitor implementation
-?   ??? WitSqlVisitor.cs         # Main visitor (partial)
-?   ??? WitSqlVisitor.DDL.cs     # DDL statement handling
-?   ??? WitSqlVisitor.DML.cs     # DML statement handling
-?   ??? WitSqlVisitor.Expressions.cs
-?   ??? WitSqlVisitor.Helpers.cs
-??? Serializers/                 # AST to SQL text
-?   ??? WitSqlExpressionSerializer.cs
-??? Nodes/                       # Base AST node
-?   ??? WitSqlNode.cs
-??? Interfaces/                  # Visitor interface
-?   ??? IWitSqlVisitor.cs
-??? Exceptions/                  # Exception types
-?   ??? WitSqlParsingException.cs
-??? WitSql.cs                    # Main entry point
-??? WitSqlParsingResult.cs       # Parsing result
-??? WitSqlParsingError.cs        # Error details
-??? WitSqlParsingErrorListener.cs
++-- Grammars/                    # ANTLR4 grammar files
+|   +-- WitSqlLexer.g4          # Lexer rules (tokens)
+|   +-- WitSqlParser.g4         # Parser rules (grammar)
++-- Expressions/                 # Expression AST nodes
+|   +-- WitSqlExpression.cs     # Base class
+|   +-- WitSqlExpressionBinary.cs
+|   +-- WitSqlExpressionUnary.cs
+|   +-- WitSqlExpressionLiteral.cs
+|   +-- WitSqlExpressionColumnRef.cs
+|   +-- WitSqlExpressionFunctionCall.cs
+|   +-- WitSqlExpressionCase.cs
+|   +-- WitSqlExpressionCast.cs
+|   +-- WitSqlExpressionBetween.cs
+|   +-- WitSqlExpressionIn.cs
+|   +-- WitSqlExpressionLike.cs
+|   +-- WitSqlExpressionGlob.cs
+|   +-- WitSqlExpressionIsNull.cs
+|   +-- WitSqlExpressionExists.cs
+|   +-- WitSqlExpressionSubquery.cs
+|   +-- WitSqlExpressionQuantified.cs
+|   +-- WitSqlExpressionParameter.cs
+|   +-- WitSqlExpressionIif.cs
+|   +-- WitSqlExpressionCollate.cs
++-- Statements/                  # Statement AST nodes
+|   +-- WitSqlStatement.cs      # Base class
+|   +-- WitSqlStatementSelect.cs
+|   +-- WitSqlStatementInsert.cs
+|   +-- WitSqlStatementUpdate.cs
+|   +-- WitSqlStatementDelete.cs
+|   +-- WitSqlStatementMerge.cs
+|   +-- WitSqlStatementCreateTable.cs
+|   +-- WitSqlStatementDropTable.cs
+|   +-- WitSqlStatementAlterTable.cs
+|   +-- WitSqlStatementCreateIndex.cs
+|   +-- WitSqlStatementDropIndex.cs
+|   +-- WitSqlStatementCreateView.cs
+|   +-- WitSqlStatementDropView.cs
+|   +-- WitSqlStatementCreateTrigger.cs
+|   +-- WitSqlStatementDropTrigger.cs
+|   +-- WitSqlStatementCreateSequence.cs
+|   +-- WitSqlStatementDropSequence.cs
+|   +-- WitSqlStatementAlterSequence.cs
+|   +-- WitSqlStatementTruncate.cs
+|   +-- WitSqlStatementExplain.cs
+|   +-- WitSqlStatementBeginTransaction.cs
+|   +-- WitSqlStatementCommit.cs
+|   +-- WitSqlStatementRollback.cs
+|   +-- WitSqlStatementSavepoint.cs
+|   +-- WitSqlStatementReleaseSavepoint.cs
+|   +-- WitSqlStatementSetTransaction.cs
+|   +-- WitSqlStatementSignal.cs
++-- Schema/                      # Supporting schema types
+|   +-- WitSqlColumn.cs
+|   +-- WitSqlDataType.cs
+|   +-- Types/                   # Enums and type definitions
+|   |   +-- BinaryOperator.cs
+|   |   +-- UnaryOperatorType.cs
+|   |   +-- LiteralType.cs
+|   |   +-- JoinType.cs
+|   |   +-- SetOperationType.cs
+|   |   +-- IsolationLevelType.cs
+|   |   +-- LockingType.cs
+|   |   +-- ParameterType.cs
+|   |   +-- QuantifierType.cs
+|   |   +-- ...
+|   +-- Clauses/                 # Clause definitions
+|   |   +-- ClauseSelectItem.cs
+|   |   +-- ClauseOrderByItem.cs
+|   |   +-- ClauseCteDefinition.cs
+|   |   +-- ClauseOnConflict.cs
+|   |   +-- ...
+|   +-- TableSources/            # FROM clause sources
+|   |   +-- TableSource.cs
+|   |   +-- TableSourceSimple.cs
+|   |   +-- TableSourceJoin.cs
+|   |   +-- TableSourceSubquery.cs
+|   +-- ColumnConstraints/       # Column-level constraints
+|   |   +-- ColumnConstraint.cs
+|   |   +-- ColumnConstraintPrimaryKey.cs
+|   |   +-- ColumnConstraintNotNull.cs
+|   |   +-- ...
+|   +-- TableConstraints/        # Table-level constraints
+|   |   +-- TableConstraint.cs
+|   |   +-- TableConstraintPrimaryKey.cs
+|   |   +-- ...
+|   +-- AlterActions/            # ALTER TABLE actions
+|   |   +-- AlterAction.cs
+|   |   +-- AlterActionAddColumn.cs
+|   |   +-- ...
+|   +-- MergeClauses/            # MERGE statement clauses
+|       +-- ClauseMergeWhen.cs
++-- Visitor/                     # ANTLR visitor implementation
+|   +-- WitSqlVisitor.cs         # Main visitor (partial)
+|   +-- WitSqlVisitor.DDL.cs     # DDL statement handling
+|   +-- WitSqlVisitor.DML.cs     # DML statement handling
+|   +-- WitSqlVisitor.Expressions.cs
+|   +-- WitSqlVisitor.Helpers.cs
++-- Serializers/                 # AST to SQL text
+|   +-- WitSqlExpressionSerializer.cs
++-- Nodes/                       # Base AST node
+|   +-- WitSqlNode.cs
++-- Interfaces/                  # Visitor interface
+|   +-- IWitSqlVisitor.cs
++-- Exceptions/                  # Exception types
+|   +-- WitSqlParsingException.cs
++-- WitSql.cs                    # Main entry point
++-- WitSqlParsingResult.cs       # Parsing result
++-- WitSqlParsingError.cs        # Error details
++-- WitSqlParsingErrorListener.cs
 ```
 
 ### AST Class Hierarchy
 
 ```
 WitSqlNode (abstract)
-??? WitSqlStatement (abstract)
-?   ??? WitSqlStatementSelect
-?   ??? WitSqlStatementInsert
-?   ??? WitSqlStatementUpdate
-?   ??? WitSqlStatementDelete
-?   ??? WitSqlStatementMerge
-?   ??? WitSqlStatementCreateTable
-?   ??? WitSqlStatementDropTable
-?   ??? WitSqlStatementAlterTable
-?   ??? WitSqlStatementCreateIndex
-?   ??? WitSqlStatementDropIndex
-?   ??? WitSqlStatementCreateView
-?   ??? WitSqlStatementDropView
-?   ??? WitSqlStatementCreateTrigger
-?   ??? WitSqlStatementDropTrigger
-?   ??? WitSqlStatementCreateSequence
-?   ??? WitSqlStatementDropSequence
-?   ??? WitSqlStatementAlterSequence
-?   ??? WitSqlStatementTruncate
-?   ??? WitSqlStatementBeginTransaction
-?   ??? WitSqlStatementCommit
-?   ??? WitSqlStatementRollback
-?   ??? WitSqlStatementSavepoint
-?   ??? WitSqlStatementReleaseSavepoint
-?   ??? WitSqlStatementSetTransaction
-?   ??? WitSqlStatementSignal
-??? WitSqlExpression (abstract)
-    ??? WitSqlExpressionLiteral
-    ??? WitSqlExpressionColumnRef
-    ??? WitSqlExpressionBinary
-    ??? WitSqlExpressionUnary
-    ??? WitSqlExpressionFunctionCall
-    ??? WitSqlExpressionCase
-    ??? WitSqlExpressionCast
-    ??? WitSqlExpressionBetween
-    ??? WitSqlExpressionIn
-    ??? WitSqlExpressionLike
-    ??? WitSqlExpressionGlob
-    ??? WitSqlExpressionIsNull
-    ??? WitSqlExpressionExists
-    ??? WitSqlExpressionSubquery
-    ??? WitSqlExpressionQuantified
-    ??? WitSqlExpressionParameter
-    ??? WitSqlExpressionIif
-    ??? WitSqlExpressionCollate
++-- WitSqlStatement (abstract)
+|   +-- WitSqlStatementSelect
+|   +-- WitSqlStatementInsert
+|   +-- WitSqlStatementUpdate
+|   +-- WitSqlStatementDelete
+|   +-- WitSqlStatementMerge
+|   +-- WitSqlStatementCreateTable
+|   +-- WitSqlStatementDropTable
+|   +-- WitSqlStatementAlterTable
+|   +-- WitSqlStatementCreateIndex
+|   +-- WitSqlStatementDropIndex
+|   +-- WitSqlStatementCreateView
+|   +-- WitSqlStatementDropView
+|   +-- WitSqlStatementCreateTrigger
+|   +-- WitSqlStatementDropTrigger
+|   +-- WitSqlStatementCreateSequence
+|   +-- WitSqlStatementDropSequence
+|   +-- WitSqlStatementAlterSequence
+|   +-- WitSqlStatementTruncate
+|   +-- WitSqlStatementExplain
+|   +-- WitSqlStatementBeginTransaction
+|   +-- WitSqlStatementCommit
+|   +-- WitSqlStatementRollback
+|   +-- WitSqlStatementSavepoint
+|   +-- WitSqlStatementReleaseSavepoint
+|   +-- WitSqlStatementSetTransaction
+|   +-- WitSqlStatementSignal
++-- WitSqlExpression (abstract)
+    +-- WitSqlExpressionLiteral
+    +-- WitSqlExpressionColumnRef
+    +-- WitSqlExpressionBinary
+    +-- WitSqlExpressionUnary
+    +-- WitSqlExpressionFunctionCall
+    +-- WitSqlExpressionCase
+    +-- WitSqlExpressionCast
+    +-- WitSqlExpressionBetween
+    +-- WitSqlExpressionIn
+    +-- WitSqlExpressionLike
+    +-- WitSqlExpressionGlob
+    +-- WitSqlExpressionIsNull
+    +-- WitSqlExpressionExists
+    +-- WitSqlExpressionSubquery
+    +-- WitSqlExpressionQuantified
+    +-- WitSqlExpressionParameter
+    +-- WitSqlExpressionIif
+    +-- WitSqlExpressionCollate
 ```
 
 ---
@@ -333,6 +335,11 @@ WitSqlNode (abstract)
 - `LAG()`, `LEAD()`, `FIRST_VALUE()`, `LAST_VALUE()`, `NTH_VALUE()`
 - `PERCENT_RANK()`, `CUME_DIST()`
 - `OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE ...)`
+
+### Query Analysis
+
+- `EXPLAIN SELECT ...`
+- `EXPLAIN QUERY PLAN SELECT ...`
 
 ### Built-in Functions
 
@@ -434,6 +441,6 @@ MIT License - see LICENSE file for details.
 
 ## See Also
 
-- [WitSql.md](../WitSql.md) - Full WitSQL language specification
-- [Roadmap.Parser.md](../Roadmap.Parser.md) - Parser roadmap
-- [Status.md](Status.md) - Implementation status
+- [WitSql.md](../../WitSql.md) - Full WitSQL language specification
+- [Roadmap.Parser.md](../../Roadmap.Parser.md) - Parser roadmap
+- [STATUS.md](STATUS.md) - Implementation status

@@ -1,8 +1,8 @@
 # OutWit.Database.Parser - Roadmap
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Based on:** WitSql.md specification v1.2 and OutWit.Database.Parser.TODO.md  
-**Last Updated:** 2024-12-21
+**Last Updated:** 2025-02-05
 
 ---
 
@@ -35,7 +35,7 @@
 | DML - INSERT | 8 | 0 | 100% |
 | DML - UPDATE | 5 | 0 | 100% |
 | DML - DELETE | 5 | 0 | 100% |
-| DML - TRUNCATE/MERGE | 4 | 0 | 100% |
+| DML - TRUNCATE/MERGE | 5 | 0 | 100% |
 | CTE / Set Operations | 6 | 0 | 100% |
 | Subqueries | 7 | 0 | 100% |
 | Operators | 20 | 0 | 100% |
@@ -51,12 +51,12 @@
 | JSON Functions | 11 | 0 | 100% |
 | Window Functions | 18 | 0 | 100% |
 | Transactions | 8 | 0 | 100% |
+| EXPLAIN | 2 | 2 | 50% - Extended in v2 |
 | User-Defined Functions | 0 | 4 | 0% - Deferred to v2 |
 | Stored Procedures | 0 | 4 | 0% - Deferred to v2 |
-| EXPLAIN | 0 | 3 | 0% - Deferred to v2 |
 | Database Administration | 0 | 7 | 0% - Deferred to v2 |
 | Comments | 2 | 0 | 100% |
-| **TOTAL (v1)** | **290** | **0** | **100%** |
+| **TOTAL (v1)** | **298** | **0** | **100%** |
 
 ---
 
@@ -474,11 +474,12 @@
 
 ---
 
-## 24. EXPLAIN (0%)
+## 24. EXPLAIN (50%)
 
 | Feature | Status | Spec |
 |---------|--------|------|
-| `EXPLAIN select_statement` | [ ] | SS25.1 |
+| `EXPLAIN select_statement` | [x] | SS25.1 |
+| `EXPLAIN QUERY PLAN select_statement` | [x] | SS25.1 |
 | `EXPLAIN ANALYZE` | [ ] | SS25.1 |
 | `EXPLAIN (FORMAT JSON/TEXT)` | [ ] | SS25.1 |
 
@@ -550,5 +551,5 @@
 | `CREATE FUNCTION` / `DROP FUNCTION` | P2 - Deferred to v2 |
 | `CREATE PROCEDURE` / `DROP PROCEDURE` | P2 - Deferred to v2 |
 | `CALL` / `EXECUTE` | P2 - Deferred to v2 |
-| `EXPLAIN` / `EXPLAIN ANALYZE` | P2 - Deferred to v2 |
+| `EXPLAIN ANALYZE` / `EXPLAIN (FORMAT ...)` | P2 - Deferred to v2 |
 | Database administration | P2 - Deferred to v2 |

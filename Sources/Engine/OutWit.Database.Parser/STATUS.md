@@ -1,7 +1,7 @@
 # OutWit.Database.Parser - Implementation Status
 
-**Version:** 1.0  
-**Last Updated:** 2025-01-17
+**Version:** 1.1  
+**Last Updated:** 2025-02-05
 
 ---
 
@@ -9,8 +9,8 @@
 
 | Metric | Value |
 |--------|-------|
-| **v1 Features** | 290 |
-| **Implemented** | 290 |
+| **v1 Features** | 298 |
+| **Implemented** | 298 |
 | **Progress** | 100% |
 | **Tests** | 1000+ |
 
@@ -171,6 +171,7 @@
 | `TRUNCATE TABLE table_name` | Done |
 | `MERGE INTO target USING source ON` | Done |
 | `WHEN MATCHED THEN UPDATE` | Done |
+| `WHEN MATCHED THEN DELETE` | Done |
 | `WHEN NOT MATCHED THEN INSERT` | Done |
 
 ### CTE / Set Operations (100%)
@@ -209,8 +210,8 @@
 | Logical: `AND`, `OR`, `NOT` | Done |
 | Arithmetic: `+`, `-`, `*`, `/`, `%` | Done |
 | Unary: `-expr`, `+expr` | Done |
-| String: `\|\|` (concatenation) | Done |
-| Bitwise: `&`, `\|`, `~`, `<<`, `>>` | Done |
+| String: `||` (concatenation) | Done |
+| Bitwise: `&`, `|`, `~`, `<<`, `>>` | Done |
 
 ### Conditional Expressions (100%)
 
@@ -285,6 +286,13 @@
 | `SET TRANSACTION ISOLATION LEVEL` | Done |
 | Isolation level keywords | Done |
 
+### Query Analysis (100%) - NEW
+
+| Feature | Status |
+|---------|--------|
+| `EXPLAIN select_statement` | Done |
+| `EXPLAIN QUERY PLAN select_statement` | Done |
+
 ### Comments (100%)
 
 | Feature | Status |
@@ -316,11 +324,10 @@ The following features are planned for v2:
 | `CALL procedure(args)` | Planned | P2 |
 | `EXECUTE procedure(args)` | Planned | P2 |
 
-### EXPLAIN / Query Analysis (0%)
+### Query Analysis - Extended (0%)
 
 | Feature | Status | Priority |
 |---------|--------|----------|
-| `EXPLAIN select_statement` | Planned | P2 |
 | `EXPLAIN ANALYZE` | Planned | P2 |
 | `EXPLAIN (FORMAT JSON/TEXT)` | Planned | P2 |
 
@@ -352,9 +359,23 @@ The following features are planned for v2:
 | Functions | 150+ |
 | Window Functions | 50+ |
 | Transactions | 40+ |
+| EXPLAIN | 8+ |
 | Comments | 10+ |
 | Error Handling | 30+ |
 | **Total** | **1000+** |
+
+---
+
+## Recent Changes
+
+### 2025-02-05
+- Added EXPLAIN and EXPLAIN QUERY PLAN support
+- Updated version to 1.1
+- Fixed documentation encoding issues
+
+### 2025-01-17
+- Initial v1.0 release
+- All v1 features complete
 
 ---
 
@@ -372,7 +393,7 @@ The following features are planned for v2:
 ## See Also
 
 - [README.md](README.md) - Project documentation
-- [../Roadmap.Parser.md](../Roadmap.Parser.md) - Full parser roadmap
-- [../Roadmap.v1.md](../Roadmap.v1.md) - v1 overall roadmap
-- [../Roadmap.v2.md](../Roadmap.v2.md) - v2 planned features
-- [../WitSql.md](../WitSql.md) - WitSQL language specification
+- [../../Roadmap.Parser.md](../../Roadmap.Parser.md) - Full parser roadmap
+- [../../Roadmap.v1.md](../../Roadmap.v1.md) - v1 overall roadmap
+- [../../Roadmap.v2.md](../../Roadmap.v2.md) - v2 planned features
+- [../../WitSql.md](../../WitSql.md) - WitSQL language specification
