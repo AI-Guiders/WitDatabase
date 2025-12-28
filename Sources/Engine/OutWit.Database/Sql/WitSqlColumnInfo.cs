@@ -8,7 +8,7 @@ using OutWit.Common.Attributes;
 using OutWit.Common.Values;
 using OutWit.Database.Types;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Sql;
 
 /// <summary>
 /// Schema information for a result set column.

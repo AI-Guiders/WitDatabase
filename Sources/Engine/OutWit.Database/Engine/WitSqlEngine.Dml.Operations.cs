@@ -1,9 +1,10 @@
 using OutWit.Database.Definitions;
 using OutWit.Database.Schema;
+using OutWit.Database.Sql;
 using OutWit.Database.Utils;
 using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// DML (Data Manipulation Language) operations for WitSqlEngine - basic row operations.

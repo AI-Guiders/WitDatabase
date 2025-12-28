@@ -3,6 +3,7 @@ using OutWit.Database.Interfaces;
 using OutWit.Database.Model;
 using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Sql;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Context;

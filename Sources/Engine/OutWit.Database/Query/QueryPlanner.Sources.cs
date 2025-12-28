@@ -1,6 +1,8 @@
 using OutWit.Database.Definitions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Iterators;
+using OutWit.Database.Model;
+using OutWit.Database.Optimizers;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.TableSources;
 using OutWit.Database.Parser.Schema.Types;
@@ -43,7 +45,7 @@ public sealed partial class QueryPlanner
         WitSqlExpression? whereClause)
     {
         // Try to optimize join order
-        var joinOptimizer = new JoinOrderOptimizer(m_context.Database);
+        var joinOptimizer = new OptimizerJoinOrder(m_context.Database);
         var joinConditions = ExtractJoinConditions(whereClause);
         var optimizedOrder = joinOptimizer.OptimizeJoinOrder(tables, joinConditions);
 
@@ -225,7 +227,7 @@ public sealed partial class QueryPlanner
         var right = CreateTableSourceIterator(join.Right);
 
         // Optimize join side order for INNER and CROSS joins
-        var joinOptimizer = new JoinOrderOptimizer(m_context.Database);
+        var joinOptimizer = new OptimizerJoinOrder(m_context.Database);
         if (joinOptimizer.ShouldSwapJoinSides(join))
         {
             // Swap left and right for better performance

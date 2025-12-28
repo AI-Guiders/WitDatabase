@@ -2,11 +2,12 @@ using OutWit.Database.Context;
 using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Parser;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Utils;
 using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// DML (Data Manipulation Language) operations for WitSqlEngine - index update logic.

@@ -1,6 +1,6 @@
 using OutWit.Database.Definitions;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// DDL (Data Definition Language) operations for sequences in WitSqlEngine.

@@ -1,6 +1,7 @@
 using OutWit.Database.Constants;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Types;
+using OutWit.Database.Sql;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Expressions;

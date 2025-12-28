@@ -1,3 +1,5 @@
+using OutWit.Database.Sql;
+
 namespace OutWit.Database.Interfaces;
 
 /// <summary>

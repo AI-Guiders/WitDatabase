@@ -19,7 +19,7 @@ public sealed class WitSqlEngineAdvancedIndexTests : WitSqlEngineTestsBase
             .WithBTree()
             .WithTransactions()
             .Build();
-        m_engine = new WitSqlEngine(database, ownsStore: true);
+        m_engine = new Engine.WitSqlEngine(database, ownsStore: true);
     }
 
     #endregion

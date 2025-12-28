@@ -1,7 +1,8 @@
 using OutWit.Database.Core.Builder;
-using OutWit.Database.Query;
 using OutWit.Database.Parser.Schema.TableSources;
 using OutWit.Database.Parser.Schema.Types;
+using OutWit.Database.Optimizers;
+using OutWit.Database.Model;
 
 namespace OutWit.Database.Tests.Query;
 
@@ -9,12 +10,12 @@ namespace OutWit.Database.Tests.Query;
 /// Tests for JoinOrderOptimizer functionality.
 /// </summary>
 [TestFixture]
-public sealed class JoinOrderOptimizerTests
+public sealed class OptimizerJoinOrderTests
 {
     #region Fields
 
-    private WitSqlEngine m_engine = null!;
-    private JoinOrderOptimizer m_optimizer = null!;
+    private Engine.WitSqlEngine m_engine = null!;
+    private OptimizerJoinOrder m_optimizer = null!;
 
     #endregion
 
@@ -27,8 +28,8 @@ public sealed class JoinOrderOptimizerTests
             .WithMemoryStorage()
             .WithBTree()
             .Build();
-        m_engine = new WitSqlEngine(database, ownsStore: true);
-        m_optimizer = new JoinOrderOptimizer(m_engine);
+        m_engine = new Engine.WitSqlEngine(database, ownsStore: true);
+        m_optimizer = new OptimizerJoinOrder(m_engine);
     }
 
     [TearDown]

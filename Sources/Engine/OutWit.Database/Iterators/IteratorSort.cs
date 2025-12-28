@@ -2,6 +2,7 @@ using OutWit.Database.Context;
 using OutWit.Database.Expressions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Parser.Schema.Clauses;
+using OutWit.Database.Sql;
 
 namespace OutWit.Database.Iterators;
 

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Sql;
 
 /// <summary>
 /// Represents the result of executing a SQL statement.

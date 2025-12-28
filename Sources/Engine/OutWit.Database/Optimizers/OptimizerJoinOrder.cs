@@ -1,15 +1,15 @@
 using OutWit.Database.Interfaces;
-using OutWit.Database.Parser.Expressions;
+using OutWit.Database.Model;
 using OutWit.Database.Parser.Schema.TableSources;
 using OutWit.Database.Parser.Schema.Types;
 
-namespace OutWit.Database.Query;
+namespace OutWit.Database.Optimizers;
 
 /// <summary>
 /// Optimizes join order to minimize intermediate result sizes.
 /// Uses a greedy algorithm based on estimated table sizes.
 /// </summary>
-public sealed class JoinOrderOptimizer
+public sealed class OptimizerJoinOrder
 {
     #region Constants
 
@@ -42,7 +42,7 @@ public sealed class JoinOrderOptimizer
     /// Creates a new join order optimizer.
     /// </summary>
     /// <param name="database">The database for table statistics.</param>
-    public JoinOrderOptimizer(IDatabase database)
+    public OptimizerJoinOrder(IDatabase database)
     {
         m_database = database;
     }
@@ -322,61 +322,4 @@ public sealed class JoinOrderOptimizer
     }
 
     #endregion
-}
-
-/// <summary>
-/// Statistics about a table for join optimization.
-/// </summary>
-public sealed class TableStatistics
-{
-    /// <summary>
-    /// The actual table name.
-    /// </summary>
-    public required string TableName { get; init; }
-
-    /// <summary>
-    /// The alias used in the query (or table name if no alias).
-    /// </summary>
-    public required string Alias { get; init; }
-
-    /// <summary>
-    /// Estimated number of rows in the table.
-    /// </summary>
-    public long EstimatedRowCount { get; init; }
-
-    /// <summary>
-    /// The original table source.
-    /// </summary>
-    public required TableSource Source { get; init; }
-}
-
-/// <summary>
-/// Information about a join condition for optimization.
-/// </summary>
-public sealed class JoinConditionInfo
-{
-    /// <summary>
-    /// The left table alias in the join condition.
-    /// </summary>
-    public required string LeftTableAlias { get; init; }
-
-    /// <summary>
-    /// The left column name in the join condition.
-    /// </summary>
-    public required string LeftColumnName { get; init; }
-
-    /// <summary>
-    /// The right table alias in the join condition.
-    /// </summary>
-    public required string RightTableAlias { get; init; }
-
-    /// <summary>
-    /// The right column name in the join condition.
-    /// </summary>
-    public required string RightColumnName { get; init; }
-
-    /// <summary>
-    /// Whether this is an equality join on a primary key or unique column.
-    /// </summary>
-    public bool IsPrimaryKeyJoin { get; init; }
 }

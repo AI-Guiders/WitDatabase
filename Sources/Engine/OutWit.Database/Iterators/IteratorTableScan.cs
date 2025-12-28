@@ -4,6 +4,7 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Parser;
 using OutWit.Database.Schema;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Utils;
 using OutWit.Database.Values;

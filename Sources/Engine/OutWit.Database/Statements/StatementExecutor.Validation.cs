@@ -1,6 +1,7 @@
 using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Parser;
+using OutWit.Database.Sql;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Statements;
@@ -115,7 +116,7 @@ public sealed partial class StatementExecutor
     {
         // We need to get all tables from the database
         // Use INFORMATION_SCHEMA or iterate through known tables
-        if (m_context.Database is WitSqlEngine engine)
+        if (m_context.Database is Engine.WitSqlEngine engine)
         {
             return engine.GetAllTableNames();
         }

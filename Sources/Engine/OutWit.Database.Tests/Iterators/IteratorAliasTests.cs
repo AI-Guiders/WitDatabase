@@ -1,4 +1,5 @@
 using OutWit.Database.Iterators;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 

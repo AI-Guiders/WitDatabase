@@ -7,7 +7,7 @@ using OutWit.Database.Types;
 using OutWit.Database.Utils;
 using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// DDL (Data Definition Language) operations for indexes in WitSqlEngine.

@@ -2,6 +2,7 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Clauses;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 

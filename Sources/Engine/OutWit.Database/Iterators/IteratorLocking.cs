@@ -4,6 +4,7 @@ using OutWit.Database.Interfaces;
 using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Schema;
+using OutWit.Database.Sql;
 
 namespace OutWit.Database.Iterators;
 

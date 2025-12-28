@@ -25,7 +25,7 @@ public sealed partial class QueryPlanner
             : tableName;
 
         // Get schema catalog from database
-        if (m_context.Database is not WitSqlEngine engine)
+        if (m_context.Database is not Engine.WitSqlEngine engine)
         {
             throw new InvalidOperationException("INFORMATION_SCHEMA is only available with WitSqlEngine");
         }

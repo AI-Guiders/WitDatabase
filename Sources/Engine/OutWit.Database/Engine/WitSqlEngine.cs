@@ -5,10 +5,11 @@ using OutWit.Database.Interfaces;
 using OutWit.Database.Parser;
 using OutWit.Database.Query;
 using OutWit.Database.Schema;
+using OutWit.Database.Sql;
 using OutWit.Database.Statements;
 using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// The main SQL execution engine for WitDatabase.

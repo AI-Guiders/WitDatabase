@@ -3,6 +3,7 @@ using OutWit.Database.Expressions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Types;
+using OutWit.Database.Sql;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Iterators;

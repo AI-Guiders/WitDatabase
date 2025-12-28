@@ -11,7 +11,7 @@ public class WitSqlEngineExplainTests
 {
     #region Fields
 
-    private WitSqlEngine m_engine = null!;
+    private Engine.WitSqlEngine m_engine = null!;
 
     #endregion
 
@@ -26,7 +26,7 @@ public class WitSqlEngineExplainTests
             .WithTransactions()
             .Build();
 
-        m_engine = new WitSqlEngine(database, ownsStore: true);
+        m_engine = new Engine.WitSqlEngine(database, ownsStore: true);
 
         // Create test tables
         m_engine.Execute(@"

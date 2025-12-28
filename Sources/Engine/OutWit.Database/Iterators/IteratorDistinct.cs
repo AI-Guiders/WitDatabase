@@ -1,5 +1,6 @@
 using OutWit.Database.Interfaces;
 using OutWit.Database.Model;
+using OutWit.Database.Sql;
 
 namespace OutWit.Database.Iterators;
 

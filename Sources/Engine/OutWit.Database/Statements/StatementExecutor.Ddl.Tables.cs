@@ -1,5 +1,6 @@
 using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
+using OutWit.Database.Model;
 using OutWit.Database.Parser.Schema;
 using OutWit.Database.Parser.Schema.AlterActions;
 using OutWit.Database.Parser.Schema.ColumnConstraints;
@@ -7,6 +8,7 @@ using OutWit.Database.Parser.Schema.TableConstraints;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Serializers;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 

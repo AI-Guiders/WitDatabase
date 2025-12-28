@@ -4,11 +4,12 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Iterators;
 using OutWit.Database.Parser;
+using OutWit.Database.Sql;
 using OutWit.Database.Statements;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// Query-related methods for WitSqlEngine.
@@ -72,10 +73,10 @@ public sealed partial class WitSqlEngine
     /// </summary>
     /// <param name="sql">SQL query text to prepare.</param>
     /// <returns>A prepared statement that can be executed multiple times.</returns>
-    public WitSqlStatementPrepared Prepare(string sql)
+    public WitSqlEngineStatement Prepare(string sql)
     {
         var statements = WitSql.Parse(sql);
-        return new WitSqlStatementPrepared(this, statements);
+        return new WitSqlEngineStatement(this, statements);
     }
 
     #endregion

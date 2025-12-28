@@ -1,7 +1,7 @@
 using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Transactions;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// Transaction management operations for WitSqlEngine.

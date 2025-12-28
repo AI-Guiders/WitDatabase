@@ -1,6 +1,7 @@
 using NSubstitute;
 using OutWit.Database.Definitions;
 using OutWit.Database.Parser;
+using OutWit.Database.Sql;
 using OutWit.Database.Statements;
 using OutWit.Database.Types;
 using OutWit.Database.Values;

@@ -8,13 +8,13 @@ namespace OutWit.Database.Tests;
 [TestFixture]
 public class WitSqlEngineUpdateFromTests
 {
-    private WitSqlEngine m_engine = null!;
+    private Engine.WitSqlEngine m_engine = null!;
 
     [SetUp]
     public void SetUp()
     {
         var database = WitDatabase.CreateInMemory();
-        m_engine = new WitSqlEngine(database, ownsStore: true);
+        m_engine = new Engine.WitSqlEngine(database, ownsStore: true);
 
         // Create test tables
         m_engine.Execute(@"

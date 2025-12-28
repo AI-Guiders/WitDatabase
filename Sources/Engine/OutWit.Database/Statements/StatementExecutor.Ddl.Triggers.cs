@@ -2,6 +2,7 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Serializers;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 
 namespace OutWit.Database.Statements;

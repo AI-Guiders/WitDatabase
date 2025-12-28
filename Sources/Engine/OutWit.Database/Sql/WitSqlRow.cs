@@ -1,6 +1,6 @@
 ﻿using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Sql;
 
 /// <summary>
 /// Represents a row of SQL values with column name lookup support.

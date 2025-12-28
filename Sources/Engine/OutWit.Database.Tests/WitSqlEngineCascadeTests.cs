@@ -11,10 +11,10 @@ public class WitSqlEngineCascadeTests : WitSqlEngineTestsBase
 {
     #region Helper
 
-    private WitSqlEngine CreateEngine()
+    private Engine.WitSqlEngine CreateEngine()
     {
         var database = WitDatabase.CreateInMemory();
-        return new WitSqlEngine(database, ownsStore: true);
+        return new Engine.WitSqlEngine(database, ownsStore: true);
     }
 
     #endregion

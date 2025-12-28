@@ -1,5 +1,6 @@
 using OutWit.Database.Interfaces;
 using OutWit.Database.Schema;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 

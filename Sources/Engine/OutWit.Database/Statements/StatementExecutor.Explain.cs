@@ -1,6 +1,7 @@
 using System.Text;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 

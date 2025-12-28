@@ -4,6 +4,7 @@ using OutWit.Database.Interfaces;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 using NSubstitute;
+using OutWit.Database.Sql;
 
 namespace OutWit.Database.Tests.Expressions;
 

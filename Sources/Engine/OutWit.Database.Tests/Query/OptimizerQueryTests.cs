@@ -1,8 +1,9 @@
 using OutWit.Database.Definitions;
+using OutWit.Database.Model;
+using OutWit.Database.Optimizers;
 using OutWit.Database.Parser;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema.Types;
-using OutWit.Database.Query;
 
 namespace OutWit.Database.Tests.Query;
 
@@ -10,11 +11,11 @@ namespace OutWit.Database.Tests.Query;
 /// Unit tests for QueryOptimizer predicate extraction and index selection.
 /// </summary>
 [TestFixture]
-public sealed class QueryOptimizerTests
+public sealed class OptimizerQueryTests
 {
     #region Fields
 
-    private QueryOptimizer m_optimizer = null!;
+    private OptimizerQuery m_optimizer = null!;
 
     #endregion
 
@@ -23,7 +24,7 @@ public sealed class QueryOptimizerTests
     [SetUp]
     public void Setup()
     {
-        m_optimizer = new QueryOptimizer();
+        m_optimizer = new OptimizerQuery();
     }
 
     #endregion

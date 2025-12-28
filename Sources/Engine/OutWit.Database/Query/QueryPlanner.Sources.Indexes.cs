@@ -2,6 +2,8 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Iterators;
+using OutWit.Database.Model;
+using OutWit.Database.Sql;
 using OutWit.Database.Values;
 
 namespace OutWit.Database.Query;

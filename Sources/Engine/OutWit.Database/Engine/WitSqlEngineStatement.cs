@@ -1,15 +1,16 @@
 ﻿using OutWit.Database.Context;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Sql;
 using OutWit.Database.Statements;
 using OutWit.Database.Values;
 
-namespace OutWit.Database;
+namespace OutWit.Database.Engine;
 
 /// <summary>
 /// A prepared SQL statement that can be executed multiple times with different parameters.
 /// </summary>
-public sealed class WitSqlStatementPrepared : IDisposable
+public sealed class WitSqlEngineStatement : IDisposable
 {
     #region Fields
 
@@ -26,7 +27,7 @@ public sealed class WitSqlStatementPrepared : IDisposable
     /// </summary>
     /// <param name="database">The database to execute against.</param>
     /// <param name="statements">The parsed SQL statements.</param>
-    internal WitSqlStatementPrepared(IDatabase database, IReadOnlyList<WitSqlStatement> statements)
+    internal WitSqlEngineStatement(IDatabase database, IReadOnlyList<WitSqlStatement> statements)
     {
         m_database = database;
         m_statements = statements;
@@ -42,7 +43,7 @@ public sealed class WitSqlStatementPrepared : IDisposable
     /// <param name="name">The parameter name (with or without @ prefix).</param>
     /// <param name="value">The parameter value.</param>
     /// <returns>This prepared statement for fluent chaining.</returns>
-    public WitSqlStatementPrepared SetParameter(string name, object? value)
+    public WitSqlEngineStatement SetParameter(string name, object? value)
     {
         var paramName = name.StartsWith("@") ? name : $"@{name}";
         m_parameters[paramName] = value;
@@ -53,7 +54,7 @@ public sealed class WitSqlStatementPrepared : IDisposable
     /// Clear all parameter values.
     /// </summary>
     /// <returns>This prepared statement for fluent chaining.</returns>
-    public WitSqlStatementPrepared ClearParameters()
+    public WitSqlEngineStatement ClearParameters()
     {
         m_parameters.Clear();
         return this;

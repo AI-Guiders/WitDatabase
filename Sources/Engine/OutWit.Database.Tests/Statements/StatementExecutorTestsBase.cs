@@ -2,6 +2,7 @@ using NSubstitute;
 using OutWit.Database.Context;
 using OutWit.Database.Definitions;
 using OutWit.Database.Interfaces;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 

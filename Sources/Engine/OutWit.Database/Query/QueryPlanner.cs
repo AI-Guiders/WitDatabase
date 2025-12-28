@@ -2,6 +2,7 @@ using OutWit.Database.Constants;
 using OutWit.Database.Context;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Iterators;
+using OutWit.Database.Optimizers;
 using OutWit.Database.Parser.Statements;
 
 namespace OutWit.Database.Query;
@@ -30,7 +31,7 @@ public sealed partial class QueryPlanner
     #region Fields
 
     private readonly ContextExecution m_context;
-    private readonly QueryOptimizer m_optimizer;
+    private readonly OptimizerQuery m_optimizer;
 
     #endregion
 
@@ -43,7 +44,7 @@ public sealed partial class QueryPlanner
     public QueryPlanner(ContextExecution context)
     {
         m_context = context;
-        m_optimizer = new QueryOptimizer();
+        m_optimizer = new OptimizerQuery();
     }
 
     #endregion

@@ -6,7 +6,7 @@ namespace OutWit.Database.Tests;
 /// Tests for WitSqlStatementPrepared.
 /// </summary>
 [TestFixture]
-public sealed class WitSqlStatementPreparedTests : WitSqlEngineTestsBase
+public sealed class WitSqlEngineStatementTests : WitSqlEngineTestsBase
 {
     #region Basic Tests
 

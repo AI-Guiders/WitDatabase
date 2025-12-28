@@ -6,6 +6,7 @@ using OutWit.Database.Parser.Schema.Clauses;
 using OutWit.Database.Parser.Schema.MergeClauses;
 using OutWit.Database.Parser.Schema.Types;
 using OutWit.Database.Parser.Statements;
+using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
 
