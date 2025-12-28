@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Folder Name="/@Docs/">
     <File Path="Directory.Build.props" />
     <File Path="Docs/CODE_STYLE_GUIDE.md" />
@@ -8,6 +8,7 @@
     <File Path="Docs/WitSQL.md" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/Sources/" />
   <Folder Name="/Sources/Core/">
     <Project Path="Sources/Core/OutWit.Database.Core/OutWit.Database.Core.csproj" Id="91042611-a01d-4293-9594-25ee9d3a0a67" />
     <Project Path="Sources/Core/OutWit.Database.Core.Tests/OutWit.Database.Core.Tests.csproj" Id="91a232f7-c5e4-4083-8127-20070e0d8b03" />
@@ -26,5 +27,11 @@
   </Folder>
   <Folder Name="/Benchmarks/">
     <Project Path="Benchmarks/OutWit.Database.Core.Tests.Benchmarks/OutWit.Database.Core.Tests.Benchmarks.csproj" Id="218fe20c-91ee-4980-98ce-332906c1db1a" />
+  </Folder>
+  <Folder Name="/Sources/Providers/">
+    <Project Path="Sources/Providers/OutWit.Database.AdoNet.Tests/OutWit.Database.AdoNet.Tests.csproj" Id="e513267f-5a9e-4d22-a243-33140b649bf9" />
+    <Project Path="Sources/Providers/OutWit.Database.AdoNet/OutWit.Database.AdoNet.csproj" Id="f2f4a444-28b5-412a-a7c3-a3fcef303cf3" />
+    <Project Path="Sources/Providers/OutWit.Database.EntityFramework.Tests/OutWit.Database.EntityFramework.Tests.csproj" Id="09badd84-f5a3-4310-b672-3c8a8c1a04d3" />
+    <Project Path="Sources/Providers/OutWit.Database.EntityFramework/OutWit.Database.EntityFramework.csproj" Id="a9ae5e40-63e3-4f7a-9b64-03ad4397ab00" />
   </Folder>
 </Solution>
