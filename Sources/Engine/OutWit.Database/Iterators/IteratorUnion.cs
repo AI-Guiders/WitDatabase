@@ -1,5 +1,6 @@
 using OutWit.Database.Interfaces;
 using OutWit.Database.Model;
+using OutWit.Database.Validators;
 
 namespace OutWit.Database.Iterators;
 
@@ -34,7 +35,7 @@ public sealed class IteratorUnion : IteratorBase
         m_right = right;
         m_isAll = isAll;
         
-        SetOperationSchemaValidator.ValidateSchemaCompatibility(left.Schema, right.Schema, "UNION");
+        ValidatorSetOperationSchema.ValidateSchemaCompatibility(left.Schema, right.Schema, "UNION");
     }
 
     #endregion

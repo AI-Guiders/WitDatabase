@@ -1,11 +1,11 @@
 using OutWit.Database.Types;
 
-namespace OutWit.Database.Iterators;
+namespace OutWit.Database.Validators;
 
 /// <summary>
 /// Helper class for validating schema compatibility in set operations.
 /// </summary>
-internal static class SetOperationSchemaValidator
+internal static class ValidatorSetOperationSchema
 {
     /// <summary>
     /// Validates that two schemas are compatible for set operations (UNION, INTERSECT, EXCEPT).

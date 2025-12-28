@@ -1,5 +1,6 @@
 using OutWit.Database.Interfaces;
 using OutWit.Database.Model;
+using OutWit.Database.Validators;
 
 namespace OutWit.Database.Iterators;
 
@@ -35,7 +36,7 @@ public sealed class IteratorExcept : IteratorBase
         m_right = right;
         m_isAll = isAll;
         
-        SetOperationSchemaValidator.ValidateSchemaCompatibility(left.Schema, right.Schema, "EXCEPT");
+        ValidatorSetOperationSchema.ValidateSchemaCompatibility(left.Schema, right.Schema, "EXCEPT");
     }
 
     #endregion
