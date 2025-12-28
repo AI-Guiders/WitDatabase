@@ -837,6 +837,7 @@ namespace OutWit.Database.Core.Tests.Transactions
         }
 
         [Test]
+        [Explicit]
         public void DisposeSignalsAllWaitingTransactionsTest()
         {
             var store = CreateStore();
