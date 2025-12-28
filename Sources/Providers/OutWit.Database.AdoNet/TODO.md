@@ -13,327 +13,492 @@ This package provides a standard ADO.NET provider for WitDatabase, allowing it t
 
 ---
 
-## Implementation Plan
+## Implementation Progress
 
-### Phase 1: Core Classes (P0)
-
-#### 1.1 WitDbConnection
-
-```csharp
-public sealed class WitDbConnection : DbConnection
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `ConnectionString` property | P0 | Parse and store connection string |
-| `Database` property | P0 | Return database name/path |
-| `DataSource` property | P0 | Return data source identifier |
-| `ServerVersion` property | P0 | Return WitDatabase version |
-| `State` property | P0 | Track connection state |
-| `Open()` | P0 | Open database connection |
-| `OpenAsync()` | P0 | Async version |
-| `Close()` | P0 | Close connection |
-| `CloseAsync()` | P0 | Async version |
-| `ChangeDatabase()` | P1 | Switch database (if supported) |
-| `BeginTransaction()` | P0 | Start transaction |
-| `BeginTransactionAsync()` | P0 | Async version |
-| `CreateCommand()` | P0 | Create WitDbCommand |
-| `Dispose()` / `DisposeAsync()` | P0 | Cleanup resources |
-| `GetSchema()` | P1 | Return schema information |
-
-**Internal:**
-- Hold reference to `WitSqlEngine`
-- Manage connection lifecycle
-- Track active transactions
-
-#### 1.2 WitDbCommand
-
-```csharp
-public sealed class WitDbCommand : DbCommand
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `CommandText` property | P0 | SQL statement text |
-| `CommandType` property | P0 | Text/StoredProcedure/TableDirect |
-| `CommandTimeout` property | P0 | Execution timeout |
-| `Connection` property | P0 | Associated connection |
-| `Transaction` property | P0 | Associated transaction |
-| `Parameters` property | P0 | Parameter collection |
-| `ExecuteNonQuery()` | P0 | Execute DDL/DML, return affected rows |
-| `ExecuteNonQueryAsync()` | P0 | Async version |
-| `ExecuteScalar()` | P0 | Execute and return first column of first row |
-| `ExecuteScalarAsync()` | P0 | Async version |
-| `ExecuteReader()` | P0 | Execute and return data reader |
-| `ExecuteReaderAsync()` | P0 | Async version |
-| `Prepare()` | P1 | Prepare statement for execution |
-| `PrepareAsync()` | P1 | Async version |
-| `Cancel()` | P1 | Cancel executing command |
-| `CreateParameter()` | P0 | Create WitDbParameter |
-| `Dispose()` / `DisposeAsync()` | P0 | Cleanup resources |
-
-**Internal:**
-- Parse SQL and bind parameters
-- Execute via `WitSqlEngine`
-- Handle timeouts and cancellation
-
-#### 1.3 WitDbDataReader
-
-```csharp
-public sealed class WitDbDataReader : DbDataReader
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `FieldCount` property | P0 | Number of columns |
-| `HasRows` property | P0 | Whether result has rows |
-| `IsClosed` property | P0 | Whether reader is closed |
-| `RecordsAffected` property | P0 | Affected row count |
-| `Depth` property | P0 | Nesting depth (always 0) |
-| `Read()` | P0 | Advance to next row |
-| `ReadAsync()` | P0 | Async version |
-| `NextResult()` | P1 | Advance to next result set |
-| `NextResultAsync()` | P1 | Async version |
-| `Close()` | P0 | Close reader |
-| `CloseAsync()` | P0 | Async version |
-| `GetName(int)` | P0 | Get column name |
-| `GetOrdinal(string)` | P0 | Get column ordinal |
-| `GetDataTypeName(int)` | P0 | Get column type name |
-| `GetFieldType(int)` | P0 | Get column CLR type |
-| `GetValue(int)` | P0 | Get value as object |
-| `GetValues(object[])` | P0 | Get all values |
-| `IsDBNull(int)` | P0 | Check if value is null |
-| `GetBoolean(int)` | P0 | Get as bool |
-| `GetByte(int)` | P0 | Get as byte |
-| `GetChar(int)` | P0 | Get as char |
-| `GetDateTime(int)` | P0 | Get as DateTime |
-| `GetDecimal(int)` | P0 | Get as decimal |
-| `GetDouble(int)` | P0 | Get as double |
-| `GetFloat(int)` | P0 | Get as float |
-| `GetGuid(int)` | P0 | Get as Guid |
-| `GetInt16(int)` | P0 | Get as short |
-| `GetInt32(int)` | P0 | Get as int |
-| `GetInt64(int)` | P0 | Get as long |
-| `GetString(int)` | P0 | Get as string |
-| `GetBytes(...)` | P1 | Read bytes into buffer |
-| `GetChars(...)` | P1 | Read chars into buffer |
-| `GetEnumerator()` | P1 | Enumerate rows |
-| `GetSchemaTable()` | P1 | Return schema as DataTable |
-| `this[int]` indexer | P0 | Get value by ordinal |
-| `this[string]` indexer | P0 | Get value by name |
-
-**Internal:**
-- Wrap `WitSqlResult` and iterate rows
-- Convert `WitSqlValue` to CLR types
-- Handle type conversions
-
-#### 1.4 WitDbParameter
-
-```csharp
-public sealed class WitDbParameter : DbParameter
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `ParameterName` property | P0 | Parameter name (@name or :name) |
-| `Value` property | P0 | Parameter value |
-| `DbType` property | P0 | Database type |
-| `Direction` property | P0 | Input/Output/InputOutput/ReturnValue |
-| `IsNullable` property | P0 | Whether nullable |
-| `Size` property | P1 | Size for variable-length types |
-| `Precision` property | P1 | Precision for numeric types |
-| `Scale` property | P1 | Scale for numeric types |
-| `SourceColumn` property | P1 | Source column for updates |
-| `SourceColumnNullMapping` property | P1 | Null mapping |
-| `SourceVersion` property | P1 | DataRowVersion |
-| `ResetDbType()` | P1 | Reset to default type |
-
-#### 1.5 WitDbParameterCollection
-
-```csharp
-public sealed class WitDbParameterCollection : DbParameterCollection
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `Count` property | P0 | Number of parameters |
-| `Add(object)` | P0 | Add parameter |
-| `AddRange(Array)` | P0 | Add multiple parameters |
-| `Clear()` | P0 | Remove all parameters |
-| `Contains(object)` | P0 | Check if contains |
-| `Contains(string)` | P0 | Check by name |
-| `CopyTo(Array, int)` | P0 | Copy to array |
-| `GetEnumerator()` | P0 | Enumerate parameters |
-| `IndexOf(object)` | P0 | Get index |
-| `IndexOf(string)` | P0 | Get index by name |
-| `Insert(int, object)` | P0 | Insert at index |
-| `Remove(object)` | P0 | Remove parameter |
-| `RemoveAt(int)` | P0 | Remove at index |
-| `RemoveAt(string)` | P0 | Remove by name |
-| `this[int]` indexer | P0 | Get/set by index |
-| `this[string]` indexer | P0 | Get/set by name |
-
-#### 1.6 WitDbTransaction
-
-```csharp
-public sealed class WitDbTransaction : DbTransaction
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `Connection` property | P0 | Associated connection |
-| `IsolationLevel` property | P0 | Transaction isolation level |
-| `Commit()` | P0 | Commit transaction |
-| `CommitAsync()` | P0 | Async version |
-| `Rollback()` | P0 | Rollback transaction |
-| `RollbackAsync()` | P0 | Async version |
-| `Save(string)` | P1 | Create savepoint |
-| `SaveAsync(string)` | P1 | Async version |
-| `Rollback(string)` | P1 | Rollback to savepoint |
-| `RollbackAsync(string)` | P1 | Async version |
-| `Release(string)` | P1 | Release savepoint |
-| `ReleaseAsync(string)` | P1 | Async version |
-| `Dispose()` / `DisposeAsync()` | P0 | Cleanup (rollback if not committed) |
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1: Core Classes | ? Done | All core ADO.NET classes implemented |
+| Phase 2: Infrastructure | ? Done | ConnectionStringBuilder, ProviderFactory |
+| Phase 3: Data Adapters | ? Done | DataAdapter, CommandBuilder |
+| Phase 4: Connection Pooling | ? Done | Pool management |
+| Phase 5: Advanced Features | ? Done | Schema discovery |
+| Phase 6: Extended Configuration | ? Done | Full modular configuration support |
 
 ---
 
-### Phase 2: Infrastructure (P0)
+## Implemented Files
 
-#### 2.1 WitDbConnectionStringBuilder
-
-```csharp
-public sealed class WitDbConnectionStringBuilder : DbConnectionStringBuilder
 ```
-
-| Property | Priority | Description | Example |
-|----------|----------|-------------|---------|
-| `DataSource` | P0 | Database file path | `Data Source=mydb.witdb` |
-| `Mode` | P0 | Memory/File | `Mode=File` |
-| `Password` | P1 | Encryption password | `Password=secret` |
-| `ReadOnly` | P1 | Open read-only | `ReadOnly=true` |
-| `Pooling` | P1 | Enable connection pooling | `Pooling=true` |
-| `MinPoolSize` | P2 | Minimum pool size | `MinPoolSize=1` |
-| `MaxPoolSize` | P2 | Maximum pool size | `MaxPoolSize=100` |
-| `DefaultTimeout` | P1 | Default command timeout | `DefaultTimeout=30` |
-| `CacheSize` | P1 | Page cache size | `CacheSize=2000` |
-| `PageSize` | P1 | Page size in bytes | `PageSize=4096` |
-| `IsolationLevel` | P1 | Default isolation level | `IsolationLevel=Snapshot` |
-
-**Connection String Examples:**
-```
-Data Source=mydb.witdb
-Data Source=mydb.witdb;Password=secret
-Data Source=:memory:
-Data Source=mydb.witdb;Mode=ReadOnly;Pooling=true
-```
-
-#### 2.2 WitDbProviderFactory
-
-```csharp
-public sealed class WitDbProviderFactory : DbProviderFactory
-```
-
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `Instance` static field | P0 | Singleton instance |
-| `CanCreateDataAdapter` property | P1 | Returns true |
-| `CanCreateCommandBuilder` property | P1 | Returns true |
-| `CreateConnection()` | P0 | Create WitDbConnection |
-| `CreateCommand()` | P0 | Create WitDbCommand |
-| `CreateParameter()` | P0 | Create WitDbParameter |
-| `CreateDataAdapter()` | P1 | Create WitDbDataAdapter |
-| `CreateCommandBuilder()` | P1 | Create WitDbCommandBuilder |
-| `CreateConnectionStringBuilder()` | P0 | Create WitDbConnectionStringBuilder |
-
-**Registration:**
-```csharp
-DbProviderFactories.RegisterFactory("OutWit.Database.AdoNet", WitDbProviderFactory.Instance);
+OutWit.Database.AdoNet/
+??? WitDbConnection.cs           ?
+??? WitDbCommand.cs              ?
+??? WitDbDataReader.cs           ?
+??? WitDbParameter.cs            ?
+??? WitDbParameterCollection.cs  ?
+??? WitDbTransaction.cs          ?
+??? WitDbConnectionStringBuilder.cs ? (Extended)
+??? WitDbProviderFactory.cs      ?
+??? WitDbDataAdapter.cs          ?
+??? WitDbCommandBuilder.cs       ?
+??? WitDbException.cs            ?
+??? Pool/
+?   ??? ConnectionPool.cs        ?
+?   ??? PooledConnection.cs      ?
+?   ??? PoolOptions.cs           ?
+??? Schema/
+?   ??? SchemaProvider.cs        ?
+??? TODO.md
 ```
 
 ---
 
-### Phase 3: Data Adapters (P1)
+## Connection String Properties
 
-#### 3.1 WitDbDataAdapter
+The `WitDbConnectionStringBuilder` now supports all modular configuration options from `OutWit.Database.Core`.
 
-```csharp
-public sealed class WitDbDataAdapter : DbDataAdapter
-```
+### Core Properties
 
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `SelectCommand` property | P1 | SELECT command |
-| `InsertCommand` property | P1 | INSERT command |
-| `UpdateCommand` property | P1 | UPDATE command |
-| `DeleteCommand` property | P1 | DELETE command |
-| `Fill(DataSet)` | P1 | Fill DataSet from SELECT |
-| `Fill(DataTable)` | P1 | Fill DataTable from SELECT |
-| `FillAsync(...)` | P1 | Async versions |
-| `Update(DataSet)` | P1 | Update database from DataSet |
-| `Update(DataTable)` | P1 | Update database from DataTable |
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Data Source` | string | - | Path to database file or `:memory:` |
+| `Mode` | enum | ReadWriteCreate | Connection mode |
+| `Read Only` | bool | false | Open in read-only mode |
 
-#### 3.2 WitDbCommandBuilder
+### Storage Engine
 
-```csharp
-public sealed class WitDbCommandBuilder : DbCommandBuilder
-```
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Store` | enum | BTree | Storage engine (BTree, LSM) |
 
-| Member | Priority | Description |
-|--------|----------|-------------|
-| `DataAdapter` property | P1 | Associated data adapter |
-| `GetInsertCommand()` | P1 | Generate INSERT command |
-| `GetUpdateCommand()` | P1 | Generate UPDATE command |
-| `GetDeleteCommand()` | P1 | Generate DELETE command |
-| `RefreshSchema()` | P1 | Refresh schema from database |
+### Encryption
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Encryption` | enum | None | Encryption type (None, AesGcm, ChaCha20) |
+| `Password` | string | - | Encryption password |
+| `User` | string | - | Username for user-based salt derivation |
+| `Fast Encryption` | bool | false | Use faster PBKDF2 iterations (for WASM) |
+
+### Transaction Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Isolation Level` | enum | ReadCommitted | Default isolation level |
+| `MVCC` | bool | true | Enable Multi-Version Concurrency Control |
+| `Transactions` | bool | true | Enable transaction support |
+
+### Locking Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `File Locking` | bool | true | Enable file locking |
+| `Lock Timeout` | int | 30 | Lock timeout in seconds |
+
+### Cache/Page Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Cache Size` | int | 2000 | Number of pages to cache |
+| `Page Size` | int | 4096 | Page size in bytes |
+
+### Pooling Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Pooling` | bool | false | Enable connection pooling |
+| `Min Pool Size` | int | 1 | Minimum pool size |
+| `Max Pool Size` | int | 100 | Maximum pool size |
+| `Default Timeout` | int | 30 | Default command timeout |
+
+### LSM-Specific Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `LSM MemTable Size` | long | 4MB | MemTable size limit |
+| `LSM Block Size` | int | 4096 | SSTable block size |
+| `LSM WAL` | bool | true | Enable Write-Ahead Log |
+| `LSM Sync` | bool | true | Sync WAL to disk |
+| `LSM Compaction Trigger` | int | 4 | Level-0 compaction trigger |
+| `LSM Block Cache` | bool | true | Enable block cache |
+| `LSM Block Cache Size` | long | 64MB | Block cache size |
+| `LSM Background Compaction` | bool | true | Enable background compaction |
+
+### Index Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Index Directory` | string | - | Custom index directory |
 
 ---
 
-### Phase 4: Connection Pooling (P1)
+## Connection String Examples
 
-#### 4.1 Connection Pool
+### Simple File Database
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| `ConnectionPool` class | P1 | Pool manager |
-| Min/Max pool size | P1 | Configurable limits |
-| Connection lifetime | P1 | Max connection age |
-| Idle timeout | P1 | Release idle connections |
-| Validation on borrow | P2 | Validate before reuse |
-| Thread-safe | P1 | Concurrent access |
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "mydb.witdb"
+};
+// Result: Data Source=mydb.witdb
+```
+
+### In-Memory Database
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = ":memory:",
+    Mode = WitDbConnectionMode.Memory
+};
+// Result: Data Source=:memory:;Mode=Memory
+```
+
+### Encrypted Database (Password Only)
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "secure.witdb",
+    Encryption = WitDbEncryptionType.AesGcm,
+    Password = "MySecurePassword123!"
+};
+// Result: Data Source=secure.witdb;Encryption=AesGcm;Password=MySecurePassword123!
+```
+
+### Encrypted Database (User + Password)
+
+For multi-tenant scenarios where each user has their own encryption key:
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "tenant.witdb",
+    Encryption = WitDbEncryptionType.AesGcm,
+    User = "tenant1",
+    Password = "TenantSecret123"
+};
+// Result: Data Source=tenant.witdb;Encryption=AesGcm;User=tenant1;Password=TenantSecret123
+```
+
+### LSM-Tree for Write-Heavy Workloads
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "./lsm_data",
+    Store = WitDbStoreType.LSM,
+    LsmMemTableSize = 64 * 1024 * 1024,  // 64MB
+    LsmBlockCacheSize = 128 * 1024 * 1024  // 128MB
+};
+```
+
+### High Concurrency with MVCC
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "concurrent.witdb",
+    Mvcc = true,
+    IsolationLevel = WitDbIsolationLevel.Snapshot,
+    FileLocking = true,
+    LockTimeout = 60
+};
+```
+
+### Blazor WASM Optimized
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "wasm.witdb",
+    Encryption = WitDbEncryptionType.AesGcm,
+    Password = "WasmPassword",
+    FastEncryption = true,  // Faster key derivation
+    CacheSize = 500,        // Smaller cache for browser
+    PageSize = 4096
+};
+```
+
+### Connection Pooled
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "pooled.witdb",
+    Pooling = true,
+    MinPoolSize = 5,
+    MaxPoolSize = 50
+};
+```
 
 ---
 
-### Phase 5: Advanced Features (P2)
+## Enum Types
 
-#### 5.1 Schema Discovery
+### WitDbConnectionMode
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| `GetSchema()` | P1 | Standard schema collections |
-| `MetaDataCollections` | P1 | List available collections |
-| `DataSourceInformation` | P1 | Provider information |
-| `DataTypes` | P1 | Supported data types |
-| `Restrictions` | P1 | Schema restrictions |
-| `Tables` | P1 | Table metadata |
-| `Columns` | P1 | Column metadata |
-| `Indexes` | P1 | Index metadata |
-| `IndexColumns` | P1 | Index column metadata |
-| `ForeignKeys` | P1 | Foreign key metadata |
-| `Views` | P1 | View metadata |
+| Value | Description |
+|-------|-------------|
+| `ReadWriteCreate` | Open for R/W; create if missing |
+| `ReadWrite` | Open for R/W; fail if missing |
+| `ReadOnly` | Open for reading only |
+| `Memory` | In-memory database |
 
-#### 5.2 Batch Execution
+### WitDbStoreType
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| `WitDbBatch` | P2 | DbBatch implementation |
-| `WitDbBatchCommand` | P2 | DbBatchCommand implementation |
-| Batch execute | P2 | Execute multiple commands |
+| Value | Description |
+|-------|-------------|
+| `BTree` | B+Tree (read-optimized, single file) |
+| `LSM` | LSM-Tree (write-optimized, directory-based) |
+
+### WitDbEncryptionType
+
+| Value | Description |
+|-------|-------------|
+| `None` | No encryption |
+| `AesGcm` | AES-GCM (built-in, hardware-accelerated) |
+| `ChaCha20` | ChaCha20-Poly1305 (requires BouncyCastle) |
+
+### WitDbIsolationLevel
+
+| Value | Description |
+|-------|-------------|
+| `ReadUncommitted` | Allows dirty reads |
+| `ReadCommitted` | Only committed data visible |
+| `RepeatableRead` | Locks held for transaction |
+| `Serializable` | Full isolation |
+| `Snapshot` | MVCC snapshot isolation |
+
+---
+
+## Phase 1: Core Classes (P0) ? COMPLETE
+
+### 1.1 WitDbConnection ?
+
+| Member | Status |
+|--------|--------|
+| `ConnectionString` property | ? |
+| `Database` property | ? |
+| `DataSource` property | ? |
+| `ServerVersion` property | ? |
+| `State` property | ? |
+| `Open()` / `OpenAsync()` | ? |
+| `Close()` / `CloseAsync()` | ? |
+| `ChangeDatabase()` | ? |
+| `BeginTransaction()` / `BeginTransactionAsync()` | ? |
+| `CreateCommand()` | ? |
+| `GetSchema()` | ? |
+| `Dispose()` / `DisposeAsync()` | ? |
+
+### 1.2 WitDbCommand ?
+
+| Member | Status |
+|--------|--------|
+| `CommandText` property | ? |
+| `CommandType` property | ? |
+| `CommandTimeout` property | ? |
+| `Connection` property | ? |
+| `Transaction` property | ? |
+| `Parameters` property | ? |
+| `ExecuteNonQuery()` / `ExecuteNonQueryAsync()` | ? |
+| `ExecuteScalar()` / `ExecuteScalarAsync()` | ? |
+| `ExecuteReader()` / `ExecuteReaderAsync()` | ? |
+| `Prepare()` / `PrepareAsync()` | ? |
+| `Cancel()` | ? |
+| `CreateParameter()` | ? |
+
+### 1.3 WitDbDataReader ?
+
+| Member | Status |
+|--------|--------|
+| `FieldCount` property | ? |
+| `HasRows` property | ? |
+| `IsClosed` property | ? |
+| `RecordsAffected` property | ? |
+| `Read()` / `ReadAsync()` | ? |
+| `NextResult()` / `NextResultAsync()` | ? |
+| `Close()` / `CloseAsync()` | ? |
+| `GetName()` / `GetOrdinal()` | ? |
+| `GetDataTypeName()` / `GetFieldType()` | ? |
+| `GetValue()` / `GetValues()` | ? |
+| `IsDBNull()` | ? |
+| All typed getters | ? |
+| `GetFieldValue<T>()` | ? |
+| `GetSchemaTable()` | ? |
+| Indexers | ? |
+
+### 1.4 WitDbParameter ?
+
+| Member | Status |
+|--------|--------|
+| `ParameterName` property | ? |
+| `Value` property | ? |
+| `DbType` property | ? |
+| `Direction` property | ? |
+| `IsNullable` property | ? |
+| `Size` / `Precision` / `Scale` | ? |
+| `SourceColumn` / `SourceVersion` | ? |
+| `ResetDbType()` | ? |
+| `Clone()` | ? |
+
+### 1.5 WitDbParameterCollection ?
+
+| Member | Status |
+|--------|--------|
+| `Count` property | ? |
+| `Add()` / `AddWithValue()` / `AddRange()` | ? |
+| `Clear()` | ? |
+| `Contains()` / `IndexOf()` | ? |
+| `Insert()` / `Remove()` / `RemoveAt()` | ? |
+| Indexers | ? |
+
+### 1.6 WitDbTransaction ?
+
+| Member | Status |
+|--------|--------|
+| `Connection` property | ? |
+| `IsolationLevel` property | ? |
+| `Commit()` / `CommitAsync()` | ? |
+| `Rollback()` / `RollbackAsync()` | ? |
+| `Save()` / `SaveAsync()` | ? |
+| `Release()` / `ReleaseAsync()` | ? |
+| Auto-rollback on dispose | ? |
+
+---
+
+## Phase 2: Infrastructure (P0) ? COMPLETE
+
+### 2.1 WitDbConnectionStringBuilder ? (Extended)
+
+| Property | Status |
+|----------|--------|
+| `DataSource` | ? |
+| `Mode` | ? |
+| `Password` | ? |
+| `User` | ? New |
+| `ReadOnly` | ? |
+| `Store` | ? New |
+| `Encryption` | ? New |
+| `FastEncryption` | ? New |
+| `IsolationLevel` | ? |
+| `MVCC` | ? New |
+| `Transactions` | ? New |
+| `FileLocking` | ? New |
+| `LockTimeout` | ? New |
+| `Pooling` | ? |
+| `MinPoolSize` / `MaxPoolSize` | ? |
+| `DefaultTimeout` | ? |
+| `CacheSize` / `PageSize` | ? |
+| `IndexDirectory` | ? New |
+| LSM options (8 properties) | ? New |
+| `Validate()` method | ? New |
+| `ThrowIfInvalid()` method | ? New |
+
+### 2.2 WitDbProviderFactory ?
+
+| Member | Status |
+|--------|--------|
+| `Instance` static field | ? |
+| `CanCreateDataAdapter` | ? |
+| `CanCreateCommandBuilder` | ? |
+| `CreateConnection()` | ? |
+| `CreateCommand()` | ? |
+| `CreateParameter()` | ? |
+| `CreateDataAdapter()` | ? |
+| `CreateCommandBuilder()` | ? |
+| `CreateConnectionStringBuilder()` | ? |
+
+---
+
+## Phase 3: Data Adapters (P1) ? COMPLETE
+
+### 3.1 WitDbDataAdapter ?
+
+| Member | Status |
+|--------|--------|
+| `SelectCommand` / `InsertCommand` / `UpdateCommand` / `DeleteCommand` | ? |
+| `RowUpdating` / `RowUpdated` events | ? |
+
+### 3.2 WitDbCommandBuilder ?
+
+| Member | Status |
+|--------|--------|
+| `DataAdapter` property | ? |
+| `GetInsertCommand()` | ? |
+| `GetUpdateCommand()` | ? |
+| `GetDeleteCommand()` | ? |
+| Quote prefix/suffix | ? |
+
+### 3.3 WitDbException ?
+
+| Feature | Status |
+|---------|--------|
+| Error codes (General, Syntax, Constraint, etc.) | ? |
+| `FromException()` factory | ? |
+| `WitErrorCode` property | ? |
+
+---
+
+## Phase 4: Connection Pooling (P1) ? COMPLETE
+
+### 4.1 ConnectionPool ?
+
+| Feature | Status |
+|---------|--------|
+| `GetPool()` static methods | ? |
+| `GetConnection()` / `GetConnectionAsync()` | ? |
+| `ReturnConnection()` | ? |
+| `Clear()` / `ClearAllPools()` / `ClearPool()` | ? |
+| Min/Max pool size | ? |
+| Connection lifetime | ? |
+| Idle timeout | ? |
+| Validation on borrow | ? |
+| Automatic cleanup timer | ? |
+
+### 4.2 PooledConnection ?
+
+| Feature | Status |
+|---------|--------|
+| `Open()` / `OpenAsync()` | ? |
+| `Validate()` | ? |
+| `IsExpired()` / `IsIdle()` | ? |
+| `Touch()` | ? |
+| Created/LastUsed timestamps | ? |
+
+### 4.3 PoolOptions ?
+
+| Property | Status |
+|----------|--------|
+| `MinPoolSize` / `MaxPoolSize` | ? |
+| `ConnectionLifetime` | ? |
+| `IdleTimeout` | ? |
+| `ValidateOnBorrow` | ? |
+| `ConnectionString` | ? |
+
+---
+
+## Phase 5: Schema Discovery (P2) ? COMPLETE
+
+### 5.1 SchemaProvider ?
+
+| Collection | Status |
+|------------|--------|
+| `MetaDataCollections` | ? |
+| `DataSourceInformation` | ? |
+| `DataTypes` | ? |
+| `Restrictions` | ? |
+| `ReservedWords` | ? |
+| `Tables` | ? |
+| `Columns` | ? |
+| `Indexes` | ? |
+| `IndexColumns` | ? |
+| `Views` | ? |
+| `ForeignKeys` | ? |
 
 ---
 
 ## Type Mappings
-
-### WitSQL to DbType
 
 | WitSQL Type | DbType | CLR Type |
 |-------------|--------|----------|
@@ -345,7 +510,6 @@ public sealed class WitDbCommandBuilder : DbCommandBuilder
 | `UINT` | `UInt32` | `uint` |
 | `BIGINT` | `Int64` | `long` |
 | `UBIGINT` | `UInt64` | `ulong` |
-| `FLOAT16` | `Single` | `Half` |
 | `FLOAT` | `Single` | `float` |
 | `DOUBLE` | `Double` | `double` |
 | `DECIMAL` | `Decimal` | `decimal` |
@@ -356,10 +520,8 @@ public sealed class WitDbCommandBuilder : DbCommandBuilder
 | `DATETIMEOFFSET` | `DateTimeOffset` | `DateTimeOffset` |
 | `INTERVAL` | `Object` | `TimeSpan` |
 | `GUID` | `Guid` | `Guid` |
-| `CHAR(n)` | `StringFixedLength` | `string` |
 | `VARCHAR(n)` | `String` | `string` |
 | `TEXT` | `String` | `string` |
-| `BINARY(n)` | `Binary` | `byte[]` |
 | `VARBINARY(n)` | `Binary` | `byte[]` |
 | `BLOB` | `Binary` | `byte[]` |
 | `JSON` | `String` | `string` |
@@ -367,89 +529,105 @@ public sealed class WitDbCommandBuilder : DbCommandBuilder
 
 ---
 
-## File Structure
+## Usage Examples
 
-```
-OutWit.Database.AdoNet/
-??? WitDbConnection.cs
-??? WitDbCommand.cs
-??? WitDbDataReader.cs
-??? WitDbParameter.cs
-??? WitDbParameterCollection.cs
-??? WitDbTransaction.cs
-??? WitDbConnectionStringBuilder.cs
-??? WitDbProviderFactory.cs
-??? WitDbDataAdapter.cs
-??? WitDbCommandBuilder.cs
-??? WitDbException.cs
-??? WitDbType.cs                    # DbType extensions
-??? Pool/
-?   ??? ConnectionPool.cs
-?   ??? PooledConnection.cs
-?   ??? PoolOptions.cs
-??? Schema/
-?   ??? SchemaProvider.cs
-?   ??? SchemaCollections.cs
-??? Internal/
-?   ??? TypeConverter.cs            # WitSqlValue <-> CLR conversion
-?   ??? ParameterBinder.cs          # Bind parameters to SQL
-?   ??? ResultSetWrapper.cs         # Wrap WitSqlResult
-??? README.md
+### Basic Connection
+
+```csharp
+using var connection = new WitDbConnection("Data Source=mydb.witdb");
+connection.Open();
+
+using var command = connection.CreateCommand();
+command.CommandText = "SELECT * FROM Users WHERE Id = @id";
+command.Parameters.AddWithValue("@id", 1);
+
+using var reader = command.ExecuteReader();
+while (reader.Read())
+{
+    Console.WriteLine($"{reader.GetInt32(0)}: {reader.GetString(1)}");
+}
 ```
 
----
+### Transaction
 
-## Test Plan
+```csharp
+using var connection = new WitDbConnection("Data Source=mydb.witdb");
+connection.Open();
 
-### Unit Tests
+using var transaction = connection.BeginTransaction();
+try
+{
+    using var cmd = connection.CreateCommand();
+    cmd.Transaction = transaction;
+    cmd.CommandText = "INSERT INTO Users (Name) VALUES (@name)";
+    cmd.Parameters.AddWithValue("@name", "John");
+    cmd.ExecuteNonQuery();
+    
+    transaction.Commit();
+}
+catch
+{
+    transaction.Rollback();
+    throw;
+}
+```
 
-| Category | Tests |
-|----------|-------|
-| Connection lifecycle | 20+ |
-| Command execution | 30+ |
-| Data reader | 40+ |
-| Parameters | 25+ |
-| Transactions | 25+ |
-| Connection string | 15+ |
-| Type conversions | 50+ |
-| Connection pooling | 20+ |
-| Schema discovery | 20+ |
-| **Total** | **245+** |
+### Provider Factory
 
-### Integration Tests
+```csharp
+DbProviderFactories.RegisterFactory("OutWit.Database.AdoNet", WitDbProviderFactory.Instance);
 
-| Scenario | Description |
-|----------|-------------|
-| CRUD operations | Full create/read/update/delete |
-| Transactions | Commit, rollback, savepoints |
-| Concurrent access | Multiple connections |
-| Large result sets | Memory efficiency |
-| Parameterized queries | All parameter types |
-| NULL handling | Nullable columns |
-| Binary data | BLOB read/write |
-| Unicode | International characters |
+var factory = DbProviderFactories.GetFactory("OutWit.Database.AdoNet");
+using var connection = factory.CreateConnection();
+connection.ConnectionString = "Data Source=mydb.witdb";
+```
 
----
+### Schema Discovery
 
-## Dependencies
+```csharp
+using var connection = new WitDbConnection("Data Source=mydb.witdb");
+connection.Open();
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| OutWit.Database | 1.0.0 | SQL engine |
-| OutWit.Database.Core | 1.0.0 | Storage engine |
+var tables = connection.GetSchema("Tables");
+foreach (DataRow row in tables.Rows)
+{
+    Console.WriteLine(row["TABLE_NAME"]);
+}
+```
 
----
+### Encrypted Database with User/Password
 
-## Implementation Order
+```csharp
+// Each user gets a unique encryption key derived from their username
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = $"user_{userId}.witdb",
+    Encryption = WitDbEncryptionType.AesGcm,
+    User = userId,
+    Password = userPassword
+};
 
-1. **Phase 1A:** `WitDbConnection`, `WitDbCommand` (basic)
-2. **Phase 1B:** `WitDbDataReader`, `WitDbParameter`
-3. **Phase 1C:** `WitDbTransaction`, `WitDbParameterCollection`
-4. **Phase 2A:** `WitDbConnectionStringBuilder`
-5. **Phase 2B:** `WitDbProviderFactory`
-6. **Phase 3:** `WitDbDataAdapter`, `WitDbCommandBuilder`
-7. **Phase 4:** Connection pooling
-8. **Phase 5:** Schema discovery, batch execution
+using var connection = new WitDbConnection(builder.ConnectionString);
+connection.Open();
+// Data is encrypted with a key unique to this user
+```
+
+### LSM-Tree Write-Heavy Workload
+
+```csharp
+var builder = new WitDbConnectionStringBuilder
+{
+    DataSource = "./high_write_data",
+    Store = WitDbStoreType.LSM,
+    LsmMemTableSize = 64 * 1024 * 1024,
+    LsmBlockCacheSize = 128 * 1024 * 1024,
+    LsmBackgroundCompaction = true
+};
+
+using var connection = new WitDbConnection(builder.ConnectionString);
+connection.Open();
+// Optimized for high-throughput writes
+```
 
 ---
 
@@ -458,3 +636,4 @@ OutWit.Database.AdoNet/
 - [System.Data.Common](https://docs.microsoft.com/en-us/dotnet/api/system.data.common)
 - [DbProviderFactory](https://docs.microsoft.com/en-us/dotnet/api/system.data.common.dbproviderfactory)
 - [ADO.NET Provider Model](https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/ado-net-provider-model)
+- [OutWit.Database.Core README](../../Core/OutWit.Database.Core/README.md)
