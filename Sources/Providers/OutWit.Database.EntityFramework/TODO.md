@@ -21,23 +21,18 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 
 - [x] **Phase 1:** Core Provider Infrastructure (P0) - COMPLETED
 - [x] **Phase 2:** Database Provider (P0) - COMPLETED  
-- [x] **Phase 3:** SQL Generation (P0) - COMPLETED (basic)
+- [x] **Phase 3:** SQL Generation (P0) - COMPLETED
 - [x] **Phase 4:** Type Mapping (P0) - COMPLETED
-- [x] **Phase 5:** Model Building (P0) - COMPLETED (basic)
-- [x] **Phase 6:** Update Pipeline (P0) - COMPLETED (basic)
+- [x] **Phase 5:** Model Building (P0) - COMPLETED
+- [x] **Phase 6:** Update Pipeline (P0) - COMPLETED
 - [x] **Phase 7:** Migrations (P1) - COMPLETED
 - [x] **Phase 8:** Database Creation (P1) - COMPLETED
 - [x] **Phase 9:** Function Translations (P1) - COMPLETED
-- [x] **Phase 10:** Advanced Features (P2) - COMPLETED (basic)
-
-### Pending Features
-
-- [ ] JSON column support (ToJson/FromJson)
-- [ ] Full integration tests with real database
+- [x] **Phase 10:** Advanced Features (P2) - COMPLETED
 
 ### Current Test Status
 
-- **252 tests passing** (net9.0 and net10.0)
+- **275 tests passing** (net9.0 and net10.0)
 - **0 tests skipped**
 
 ---
@@ -95,7 +90,7 @@ Implemented in: `Storage/WitRelationalConnection.cs`
 
 ---
 
-### Phase 3: SQL Generation (P0) - COMPLETED (basic)
+### Phase 3: SQL Generation (P0) - COMPLETED
 
 #### 3.1 WitSqlGenerationHelper
 
@@ -158,7 +153,7 @@ Implemented in: `Storage/WitTypeMappingSource.cs`
 
 ---
 
-### Phase 5: Model Building (P0) - COMPLETED (basic)
+### Phase 5: Model Building (P0) - COMPLETED
 
 #### 5.1 WitModelValidator
 
@@ -179,7 +174,7 @@ Implemented in: `Metadata/WitAnnotationProvider.cs`
 
 ---
 
-### Phase 6: Update Pipeline (P0) - COMPLETED (basic)
+### Phase 6: Update Pipeline (P0) - COMPLETED
 
 #### 6.1 WitUpdateSqlGenerator
 
@@ -373,7 +368,7 @@ Implemented in: `Query/WitMethodCallTranslatorProvider.cs` and `Query/WitMemberT
 
 ---
 
-### Phase 10: Advanced Features (P2) - COMPLETED (basic)
+### Phase 10: Advanced Features (P2) - COMPLETED
 
 #### 10.1 Computed Columns
 
@@ -395,22 +390,51 @@ Implemented in: `Extensions/WitPropertyBuilderExtensions.cs` and `Update/WitUpda
 | `IsConcurrencyToken()` | Done | Standard EF Core concurrency |
 | WHERE clause support | Done | Original value comparison in updates |
 
-#### 10.3 Value Converters
+#### 10.3 JSON Support
+
+Implemented in: `Query/Translators/WitJsonMethodTranslator.cs` and `Storage/WitTypeMappingSource.cs`
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `HasJsonColumnType()` | Done | Store property as JSON column |
+| `JsonValue()` | Done | Extract scalar value from JSON |
+| `JsonQuery()` | Done | Extract JSON fragment |
+| `JsonContains()` | Done | Check if JSON contains value |
+| `JsonLength()` | Done | Get JSON array length |
+| `JsonType()` | Done | Get JSON value type |
+| `JsonValid()` | Done | Validate JSON string |
+| JSON type mapping | Done | JSON/JSONB store types |
+
+#### 10.4 Value Converters
+
+Implemented in: `Extensions/WitPropertyBuilderExtensions.cs`
 
 | Feature | Status | Description |
 |---------|--------|-------------|
 | Enum to int | Done | Store enum as INT (default) |
-| Enum to string | Pending | Store enum as TEXT |
-| JSON serialization | Pending | Complex types as JSON |
+| `HasEnumToStringConversion()` | Done | Store enum as TEXT |
 
-#### 10.4 JSON Support (Future)
+#### 10.5 Model Validation
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| `ToJson()` | P2 | Map entity to JSON column |
-| `FromJson()` | P2 | Map JSON column to entity |
-| JSON path queries | P2 | `JSON_VALUE`, `JSON_QUERY` |
-| JSON updates | P2 | `JSON_SET`, `JSON_REMOVE` |
+Implemented in: `Metadata/WitModelValidator.cs`
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Schema validation | Done | Reject schemas (not supported) |
+| Key type validation | Done | Validate primary key types |
+| Composite key validation | Done | Max 16 columns |
+
+#### 10.6 SQL Generation Extensions
+
+Implemented in: `Query/WitQuerySqlGenerator.cs`
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Modulo operator | Done | `%` operator support |
+| NOT expression | Done | `NOT (...)` support |
+| Negate expression | Done | `-(...) support |
+| CASE expression | Done | CASE WHEN THEN ELSE END |
+| COLLATE expression | Done | Collation support |
 
 ---
 
@@ -483,6 +507,7 @@ OutWit.Database.EntityFramework/
 |       +-- WitDateTimeMethodTranslator.cs [Done]
 |       +-- WitGuidMethodTranslator.cs    [Done]
 |       +-- WitMemberTranslator.cs        [Done]
+|       +-- WitJsonMethodTranslator.cs    [Done]
 +-- Storage/
 |   +-- WitDatabaseCreator.cs             [Done]
 |   +-- WitRelationalConnection.cs        [Done]

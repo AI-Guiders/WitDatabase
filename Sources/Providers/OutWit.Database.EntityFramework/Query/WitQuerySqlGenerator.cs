@@ -40,7 +40,45 @@ public sealed class WitQuerySqlGenerator : QuerySqlGenerator
             return sqlBinaryExpression;
         }
 
+        // Handle modulo operator - WitDB uses MOD() function or % operator
+        if (sqlBinaryExpression.OperatorType == ExpressionType.Modulo)
+        {
+            Sql.Append("(");
+            Visit(sqlBinaryExpression.Left);
+            Sql.Append(" % ");
+            Visit(sqlBinaryExpression.Right);
+            Sql.Append(")");
+            return sqlBinaryExpression;
+        }
+
         return base.VisitSqlBinary(sqlBinaryExpression);
+    }
+
+    /// <inheritdoc/>
+    protected override Expression VisitSqlUnary(SqlUnaryExpression sqlUnaryExpression)
+    {
+        // Handle NOT operator
+        if (sqlUnaryExpression.OperatorType == ExpressionType.Not)
+        {
+            if (sqlUnaryExpression.Type == typeof(bool))
+            {
+                Sql.Append("NOT (");
+                Visit(sqlUnaryExpression.Operand);
+                Sql.Append(")");
+                return sqlUnaryExpression;
+            }
+        }
+
+        // Handle negation
+        if (sqlUnaryExpression.OperatorType == ExpressionType.Negate)
+        {
+            Sql.Append("-(");
+            Visit(sqlUnaryExpression.Operand);
+            Sql.Append(")");
+            return sqlUnaryExpression;
+        }
+
+        return base.VisitSqlUnary(sqlUnaryExpression);
     }
 
     /// <inheritdoc/>
@@ -71,6 +109,59 @@ public sealed class WitQuerySqlGenerator : QuerySqlGenerator
     {
         // WitDatabase doesn't use TOP syntax, it uses LIMIT
         // This method intentionally left empty
+    }
+
+    /// <inheritdoc/>
+    protected override Expression VisitOrdering(OrderingExpression orderingExpression)
+    {
+        Visit(orderingExpression.Expression);
+
+        if (!orderingExpression.IsAscending)
+        {
+            Sql.Append(" DESC");
+        }
+
+        // Handle NULLS FIRST/LAST if needed
+        return orderingExpression;
+    }
+
+    /// <inheritdoc/>
+    protected override Expression VisitCase(CaseExpression caseExpression)
+    {
+        Sql.Append("CASE");
+
+        if (caseExpression.Operand != null)
+        {
+            Sql.Append(" ");
+            Visit(caseExpression.Operand);
+        }
+
+        foreach (var whenClause in caseExpression.WhenClauses)
+        {
+            Sql.Append(" WHEN ");
+            Visit(whenClause.Test);
+            Sql.Append(" THEN ");
+            Visit(whenClause.Result);
+        }
+
+        if (caseExpression.ElseResult != null)
+        {
+            Sql.Append(" ELSE ");
+            Visit(caseExpression.ElseResult);
+        }
+
+        Sql.Append(" END");
+
+        return caseExpression;
+    }
+
+    /// <inheritdoc/>
+    protected override Expression VisitCollate(CollateExpression collateExpression)
+    {
+        Visit(collateExpression.Operand);
+        Sql.Append(" COLLATE ");
+        Sql.Append(collateExpression.Collation);
+        return collateExpression;
     }
 
     #endregion

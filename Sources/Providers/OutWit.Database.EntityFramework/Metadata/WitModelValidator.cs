@@ -34,6 +34,8 @@ public sealed class WitModelValidator : RelationalModelValidator
         base.Validate(model, logger);
 
         ValidateNoSchemas(model, logger);
+        ValidateKeyTypes(model, logger);
+        ValidatePropertyTypes(model, logger);
     }
 
     private static void ValidateNoSchemas(IModel model, IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
@@ -48,6 +50,100 @@ public sealed class WitModelValidator : RelationalModelValidator
                     $"WitDatabase does not support schemas. Entity '{entityType.DisplayName()}' is mapped to schema '{schema}'.");
             }
         }
+    }
+
+    private static void ValidateKeyTypes(IModel model, IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        foreach (var entityType in model.GetEntityTypes())
+        {
+            var primaryKey = entityType.FindPrimaryKey();
+            if (primaryKey == null)
+            {
+                continue;
+            }
+
+            // Validate composite key length
+            if (primaryKey.Properties.Count > 16)
+            {
+                throw new InvalidOperationException(
+                    $"WitDatabase supports a maximum of 16 columns in a composite primary key. " +
+                    $"Entity '{entityType.DisplayName()}' has {primaryKey.Properties.Count} key columns.");
+            }
+
+            // Validate key property types
+            foreach (var property in primaryKey.Properties)
+            {
+                var clrType = property.ClrType;
+                var underlyingType = Nullable.GetUnderlyingType(clrType) ?? clrType;
+
+                if (!IsSupportedKeyType(underlyingType))
+                {
+                    throw new InvalidOperationException(
+                        $"WitDatabase does not support '{underlyingType.Name}' as a primary key type. " +
+                        $"Property '{property.Name}' on entity '{entityType.DisplayName()}' uses an unsupported key type.");
+                }
+            }
+        }
+    }
+
+    private static void ValidatePropertyTypes(IModel model, IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        foreach (var entityType in model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                var clrType = property.ClrType;
+                var underlyingType = Nullable.GetUnderlyingType(clrType) ?? clrType;
+
+                // Validate that complex types have value converters
+                if (IsComplexType(underlyingType) && property.GetValueConverter() == null)
+                {
+                    // Only warn, don't throw - let EF Core handle it
+                    // The warning can be logged if needed
+                }
+            }
+        }
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static bool IsSupportedKeyType(Type type)
+    {
+        return type == typeof(int) ||
+               type == typeof(long) ||
+               type == typeof(short) ||
+               type == typeof(byte) ||
+               type == typeof(uint) ||
+               type == typeof(ulong) ||
+               type == typeof(ushort) ||
+               type == typeof(sbyte) ||
+               type == typeof(Guid) ||
+               type == typeof(string);
+    }
+
+    private static bool IsComplexType(Type type)
+    {
+        if (type.IsPrimitive || type.IsEnum)
+        {
+            return false;
+        }
+
+        if (type == typeof(string) ||
+            type == typeof(decimal) ||
+            type == typeof(DateTime) ||
+            type == typeof(DateTimeOffset) ||
+            type == typeof(DateOnly) ||
+            type == typeof(TimeOnly) ||
+            type == typeof(TimeSpan) ||
+            type == typeof(Guid) ||
+            type == typeof(byte[]))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     #endregion

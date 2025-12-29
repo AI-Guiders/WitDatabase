@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Query;
+using OutWit.Database.EntityFramework.Query.Translators;
 
 namespace OutWit.Database.EntityFramework.Query;
 
@@ -17,13 +18,15 @@ public sealed class WitMethodCallTranslatorProvider : RelationalMethodCallTransl
         : base(dependencies)
     {
         var sqlExpressionFactory = dependencies.SqlExpressionFactory;
+        var typeMappingSource = dependencies.RelationalTypeMappingSource;
 
         AddTranslators(
         [
             new WitStringMethodTranslator(sqlExpressionFactory),
             new WitMathMethodTranslator(sqlExpressionFactory),
             new WitDateTimeMethodTranslator(sqlExpressionFactory),
-            new WitGuidMethodTranslator(sqlExpressionFactory)
+            new WitGuidMethodTranslator(sqlExpressionFactory),
+            new WitJsonMethodTranslator(sqlExpressionFactory, typeMappingSource)
         ]);
     }
 

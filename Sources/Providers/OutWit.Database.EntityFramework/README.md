@@ -138,6 +138,55 @@ modelBuilder.Entity<Document>(entity =>
 });
 ```
 
+### JSON Columns
+
+```csharp
+using OutWit.Database.EntityFramework.Query.Translators;
+
+public class Profile
+{
+    public int Id { get; set; }
+    public string Settings { get; set; }  // JSON column
+}
+
+// In OnModelCreating
+modelBuilder.Entity<Profile>(entity =>
+{
+    entity.Property(e => e.Settings).HasJsonColumnType();
+});
+
+// Query JSON data using extension methods
+var profiles = context.Profiles
+    .Where(p => p.Settings.JsonValue("$.theme") == "dark")
+    .ToList();
+
+// Available JSON extension methods:
+// - JsonValue(path)     - Extract scalar value
+// - JsonQuery(path)     - Extract JSON fragment
+// - JsonContains(value) - Check if JSON contains value
+// - JsonLength()        - Get array length
+// - JsonType()          - Get JSON value type
+// - JsonValid()         - Validate JSON string
+```
+
+### Enum to String Conversion
+
+```csharp
+public enum Status { Active, Inactive, Pending }
+
+public class Task
+{
+    public int Id { get; set; }
+    public Status Status { get; set; }
+}
+
+// In OnModelCreating - store enum as TEXT instead of INT
+modelBuilder.Entity<Task>(entity =>
+{
+    entity.Property(e => e.Status).HasEnumToStringConversion();
+});
+```
+
 ## Supported Data Types
 
 | C# Type | WitSQL Type | Notes |
@@ -163,6 +212,7 @@ modelBuilder.Entity<Document>(entity =>
 | `TimeSpan` | `INTERVAL` | |
 | `Guid` | `GUID` | |
 | `Enum` | `INT` | Stored as integer by default |
+| JSON | `JSON` | Use `HasJsonColumnType()` |
 
 ## LINQ Method Translations
 
@@ -185,6 +235,10 @@ The provider translates common LINQ methods to WitSQL:
 - `Year`, `Month`, `Day`, `Hour`, `Minute`, `Second`
 - `Date`, `TimeOfDay`, `DayOfWeek`, `DayOfYear`
 - `DateTime.Now`, `DateTime.UtcNow`, `DateTime.Today`
+
+### JSON Methods
+- `JsonValue()`, `JsonQuery()`, `JsonContains()`
+- `JsonLength()`, `JsonType()`, `JsonValid()`
 
 ### Other
 - `Guid.NewGuid()`
@@ -214,13 +268,11 @@ All connection string options from `OutWit.Database.AdoNet` are supported:
 - [x] Model validation
 - [x] Migrations support (CREATE/DROP TABLE, ADD/DROP COLUMN, indexes)
 - [x] Database creation (EnsureCreated/EnsureDeleted)
-- [x] LINQ method translations (string, math, datetime, guid)
+- [x] LINQ method translations (string, math, datetime, guid, json)
 - [x] Computed columns support
 - [x] Concurrency tokens and row versioning
-
-### Planned
-
-- [ ] JSON column support
+- [x] JSON column support with query methods
+- [x] Enum to string conversion
 
 ## Requirements
 

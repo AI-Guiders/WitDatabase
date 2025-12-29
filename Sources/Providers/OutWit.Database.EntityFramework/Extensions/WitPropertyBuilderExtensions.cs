@@ -74,4 +74,48 @@ public static class WitPropertyBuilderExtensions
     }
 
     #endregion
+
+    #region JSON Columns
+
+    /// <summary>
+    /// Configures the property to be stored as a JSON column.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder.</param>
+    /// <returns>The same property builder for method chaining.</returns>
+    public static PropertyBuilder<TProperty> HasJsonColumnType<TProperty>(
+        this PropertyBuilder<TProperty> propertyBuilder)
+    {
+        return propertyBuilder.HasColumnType("JSON");
+    }
+
+    /// <summary>
+    /// Configures the property to be stored as a JSON column.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder.</param>
+    /// <returns>The same property builder for method chaining.</returns>
+    public static PropertyBuilder HasJsonColumnType(this PropertyBuilder propertyBuilder)
+    {
+        return propertyBuilder.HasColumnType("JSON");
+    }
+
+    #endregion
+
+    #region Enum as String
+
+    /// <summary>
+    /// Configures the enum property to be stored as a string (TEXT).
+    /// </summary>
+    /// <typeparam name="TEnum">The enum type.</typeparam>
+    /// <param name="propertyBuilder">The property builder.</param>
+    /// <returns>The same property builder for method chaining.</returns>
+    public static PropertyBuilder<TEnum> HasEnumToStringConversion<TEnum>(
+        this PropertyBuilder<TEnum> propertyBuilder)
+        where TEnum : struct, Enum
+    {
+        return propertyBuilder
+            .HasColumnType("TEXT")
+            .HasConversion<string>();
+    }
+
+    #endregion
 }

@@ -38,6 +38,7 @@ public sealed class WitTypeMappingSource : RelationalTypeMappingSource
     // String types
     private const string TYPE_TEXT = "TEXT";
     private const string TYPE_VARCHAR = "VARCHAR";
+    private const string TYPE_JSON = "JSON";
 
     // Binary types
     private const string TYPE_BLOB = "BLOB";
@@ -78,6 +79,7 @@ public sealed class WitTypeMappingSource : RelationalTypeMappingSource
     // String mappings
     private readonly StringTypeMapping m_textMapping = new(TYPE_TEXT, DbType.String);
     private readonly StringTypeMapping m_varcharMapping = new(TYPE_VARCHAR, DbType.String);
+    private readonly StringTypeMapping m_jsonMapping = new(TYPE_JSON, DbType.String);
 
     // Binary mappings
     private readonly ByteArrayTypeMapping m_blobMapping = new(TYPE_BLOB, DbType.Binary);
@@ -198,6 +200,8 @@ public sealed class WitTypeMappingSource : RelationalTypeMappingSource
             { "NVARCHAR", m_varcharMapping },
             { "CHAR", m_varcharMapping },
             { "NCHAR", m_varcharMapping },
+            { TYPE_JSON, m_jsonMapping },
+            { "JSONB", m_jsonMapping },
 
             // Binary types
             { TYPE_BLOB, m_blobMapping },
@@ -274,6 +278,15 @@ public sealed class WitTypeMappingSource : RelationalTypeMappingSource
         var parenIndex = storeTypeName.IndexOf('(');
         return parenIndex > 0 ? storeTypeName[..parenIndex].Trim() : storeTypeName.Trim();
     }
+
+    #endregion
+
+    #region Properties
+
+    /// <summary>
+    /// Gets the JSON type mapping.
+    /// </summary>
+    public StringTypeMapping JsonMapping => m_jsonMapping;
 
     #endregion
 }
