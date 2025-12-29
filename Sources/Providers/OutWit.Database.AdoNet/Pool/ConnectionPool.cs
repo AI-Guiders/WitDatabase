@@ -43,10 +43,11 @@ public sealed class ConnectionPool : IDisposable
             m_cleanupTimer = new Timer(CleanupCallback, null, cleanupInterval, cleanupInterval);
         }
 
-        // Pre-create minimum connections
+        // Pre-create minimum connections (opened)
         for (int i = 0; i < options.MinPoolSize; i++)
         {
             var conn = CreateNewConnection();
+            conn.Open(); // Open the connection before adding to pool
             m_availableConnections.Add(conn);
         }
     }
@@ -145,17 +146,23 @@ public sealed class ConnectionPool : IDisposable
                     continue;
                 }
 
+                // Re-open if closed
+                if (pooledConn.InnerConnection.State != System.Data.ConnectionState.Open)
+                {
+                    pooledConn.Open();
+                }
+
                 // Found a valid connection
                 pooledConn.Touch();
                 m_activeConnections.TryAdd(pooledConn.GetHashCode(), pooledConn);
-                return CreateWrapper(pooledConn);
+                return pooledConn.InnerConnection;
             }
 
             // No available connections, create a new one
             var newConn = CreateNewConnection();
             newConn.Open();
             m_activeConnections.TryAdd(newConn.GetHashCode(), newConn);
-            return CreateWrapper(newConn);
+            return newConn.InnerConnection;
         }
         catch
         {
@@ -195,17 +202,23 @@ public sealed class ConnectionPool : IDisposable
                     continue;
                 }
 
+                // Re-open if closed
+                if (pooledConn.InnerConnection.State != System.Data.ConnectionState.Open)
+                {
+                    await pooledConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                }
+
                 // Found a valid connection
                 pooledConn.Touch();
                 m_activeConnections.TryAdd(pooledConn.GetHashCode(), pooledConn);
-                return CreateWrapper(pooledConn);
+                return pooledConn.InnerConnection;
             }
 
             // No available connections, create a new one
             var newConn = CreateNewConnection();
             await newConn.OpenAsync(cancellationToken).ConfigureAwait(false);
             m_activeConnections.TryAdd(newConn.GetHashCode(), newConn);
-            return CreateWrapper(newConn);
+            return newConn.InnerConnection;
         }
         catch
         {
@@ -275,14 +288,6 @@ public sealed class ConnectionPool : IDisposable
     {
         Interlocked.Increment(ref m_totalConnections);
         return new PooledConnection(m_options.ConnectionString, this);
-    }
-
-    private WitDbConnection CreateWrapper(PooledConnection pooledConnection)
-    {
-        // For now, return the inner connection directly
-        // In a full implementation, we'd wrap it in a PooledConnectionWrapper
-        // that returns it to the pool on dispose
-        return pooledConnection.InnerConnection;
     }
 
     private void CleanupCallback(object? state)

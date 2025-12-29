@@ -20,7 +20,7 @@ public sealed class WitDbParameterCollection : DbParameterCollection
     /// <inheritdoc/>
     public override int Add(object value)
     {
-        var param = GetParameter(value);
+        var param = CastToWitDbParameter(value);
         m_parameters.Add(param);
         return m_parameters.Count - 1;
     }
@@ -71,7 +71,7 @@ public sealed class WitDbParameterCollection : DbParameterCollection
     /// <inheritdoc/>
     public override void Remove(object value)
     {
-        var param = GetParameter(value);
+        var param = CastToWitDbParameter(value);
         m_parameters.Remove(param);
     }
 
@@ -148,7 +148,7 @@ public sealed class WitDbParameterCollection : DbParameterCollection
     /// <inheritdoc/>
     public override void Insert(int index, object value)
     {
-        var param = GetParameter(value);
+        var param = CastToWitDbParameter(value);
         m_parameters.Insert(index, param);
     }
 
@@ -194,7 +194,7 @@ public sealed class WitDbParameterCollection : DbParameterCollection
     /// <inheritdoc/>
     protected override void SetParameter(int index, DbParameter value)
     {
-        m_parameters[index] = GetParameter(value);
+        m_parameters[index] = CastToWitDbParameter(value);
     }
 
     /// <inheritdoc/>
@@ -203,10 +203,10 @@ public sealed class WitDbParameterCollection : DbParameterCollection
         var index = IndexOf(parameterName);
         if (index < 0)
             throw new ArgumentException($"Parameter '{parameterName}' not found.", nameof(parameterName));
-        m_parameters[index] = GetParameter(value);
+        m_parameters[index] = CastToWitDbParameter(value);
     }
 
-    private static WitDbParameter GetParameter(object value)
+    private static WitDbParameter CastToWitDbParameter(object value)
     {
         return value as WitDbParameter 
                ?? throw new ArgumentException("Parameter must be a WitDbParameter.", nameof(value));

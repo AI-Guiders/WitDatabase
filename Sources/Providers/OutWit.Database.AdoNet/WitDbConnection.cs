@@ -1,9 +1,9 @@
 using System.Data;
 using System.Data.Common;
 using OutWit.Database.AdoNet.Schema;
+using OutWit.Database.AdoNet.Utils;
 using OutWit.Database.Core.Builder;
 using OutWit.Database.Core.Interfaces;
-using OutWit.Database.Core.Providers;
 using OutWit.Database.Core.Utils;
 using OutWit.Database.Engine;
 
@@ -158,22 +158,11 @@ public sealed class WitDbConnection : DbConnection
         if (m_currentTransaction != null)
             throw new InvalidOperationException("A transaction is already in progress.");
 
-        var witIsolation = MapIsolationLevel(isolationLevel);
+        var witIsolation = isolationLevel.ToIsolationLevel();
         m_engine!.Execute("BEGIN TRANSACTION");
 
         if (witIsolation != WitIsolationLevel.ReadCommitted)
-        {
-            var isolationName = witIsolation switch
-            {
-                WitIsolationLevel.ReadUncommitted => "READ UNCOMMITTED",
-                WitIsolationLevel.ReadCommitted => "READ COMMITTED",
-                WitIsolationLevel.RepeatableRead => "REPEATABLE READ",
-                WitIsolationLevel.Serializable => "SERIALIZABLE",
-                WitIsolationLevel.Snapshot => "SNAPSHOT",
-                _ => "READ COMMITTED"
-            };
-            m_engine.Execute($"SET TRANSACTION ISOLATION LEVEL {isolationName}");
-        }
+            m_engine.Execute($"SET TRANSACTION ISOLATION LEVEL {witIsolation.IsolationName()}");
 
         m_currentTransaction = new WitDbTransaction(this, isolationLevel);
         return m_currentTransaction;
@@ -243,13 +232,13 @@ public sealed class WitDbConnection : DbConnection
     }
 
     /// <inheritdoc/>
-    public override DataTable GetSchema(string collectionName)
+    public override DataTable GetSchema(string? collectionName)
     {
         return GetSchema(collectionName, null);
     }
 
     /// <inheritdoc/>
-    public override DataTable GetSchema(string collectionName, string?[]? restrictionValues)
+    public override DataTable GetSchema(string? collectionName, string?[]? restrictionValues)
     {
         EnsureOpen();
         var provider = new SchemaProvider(m_engine!);
@@ -342,8 +331,8 @@ public sealed class WitDbConnection : DbConnection
             return;
 
         // Check for fast encryption flag
-        bool fastEncryption = providerParams.Get<bool>("FastEncryption", false) || 
-                              providerParams.Get<bool>("Fast Encryption", false);
+        bool fastEncryption = providerParams.Get("FastEncryption", false) || 
+                              providerParams.Get("Fast Encryption", false);
 
         var encryptionKey = options.Encryption?.ToLowerInvariant();
 
@@ -427,12 +416,12 @@ public sealed class WitDbConnection : DbConnection
 
         if (options.Mvcc)
         {
-            var coreIsolationLevel = MapDbIsolationLevel(options.IsolationLevel);
+            var coreIsolationLevel = options.IsolationLevel.ToWitIsolationLevel();
             builder.WithMvcc(coreIsolationLevel);
         }
         else if (options.IsolationLevel != WitDbIsolationLevel.ReadCommitted)
         {
-            var coreIsolationLevel = MapDbIsolationLevel(options.IsolationLevel);
+            var coreIsolationLevel = options.IsolationLevel.ToWitIsolationLevel();
             builder.WithDefaultIsolationLevel(coreIsolationLevel);
             builder.WithTransactions();
         }
@@ -445,7 +434,7 @@ public sealed class WitDbConnection : DbConnection
     private static void ConfigureFileLocking(WitDatabaseBuilder builder, ProviderParameters providerParams)
     {
         // Check for explicit FileLocking=false
-        var fileLocking = providerParams.Get<object?>("FileLocking", null);
+        var fileLocking = providerParams.Get<object?>("FileLocking");
         if (fileLocking is false || 
             fileLocking is string s && s.Equals("false", StringComparison.OrdinalIgnoreCase))
         {
@@ -454,33 +443,7 @@ public sealed class WitDbConnection : DbConnection
         // else use default (with file locking)
     }
 
-    private static WitIsolationLevel MapDbIsolationLevel(WitDbIsolationLevel level)
-    {
-        return level switch
-        {
-            WitDbIsolationLevel.ReadUncommitted => WitIsolationLevel.ReadUncommitted,
-            WitDbIsolationLevel.ReadCommitted => WitIsolationLevel.ReadCommitted,
-            WitDbIsolationLevel.RepeatableRead => WitIsolationLevel.RepeatableRead,
-            WitDbIsolationLevel.Serializable => WitIsolationLevel.Serializable,
-            WitDbIsolationLevel.Snapshot => WitIsolationLevel.Snapshot,
-            _ => WitIsolationLevel.ReadCommitted
-        };
-    }
 
-    private static WitIsolationLevel MapIsolationLevel(IsolationLevel level)
-    {
-        return level switch
-        {
-            IsolationLevel.Unspecified => WitIsolationLevel.ReadCommitted,
-            IsolationLevel.Chaos => WitIsolationLevel.ReadUncommitted,
-            IsolationLevel.ReadUncommitted => WitIsolationLevel.ReadUncommitted,
-            IsolationLevel.ReadCommitted => WitIsolationLevel.ReadCommitted,
-            IsolationLevel.RepeatableRead => WitIsolationLevel.RepeatableRead,
-            IsolationLevel.Serializable => WitIsolationLevel.Serializable,
-            IsolationLevel.Snapshot => WitIsolationLevel.Snapshot,
-            _ => WitIsolationLevel.ReadCommitted
-        };
-    }
 
     #endregion
 
@@ -525,7 +488,8 @@ public sealed class WitDbConnection : DbConnection
         {
             if (m_state != ConnectionState.Closed)
                 throw new InvalidOperationException("Cannot change connection string while connection is open.");
-            m_connectionString = value ?? string.Empty;
+
+            m_connectionString = value;
         }
     }
 
