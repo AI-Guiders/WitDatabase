@@ -35,238 +35,238 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 
 ### Current Test Status
 
-- **88 tests passing**
+- **138 tests passing**
 - **2 integration tests skipped** (require full provider implementation)
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Core Provider Infrastructure (P0) ? COMPLETED
+### Phase 1: Core Provider Infrastructure (P0) - COMPLETED
 
-#### 1.1 WitDbContextOptionsExtension ?
+#### 1.1 WitDbContextOptionsExtension
 
 Implemented in: `Infrastructure/WitDbContextOptionsExtension.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `Info` property | ? | Extension info for logging |
-| `ApplyServices()` | ? | Register provider services |
-| `Validate()` | ? | Validate options |
-| `ConnectionString` property | ? | Database connection string |
-| `Connection` property | ? | Existing connection |
-| `InMemory` property | ? | In-memory mode |
+| `Info` property | Done | Extension info for logging |
+| `ApplyServices()` | Done | Register provider services |
+| `Validate()` | Done | Validate options |
+| `ConnectionString` property | Done | Database connection string |
+| `Connection` property | Done | Existing connection |
+| `InMemory` property | Done | In-memory mode |
 
-#### 1.2 WitDbContextOptionsBuilder ?
+#### 1.2 WitDbContextOptionsBuilder
 
 Implemented in: `Extensions/WitDbContextOptionsBuilderExtensions.cs`
 
 | Method | Status | Description |
 |--------|--------|-------------|
-| `UseWitDb(connectionString)` | ? | Configure with connection string |
-| `UseWitDb(connection)` | ? | Configure with existing connection |
-| `UseWitDbInMemory()` | ? | Configure for in-memory |
-| `EnableSensitiveDataLogging()` | ? | Log parameter values |
-| `UseQuerySplittingBehavior()` | ? | Split/single query mode |
+| `UseWitDb(connectionString)` | Done | Configure with connection string |
+| `UseWitDb(connection)` | Done | Configure with existing connection |
+| `UseWitDbInMemory()` | Done | Configure for in-memory |
+| `EnableSensitiveDataLogging()` | Done | Log parameter values |
+| `UseQuerySplittingBehavior()` | Done | Split/single query mode |
 
 ---
 
-### Phase 2: Database Provider (P0) ? COMPLETED
+### Phase 2: Database Provider (P0) - COMPLETED
 
-#### 2.1 WitDatabaseProvider ?
+#### 2.1 WitDatabaseProvider
 
 Implemented in: `Infrastructure/WitDatabaseProvider.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `Name` property | ? | Provider name ("OutWit.Database.EntityFramework") |
-| `IsConfigured()` | ? | Check if provider is configured |
+| `Name` property | Done | Provider name ("OutWit.Database.EntityFramework") |
+| `IsConfigured()` | Done | Check if provider is configured |
 
-#### 2.2 WitRelationalConnection ?
+#### 2.2 WitRelationalConnection
 
 Implemented in: `Storage/WitRelationalConnection.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `CreateDbConnection()` | ? | Create WitDbConnection |
-| `ConnectionString` property | ? | Connection string |
+| `CreateDbConnection()` | Done | Create WitDbConnection |
+| `ConnectionString` property | Done | Connection string |
 
 ---
 
-### Phase 3: SQL Generation (P0) ? COMPLETED (basic)
+### Phase 3: SQL Generation (P0) - COMPLETED (basic)
 
-#### 3.1 WitSqlGenerationHelper ?
+#### 3.1 WitSqlGenerationHelper
 
 Implemented in: `Storage/WitSqlGenerationHelper.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `DelimitIdentifier()` | ? | Quote identifiers with `"` |
-| `EscapeIdentifier()` | ? | Escape special characters |
-| `GenerateParameterName()` | ? | Generate @param names |
-| `GenerateParameterNamePlaceholder()` | ? | Generate @param placeholders |
-| `StatementTerminator` property | ? | Return `;` |
-| `BatchTerminator` property | ? | Return empty (no GO) |
+| `DelimitIdentifier()` | Done | Quote identifiers with `"` |
+| `EscapeIdentifier()` | Done | Escape special characters |
+| `GenerateParameterName()` | Done | Generate @param names |
+| `GenerateParameterNamePlaceholder()` | Done | Generate @param placeholders |
+| `StatementTerminator` property | Done | Return `;` |
+| `BatchTerminator` property | Done | Return empty (no GO) |
 
-#### 3.2 WitQuerySqlGenerator ?
+#### 3.2 WitQuerySqlGenerator
 
 Implemented in: `Query/WitQuerySqlGenerator.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `VisitSqlBinary()` | ? | Generate binary expressions (string concatenation with `||`) |
-| `GenerateLimitOffset()` | ? | Generate LIMIT/OFFSET |
-| `GenerateTop()` | ? | Empty (WitDB doesn't use TOP) |
+| `VisitSqlBinary()` | Done | Generate binary expressions (string concatenation with `\|\|`) |
+| `GenerateLimitOffset()` | Done | Generate LIMIT/OFFSET |
+| `GenerateTop()` | Done | Empty (WitDB doesn't use TOP) |
 
-#### 3.3 WitQuerySqlGeneratorFactory ?
+#### 3.3 WitQuerySqlGeneratorFactory
 
 Implemented in: `Query/WitQuerySqlGeneratorFactory.cs`
 
 ---
 
-### Phase 4: Type Mapping (P0) ? COMPLETED
+### Phase 4: Type Mapping (P0) - COMPLETED
 
-#### 4.1 WitTypeMappingSource ?
+#### 4.1 WitTypeMappingSource
 
 Implemented in: `Storage/WitTypeMappingSource.cs`
 
 | CLR Type | WitSQL Type | Status |
 |----------|-------------|--------|
-| `bool` | `BOOLEAN` | ? |
-| `byte` | `UTINYINT` | ? |
-| `sbyte` | `TINYINT` | ? |
-| `short` | `SMALLINT` | ? |
-| `ushort` | `USMALLINT` | ? |
-| `int` | `INT` | ? |
-| `uint` | `UINT` | ? |
-| `long` | `BIGINT` | ? |
-| `ulong` | `UBIGINT` | ? |
-| `float` | `FLOAT` | ? |
-| `double` | `DOUBLE` | ? |
-| `decimal` | `DECIMAL` | ? |
-| `string` | `TEXT` | ? |
-| `byte[]` | `BLOB` | ? |
-| `DateTime` | `DATETIME` | ? |
-| `DateTimeOffset` | `DATETIMEOFFSET` | ? |
-| `DateOnly` | `DATE` | ? |
-| `TimeOnly` | `TIME` | ? |
-| `TimeSpan` | `INTERVAL` | ? |
-| `Guid` | `GUID` | ? |
-| `Enum` | `INT` | ? |
+| `bool` | `BOOLEAN` | Done |
+| `byte` | `UTINYINT` | Done |
+| `sbyte` | `TINYINT` | Done |
+| `short` | `SMALLINT` | Done |
+| `ushort` | `USMALLINT` | Done |
+| `int` | `INT` | Done |
+| `uint` | `UINT` | Done |
+| `long` | `BIGINT` | Done |
+| `ulong` | `UBIGINT` | Done |
+| `float` | `FLOAT` | Done |
+| `double` | `DOUBLE` | Done |
+| `decimal` | `DECIMAL` | Done |
+| `string` | `TEXT` | Done |
+| `byte[]` | `BLOB` | Done |
+| `DateTime` | `DATETIME` | Done |
+| `DateTimeOffset` | `DATETIMEOFFSET` | Done |
+| `DateOnly` | `DATE` | Done |
+| `TimeOnly` | `TIME` | Done |
+| `TimeSpan` | `INTERVAL` | Done |
+| `Guid` | `GUID` | Done |
+| `Enum` | `INT` | Done |
 
 ---
 
-### Phase 5: Model Building (P0) ? COMPLETED (basic)
+### Phase 5: Model Building (P0) - COMPLETED (basic)
 
-#### 5.1 WitModelValidator ?
+#### 5.1 WitModelValidator
 
 Implemented in: `Metadata/WitModelValidator.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `ValidateModel()` | ? | Validate model against WitDB constraints |
-| `ValidateNoSchemas()` | ? | WitDB doesn't support schemas |
+| `ValidateModel()` | Done | Validate model against WitDB constraints |
+| `ValidateNoSchemas()` | Done | WitDB doesn't support schemas |
 
-#### 5.2 WitAnnotationProvider ?
+#### 5.2 WitAnnotationProvider
 
 Implemented in: `Metadata/WitAnnotationProvider.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `For(IColumn)` | ? | Column annotations (autoincrement) |
+| `For(IColumn)` | Done | Column annotations (autoincrement) |
 
 ---
 
-### Phase 6: Update Pipeline (P0) ? COMPLETED (basic)
+### Phase 6: Update Pipeline (P0) - COMPLETED (basic)
 
-#### 6.1 WitUpdateSqlGenerator ?
+#### 6.1 WitUpdateSqlGenerator
 
 Implemented in: `Update/WitUpdateSqlGenerator.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `AppendValues()` | ? | Handle DEFAULT VALUES |
-| `GenerateNextSequenceValueOperation()` | ? | Generate INCREMENT() |
+| `AppendValues()` | Done | Handle DEFAULT VALUES |
+| `GenerateNextSequenceValueOperation()` | Done | Generate INCREMENT() |
 
-#### 6.2 WitModificationCommandBatchFactory ?
+#### 6.2 WitModificationCommandBatchFactory
 
 Implemented in: `Update/WitModificationCommandBatchFactory.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `Create()` | ? | Create modification batch |
+| `Create()` | Done | Create modification batch |
 
 ---
 
-### Phase 7: Migrations (P1) ? COMPLETED
+### Phase 7: Migrations (P1) - COMPLETED
 
-#### 7.1 WitMigrationsSqlGenerator ?
+#### 7.1 WitMigrationsSqlGenerator
 
 Implemented in: `Migrations/WitMigrationsSqlGenerator.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `Generate(CreateTableOperation)` | ? | CREATE TABLE |
-| `Generate(DropTableOperation)` | ? | DROP TABLE IF EXISTS |
-| `Generate(RenameTableOperation)` | ? | ALTER TABLE RENAME TO |
-| `Generate(AddColumnOperation)` | ? | ALTER TABLE ADD COLUMN |
-| `Generate(DropColumnOperation)` | ? | ALTER TABLE DROP COLUMN |
-| `Generate(AlterColumnOperation)` | ? | ALTER COLUMN SET/DROP |
-| `Generate(RenameColumnOperation)` | ? | ALTER TABLE RENAME COLUMN |
-| `Generate(CreateIndexOperation)` | ? | CREATE INDEX IF NOT EXISTS |
-| `Generate(DropIndexOperation)` | ? | DROP INDEX IF EXISTS |
-| `Generate(AddForeignKeyOperation)` | ? | Comment (limited support) |
-| `Generate(DropForeignKeyOperation)` | ? | Comment (limited support) |
-| `Generate(AddPrimaryKeyOperation)` | ? | Comment (limited support) |
-| `Generate(DropPrimaryKeyOperation)` | ? | Comment (limited support) |
-| `Generate(AddUniqueConstraintOperation)` | ? | Create unique index |
-| `Generate(DropUniqueConstraintOperation)` | ? | Drop index |
-| `Generate(AddCheckConstraintOperation)` | ? | Comment (future support) |
-| `Generate(DropCheckConstraintOperation)` | ? | Comment (future support) |
-| `Generate(CreateSequenceOperation)` | ? | CREATE SEQUENCE |
-| `Generate(DropSequenceOperation)` | ? | DROP SEQUENCE |
-| `Generate(AlterSequenceOperation)` | ? | ALTER SEQUENCE RESTART |
-| `Generate(SqlOperation)` | ? | Raw SQL |
-| `ColumnDefinition()` | ? | Column definition with types |
+| `Generate(CreateTableOperation)` | Done | CREATE TABLE |
+| `Generate(DropTableOperation)` | Done | DROP TABLE IF EXISTS |
+| `Generate(RenameTableOperation)` | Done | ALTER TABLE RENAME TO |
+| `Generate(AddColumnOperation)` | Done | ALTER TABLE ADD COLUMN |
+| `Generate(DropColumnOperation)` | Done | ALTER TABLE DROP COLUMN |
+| `Generate(AlterColumnOperation)` | Done | ALTER COLUMN SET/DROP |
+| `Generate(RenameColumnOperation)` | Done | ALTER TABLE RENAME COLUMN |
+| `Generate(CreateIndexOperation)` | Done | CREATE INDEX IF NOT EXISTS |
+| `Generate(DropIndexOperation)` | Done | DROP INDEX IF EXISTS |
+| `Generate(AddForeignKeyOperation)` | Done | Comment (limited support) |
+| `Generate(DropForeignKeyOperation)` | Done | Comment (limited support) |
+| `Generate(AddPrimaryKeyOperation)` | Done | Comment (limited support) |
+| `Generate(DropPrimaryKeyOperation)` | Done | Comment (limited support) |
+| `Generate(AddUniqueConstraintOperation)` | Done | Create unique index |
+| `Generate(DropUniqueConstraintOperation)` | Done | Drop index |
+| `Generate(AddCheckConstraintOperation)` | Done | Comment (future support) |
+| `Generate(DropCheckConstraintOperation)` | Done | Comment (future support) |
+| `Generate(CreateSequenceOperation)` | Done | CREATE SEQUENCE |
+| `Generate(DropSequenceOperation)` | Done | DROP SEQUENCE |
+| `Generate(AlterSequenceOperation)` | Done | ALTER SEQUENCE RESTART |
+| `Generate(SqlOperation)` | Done | Raw SQL |
+| `ColumnDefinition()` | Done | Column definition with types |
 
-#### 7.2 WitHistoryRepository ?
+#### 7.2 WitHistoryRepository
 
 Implemented in: `Migrations/WitHistoryRepository.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `ExistsSql` property | ? | SELECT from INFORMATION_SCHEMA |
-| `GetCreateScript()` | ? | CREATE TABLE IF NOT EXISTS |
-| `GetCreateIfNotExistsScript()` | ? | Same as GetCreateScript |
-| `GetBeginIfNotExistsScript()` | ? | Empty (not supported) |
-| `GetBeginIfExistsScript()` | ? | Empty (not supported) |
-| `GetEndIfScript()` | ? | Empty (not supported) |
-| `GetInsertScript()` | ? | INSERT INTO __EFMigrationsHistory |
-| `GetDeleteScript()` | ? | DELETE FROM __EFMigrationsHistory |
-| `AcquireDatabaseLock()` | ? | No-op lock (single-user) |
-| `AcquireDatabaseLockAsync()` | ? | No-op lock (single-user) |
-| `InterpretExistsResult()` | ? | Check for non-null result |
-| `LockReleaseBehavior` property | ? | Explicit release |
-| `ConfigureTable()` | ? | Configure column types |
+| `ExistsSql` property | Done | SELECT from INFORMATION_SCHEMA |
+| `GetCreateScript()` | Done | CREATE TABLE IF NOT EXISTS |
+| `GetCreateIfNotExistsScript()` | Done | Same as GetCreateScript |
+| `GetBeginIfNotExistsScript()` | Done | Empty (not supported) |
+| `GetBeginIfExistsScript()` | Done | Empty (not supported) |
+| `GetEndIfScript()` | Done | Empty (not supported) |
+| `GetInsertScript()` | Done | INSERT INTO __EFMigrationsHistory |
+| `GetDeleteScript()` | Done | DELETE FROM __EFMigrationsHistory |
+| `AcquireDatabaseLock()` | Done | No-op lock (single-user) |
+| `AcquireDatabaseLockAsync()` | Done | No-op lock (single-user) |
+| `InterpretExistsResult()` | Done | Check for non-null result |
+| `LockReleaseBehavior` property | Done | Explicit release |
+| `ConfigureTable()` | Done | Configure column types |
 
 ---
 
-### Phase 8: Database Creation (P1) ? COMPLETED
+### Phase 8: Database Creation (P1) - COMPLETED
 
-#### 8.1 WitDatabaseCreator ?
+#### 8.1 WitDatabaseCreator
 
 Implemented in: `Storage/WitDatabaseCreator.cs`
 
 | Member | Status | Description |
 |--------|--------|-------------|
-| `Exists()` | ? | Check if database file exists |
-| `ExistsAsync()` | ? | Async version |
-| `HasTables()` | ? | Query INFORMATION_SCHEMA.TABLES |
-| `HasTablesAsync()` | ? | Async version |
-| `Create()` | ? | Open/close connection creates file |
-| `CreateAsync()` | ? | Async version |
-| `Delete()` | ? | Delete database file |
-| `DeleteAsync()` | ? | Async version |
+| `Exists()` | Done | Check if database file exists |
+| `ExistsAsync()` | Done | Async version |
+| `HasTables()` | Done | Query INFORMATION_SCHEMA.TABLES |
+| `HasTablesAsync()` | Done | Async version |
+| `Create()` | Done | Open/close connection creates file |
+| `CreateAsync()` | Done | Async version |
+| `Delete()` | Done | Delete database file |
+| `DeleteAsync()` | Done | Async version |
 
 Note: `EnsureCreated()`, `EnsureDeleted()`, `CreateTables()`, `CanConnect()` are provided by base class `RelationalDatabaseCreator`.
 
@@ -296,7 +296,7 @@ public class WitMethodCallTranslator : IMethodCallTranslator
 | `string.StartsWith()` | `LIKE 'x%'` |
 | `string.EndsWith()` | `LIKE '%x'` |
 | `string.IndexOf()` | `INSTR()` |
-| `string.Concat()` | `||` or `CONCAT()` |
+| `string.Concat()` | `\|\|` or `CONCAT()` |
 | `string.IsNullOrEmpty()` | `IS NULL OR = ''` |
 | `string.IsNullOrWhiteSpace()` | `IS NULL OR TRIM() = ''` |
 
@@ -439,33 +439,33 @@ builder
 
 ```
 OutWit.Database.EntityFramework/
-??? Diagnostics/
-?   ??? WitLoggingDefinitions.cs          ?
-??? Extensions/
-?   ??? WitDbContextOptionsBuilderExtensions.cs  ?
-?   ??? WitDbServiceCollectionExtensions.cs      ?
-??? Infrastructure/
-?   ??? WitDbContextOptionsExtension.cs   ?
-?   ??? WitDbContextOptionsBuilder.cs     ?
-?   ??? WitDatabaseProvider.cs            ?
-??? Metadata/
-?   ??? WitAnnotationProvider.cs          ?
-?   ??? WitModelValidator.cs              ?
-??? Migrations/
-?   ??? WitHistoryRepository.cs           ?
-?   ??? WitMigrationsSqlGenerator.cs      ?
-??? Query/
-?   ??? WitQuerySqlGenerator.cs           ?
-?   ??? WitQuerySqlGeneratorFactory.cs    ?
-??? Storage/
-?   ??? WitDatabaseCreator.cs             ?
-?   ??? WitRelationalConnection.cs        ?
-?   ??? WitSqlGenerationHelper.cs         ?
-?   ??? WitTypeMappingSource.cs           ?
-??? Update/
-?   ??? WitModificationCommandBatchFactory.cs  ?
-?   ??? WitUpdateSqlGenerator.cs          ?
-??? TODO.md
++-- Diagnostics/
+|   +-- WitLoggingDefinitions.cs          [Done]
++-- Extensions/
+|   +-- WitDbContextOptionsBuilderExtensions.cs  [Done]
+|   +-- WitDbServiceCollectionExtensions.cs      [Done]
++-- Infrastructure/
+|   +-- WitDbContextOptionsExtension.cs   [Done]
+|   +-- WitDbContextOptionsBuilder.cs     [Done]
+|   +-- WitDatabaseProvider.cs            [Done]
++-- Metadata/
+|   +-- WitAnnotationProvider.cs          [Done]
+|   +-- WitModelValidator.cs              [Done]
++-- Migrations/
+|   +-- WitHistoryRepository.cs           [Done]
+|   +-- WitMigrationsSqlGenerator.cs      [Done]
++-- Query/
+|   +-- WitQuerySqlGenerator.cs           [Done]
+|   +-- WitQuerySqlGeneratorFactory.cs    [Done]
++-- Storage/
+|   +-- WitDatabaseCreator.cs             [Done]
+|   +-- WitRelationalConnection.cs        [Done]
+|   +-- WitSqlGenerationHelper.cs         [Done]
+|   +-- WitTypeMappingSource.cs           [Done]
++-- Update/
+|   +-- WitModificationCommandBatchFactory.cs  [Done]
+|   +-- WitUpdateSqlGenerator.cs          [Done]
++-- TODO.md
 ```
 
 ---
@@ -494,16 +494,20 @@ The project targets both .NET 9 and .NET 10 with appropriate EF Core versions:
 
 ```
 OutWit.Database.EntityFramework.Tests/
-??? Extensions/
-?   ??? WitDbContextOptionsBuilderExtensionsTests.cs  ? (14 tests)
-??? Infrastructure/
-?   ??? WitDbContextOptionsExtensionTests.cs          ? (17 tests)
-?   ??? WitDatabaseProviderTests.cs                   ? (3 tests)
-??? Integration/
-?   ??? BasicDbContextTests.cs                        (2 tests skipped)
-??? Storage/
-    ??? WitSqlGenerationHelperTests.cs                ? (17 tests)
-    ??? WitTypeMappingSourceTests.cs                  ? (37 tests)
++-- Extensions/
+|   +-- WitDbContextOptionsBuilderExtensionsTests.cs  [Done] (14 tests)
++-- Infrastructure/
+|   +-- WitDbContextOptionsExtensionTests.cs          [Done] (16 tests)
+|   +-- WitDatabaseProviderTests.cs                   [Done] (3 tests)
++-- Integration/
+|   +-- BasicDbContextTests.cs                        (2 tests skipped)
++-- Migrations/
+|   +-- WitHistoryRepositoryTests.cs                  [Done] (18 tests)
+|   +-- WitMigrationsSqlGeneratorTests.cs             [Done] (18 tests)
++-- Storage/
+|   +-- WitDatabaseCreatorTests.cs                    [Done] (12 tests)
+|   +-- WitSqlGenerationHelperTests.cs                [Done] (17 tests)
+|   +-- WitTypeMappingSourceTests.cs                  [Done] (37 tests)
 ```
 
 ---

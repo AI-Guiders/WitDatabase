@@ -8,7 +8,7 @@ This package provides Entity Framework Core support for WitDatabase, allowing yo
 
 ## Installation
 
-```
+```bash
 dotnet add package OutWit.Database.EntityFramework
 ```
 
@@ -122,28 +122,29 @@ All connection string options from `OutWit.Database.AdoNet` are supported:
 
 ## Features
 
-### Completed (Phase 1-6)
+### Completed
 
-- ? DbContext configuration with `UseWitDb()`
-- ? In-memory database support
-- ? Type mapping for all WitSQL types
-- ? Basic SQL generation (SELECT, INSERT, UPDATE, DELETE)
-- ? Parameter handling with `@param` syntax
-- ? LIMIT/OFFSET for pagination
-- ? Model validation
+- [x] DbContext configuration with `UseWitDb()`
+- [x] In-memory database support
+- [x] Type mapping for all WitSQL types
+- [x] Basic SQL generation (SELECT, INSERT, UPDATE, DELETE)
+- [x] Parameter handling with `@param` syntax
+- [x] LIMIT/OFFSET for pagination
+- [x] Model validation
+- [x] Migrations support (CREATE/DROP TABLE, ADD/DROP COLUMN, indexes)
+- [x] Database creation (EnsureCreated/EnsureDeleted)
 
-### In Progress (Phase 7-10)
+### In Progress
 
-- ?? Migrations support
-- ?? EnsureCreated/EnsureDeleted
-- ?? LINQ method translations
-- ?? JSON column support
-- ?? Computed columns
+- [ ] LINQ method translations (string, math, datetime functions)
+- [ ] JSON column support
+- [ ] Computed columns
+- [ ] Concurrency tokens
 
 ## Requirements
 
 - .NET 9.0 or .NET 10.0
-- Microsoft.EntityFrameworkCore.Relational 9.0+
+- Microsoft.EntityFrameworkCore.Relational 9.0+ or 10.0+
 - OutWit.Database.AdoNet
 
 ## Related Packages
