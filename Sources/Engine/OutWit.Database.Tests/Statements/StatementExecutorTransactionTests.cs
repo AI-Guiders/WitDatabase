@@ -42,7 +42,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(statement);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadCommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadCommitted);
     }
 
     [Test]
@@ -62,14 +62,14 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
     public void BeginTransactionUsesPendingIsolationLevelTest()
     {
         // Arrange - set pending isolation level via SET TRANSACTION
-        m_context.PendingIsolationLevel = IsolationLevel.Serializable;
+        m_context.PendingIsolationLevel = WitIsolationLevel.Serializable;
         var statement = WitSql.ParseStatement("BEGIN TRANSACTION");
 
         // Act
         m_executor.Execute(statement);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.Serializable);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.Serializable);
         Assert.That(m_context.PendingIsolationLevel, Is.Null, "Pending isolation level should be consumed");
     }
 
@@ -84,7 +84,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(statement);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadCommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadCommitted);
     }
 
     #endregion
@@ -315,7 +315,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(statement);
 
         // Assert
-        Assert.That(m_context.PendingIsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+        Assert.That(m_context.PendingIsolationLevel, Is.EqualTo(WitIsolationLevel.Serializable));
     }
 
     [Test]
@@ -339,11 +339,11 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
     {
         var levels = new[]
         {
-            (IsolationLevelType.ReadUncommitted, IsolationLevel.ReadUncommitted),
-            (IsolationLevelType.ReadCommitted, IsolationLevel.ReadCommitted),
-            (IsolationLevelType.RepeatableRead, IsolationLevel.RepeatableRead),
-            (IsolationLevelType.Serializable, IsolationLevel.Serializable),
-            (IsolationLevelType.Snapshot, IsolationLevel.Snapshot)
+            (IsolationLevelType.ReadUncommitted, WitIsolationLevel.ReadUncommitted),
+            (IsolationLevelType.ReadCommitted, WitIsolationLevel.ReadCommitted),
+            (IsolationLevelType.RepeatableRead, WitIsolationLevel.RepeatableRead),
+            (IsolationLevelType.Serializable, WitIsolationLevel.Serializable),
+            (IsolationLevelType.Snapshot, WitIsolationLevel.Snapshot)
         };
 
         foreach (var (parserLevel, expectedCoreLevel) in levels)
@@ -379,7 +379,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(beginTransaction);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.Snapshot);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.Snapshot);
         Assert.That(m_context.PendingIsolationLevel, Is.Null, "Should be consumed");
     }
 
@@ -399,7 +399,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(commit);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadCommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadCommitted);
         m_database.Received(1).Commit();
     }
 
@@ -415,7 +415,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(rollback);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadCommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadCommitted);
         m_database.Received(1).Rollback();
     }
 
@@ -435,7 +435,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(commit);
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadCommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadCommitted);
         m_database.Received(1).CreateSavepoint("sp1");
         m_database.Received(1).RollbackToSavepoint("sp1");
         m_database.Received(1).Commit();
@@ -485,7 +485,7 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(begin);
 
         // Assert - should use the last SET TRANSACTION level
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadUncommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadUncommitted);
     }
 
     [Test]
@@ -507,8 +507,8 @@ public sealed class StatementExecutorTransactionTests : StatementExecutorTestsBa
         m_executor.Execute(begin2);  // Should use default ReadCommitted
 
         // Assert
-        m_database.Received(1).BeginTransaction(IsolationLevel.Serializable);
-        m_database.Received(1).BeginTransaction(IsolationLevel.ReadCommitted);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.Serializable);
+        m_database.Received(1).BeginTransaction(WitIsolationLevel.ReadCommitted);
     }
 
     #endregion

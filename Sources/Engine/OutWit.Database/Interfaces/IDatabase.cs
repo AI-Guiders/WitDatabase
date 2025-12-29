@@ -165,7 +165,7 @@ public interface IDatabase
     /// </summary>
     /// <param name="isolationLevel">The isolation level.</param>
     /// <returns>A disposable transaction handle.</returns>
-    IDisposable BeginTransaction(IsolationLevel isolationLevel);
+    IDisposable BeginTransaction(WitIsolationLevel isolationLevel);
 
     /// <summary>
     /// Commit current transaction.

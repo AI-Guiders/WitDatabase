@@ -20,7 +20,7 @@ public sealed partial class StatementExecutor
     private WitSqlResult ExecuteBeginTransaction(WitSqlStatementBeginTransaction statement)
     {
         // Use pending isolation level from SET TRANSACTION, or default to ReadCommitted
-        Core.Interfaces.IsolationLevel isolationLevel;
+        Core.Interfaces.WitIsolationLevel isolationLevel;
         
         if (m_context.PendingIsolationLevel.HasValue)
         {
@@ -29,7 +29,7 @@ public sealed partial class StatementExecutor
         }
         else
         {
-            isolationLevel = Core.Interfaces.IsolationLevel.ReadCommitted;
+            isolationLevel = Core.Interfaces.WitIsolationLevel.ReadCommitted;
         }
         
         m_context.Database.BeginTransaction(isolationLevel);
@@ -137,15 +137,15 @@ public sealed partial class StatementExecutor
     /// <summary>
     /// Maps Parser IsolationLevelType to Core IsolationLevel enum.
     /// </summary>
-    private static Core.Interfaces.IsolationLevel MapIsolationLevel(IsolationLevelType isolationLevel)
+    private static Core.Interfaces.WitIsolationLevel MapIsolationLevel(IsolationLevelType isolationLevel)
     {
         return isolationLevel switch
         {
-            IsolationLevelType.ReadUncommitted => Core.Interfaces.IsolationLevel.ReadUncommitted,
-            IsolationLevelType.ReadCommitted => Core.Interfaces.IsolationLevel.ReadCommitted,
-            IsolationLevelType.RepeatableRead => Core.Interfaces.IsolationLevel.RepeatableRead,
-            IsolationLevelType.Serializable => Core.Interfaces.IsolationLevel.Serializable,
-            IsolationLevelType.Snapshot => Core.Interfaces.IsolationLevel.Snapshot,
+            IsolationLevelType.ReadUncommitted => Core.Interfaces.WitIsolationLevel.ReadUncommitted,
+            IsolationLevelType.ReadCommitted => Core.Interfaces.WitIsolationLevel.ReadCommitted,
+            IsolationLevelType.RepeatableRead => Core.Interfaces.WitIsolationLevel.RepeatableRead,
+            IsolationLevelType.Serializable => Core.Interfaces.WitIsolationLevel.Serializable,
+            IsolationLevelType.Snapshot => Core.Interfaces.WitIsolationLevel.Snapshot,
             _ => throw new ArgumentOutOfRangeException(nameof(isolationLevel), isolationLevel, "Unknown isolation level")
         };
     }

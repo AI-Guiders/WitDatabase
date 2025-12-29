@@ -7,7 +7,7 @@ namespace OutWit.Database.Core.Interfaces
     /// <remarks>
     /// Higher isolation levels provide more data consistency but may reduce concurrency.
     /// </remarks>
-    public enum IsolationLevel
+    public enum WitIsolationLevel
     {
         /// <summary>
         /// Allows dirty reads. Transaction can see uncommitted changes from other transactions.

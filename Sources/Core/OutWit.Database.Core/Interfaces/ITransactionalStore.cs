@@ -16,7 +16,7 @@ namespace OutWit.Database.Core.Interfaces
         /// </summary>
         /// <param name="isolationLevel">The isolation level for the transaction.</param>
         /// <returns>A new transaction.</returns>
-        ITransaction BeginTransaction(IsolationLevel isolationLevel);
+        ITransaction BeginTransaction(WitIsolationLevel isolationLevel);
 
         /// <summary>
         /// Begins a new transaction asynchronously with default isolation level.
@@ -31,7 +31,7 @@ namespace OutWit.Database.Core.Interfaces
         /// <param name="isolationLevel">The isolation level for the transaction.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>A new transaction.</returns>
-        ValueTask<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default);
+        ValueTask<ITransaction> BeginTransactionAsync(WitIsolationLevel isolationLevel, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets the number of active transactions.

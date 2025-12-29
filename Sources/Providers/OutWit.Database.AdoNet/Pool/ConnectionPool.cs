@@ -11,12 +11,13 @@ public sealed class ConnectionPool : IDisposable
 
     private static readonly ConcurrentDictionary<string, ConnectionPool> s_pools = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Lock m_lock = new();
     private readonly PoolOptions m_options;
     private readonly ConcurrentBag<PooledConnection> m_availableConnections;
     private readonly ConcurrentDictionary<int, PooledConnection> m_activeConnections;
     private readonly SemaphoreSlim m_semaphore;
     private readonly Timer? m_cleanupTimer;
-    private readonly object m_lock = new();
+    
     private int m_totalConnections;
     private bool m_disposed;
 

@@ -172,7 +172,7 @@ public class WitDatabaseFactoryMethodsTests
         
         using var tx = db.BeginTransaction();
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadCommitted));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.ReadCommitted));
         tx.Put("key"u8, "value"u8);
         tx.Commit();
     }
@@ -182,9 +182,9 @@ public class WitDatabaseFactoryMethodsTests
     {
         using var db = WitDatabase.CreateInMemory();
         
-        using var tx = db.BeginTransaction(IsolationLevel.Serializable);
+        using var tx = db.BeginTransaction(WitIsolationLevel.Serializable);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Serializable));
         tx.Put("key"u8, "value"u8);
         tx.Commit();
         
@@ -196,9 +196,9 @@ public class WitDatabaseFactoryMethodsTests
     {
         using var db = WitDatabase.CreateInMemory();
         
-        using var tx = db.BeginTransaction(IsolationLevel.Snapshot);
+        using var tx = db.BeginTransaction(WitIsolationLevel.Snapshot);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Snapshot));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Snapshot));
         tx.Rollback();
     }
 
@@ -207,9 +207,9 @@ public class WitDatabaseFactoryMethodsTests
     {
         using var db = WitDatabase.CreateInMemory();
         
-        using var tx = db.BeginTransaction(IsolationLevel.ReadUncommitted);
+        using var tx = db.BeginTransaction(WitIsolationLevel.ReadUncommitted);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadUncommitted));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.ReadUncommitted));
         tx.Rollback();
     }
 
@@ -218,9 +218,9 @@ public class WitDatabaseFactoryMethodsTests
     {
         using var db = WitDatabase.CreateInMemory();
         
-        using var tx = await db.BeginTransactionAsync(IsolationLevel.RepeatableRead);
+        using var tx = await db.BeginTransactionAsync(WitIsolationLevel.RepeatableRead);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.RepeatableRead));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.RepeatableRead));
         await tx.RollbackAsync();
     }
 
@@ -234,7 +234,7 @@ public class WitDatabaseFactoryMethodsTests
             .Build();
         
         Assert.Throws<InvalidOperationException>(() => 
-            db.BeginTransaction(IsolationLevel.Serializable));
+            db.BeginTransaction(WitIsolationLevel.Serializable));
     }
 
     [Test]
@@ -247,7 +247,7 @@ public class WitDatabaseFactoryMethodsTests
             .Build();
         
         Assert.ThrowsAsync<InvalidOperationException>(async () => 
-            await db.BeginTransactionAsync(IsolationLevel.Serializable));
+            await db.BeginTransactionAsync(WitIsolationLevel.Serializable));
     }
 
     #endregion

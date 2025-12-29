@@ -29,7 +29,7 @@ namespace OutWit.Database.Core.Transactions
         /// <summary>
         /// Default isolation level for MVCC transactions.
         /// </summary>
-        public const IsolationLevel DEFAULT_ISOLATION_LEVEL = IsolationLevel.Snapshot;
+        public const WitIsolationLevel DEFAULT_ISOLATION_LEVEL = WitIsolationLevel.Snapshot;
 
         #endregion
 
@@ -42,7 +42,7 @@ namespace OutWit.Database.Core.Transactions
         private readonly DeadlockDetector m_deadlockDetector;
         private readonly TransactionWaitQueue m_waitQueue;
         private readonly bool m_ownsStore;
-        private readonly IsolationLevel m_defaultIsolationLevel;
+        private readonly WitIsolationLevel m_defaultIsolationLevel;
         private readonly object m_txLock = new();
         private readonly HashSet<MvccTransaction> m_activeTransactions = new();
         private long m_nextTransactionId = 1;
@@ -83,7 +83,7 @@ namespace OutWit.Database.Core.Transactions
         public MvccTransactionalStore(
             IKeyValueStore innerStore, 
             LockManager? lockManager, 
-            IsolationLevel defaultIsolationLevel,
+            WitIsolationLevel defaultIsolationLevel,
             bool ownsStore = true)
             : this(innerStore, lockManager, defaultIsolationLevel, null, ownsStore)
         {
@@ -100,7 +100,7 @@ namespace OutWit.Database.Core.Transactions
         public MvccTransactionalStore(
             IKeyValueStore innerStore, 
             LockManager? lockManager, 
-            IsolationLevel defaultIsolationLevel,
+            WitIsolationLevel defaultIsolationLevel,
             TransactionWaitQueueOptions? waitQueueOptions,
             bool ownsStore = true)
         {
@@ -145,7 +145,7 @@ namespace OutWit.Database.Core.Transactions
             MvccKeyValueStore mvccStore,
             TransactionTimestampManager timestampManager,
             LockManager? lockManager,
-            IsolationLevel defaultIsolationLevel,
+            WitIsolationLevel defaultIsolationLevel,
             bool ownsStore = true)
             : this(mvccStore, timestampManager, lockManager, defaultIsolationLevel, null, ownsStore)
         {
@@ -164,7 +164,7 @@ namespace OutWit.Database.Core.Transactions
             MvccKeyValueStore mvccStore,
             TransactionTimestampManager timestampManager,
             LockManager? lockManager,
-            IsolationLevel defaultIsolationLevel,
+            WitIsolationLevel defaultIsolationLevel,
             TransactionWaitQueueOptions? waitQueueOptions,
             bool ownsStore = true)
         {
@@ -189,7 +189,7 @@ namespace OutWit.Database.Core.Transactions
         }
 
         /// <inheritdoc/>
-        public ITransaction BeginTransaction(IsolationLevel isolationLevel)
+        public ITransaction BeginTransaction(WitIsolationLevel isolationLevel)
         {
             return BeginTransaction(isolationLevel, TransactionPriority.Normal);
         }
@@ -200,7 +200,7 @@ namespace OutWit.Database.Core.Transactions
         /// <param name="isolationLevel">The isolation level for the transaction.</param>
         /// <param name="priority">The priority for the transaction in wait queue.</param>
         /// <returns>A new transaction.</returns>
-        public ITransaction BeginTransaction(IsolationLevel isolationLevel, TransactionPriority priority)
+        public ITransaction BeginTransaction(WitIsolationLevel isolationLevel, TransactionPriority priority)
         {
             ThrowIfDisposed();
             ValidateIsolationLevel(isolationLevel);
@@ -234,7 +234,7 @@ namespace OutWit.Database.Core.Transactions
         }
 
         /// <inheritdoc/>
-        public ValueTask<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+        public ValueTask<ITransaction> BeginTransactionAsync(WitIsolationLevel isolationLevel, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(BeginTransaction(isolationLevel));
@@ -258,7 +258,7 @@ namespace OutWit.Database.Core.Transactions
                     snapshotTimestamp,
                     m_timestampManager,
                     lockHandle: null,
-                    IsolationLevel.Snapshot);
+                    WitIsolationLevel.Snapshot);
 
                 tx.SetReadOnly();
                 m_activeTransactions.Add(tx);
@@ -596,7 +596,7 @@ namespace OutWit.Database.Core.Transactions
             ObjectDisposedException.ThrowIf(m_disposed, this);
         }
 
-        private static void ValidateIsolationLevel(IsolationLevel isolationLevel)
+        private static void ValidateIsolationLevel(WitIsolationLevel isolationLevel)
         {
             if (!Enum.IsDefined(isolationLevel))
             {

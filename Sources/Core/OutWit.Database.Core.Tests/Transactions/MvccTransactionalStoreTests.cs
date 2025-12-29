@@ -56,7 +56,7 @@ namespace OutWit.Database.Core.Tests.Transactions
         {
             using var tx = m_store.BeginTransaction();
 
-            Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Snapshot));
+            Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Snapshot));
         }
 
         [Test]

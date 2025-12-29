@@ -791,13 +791,13 @@ public class WitDatabaseBuilderTests
         using var db = new WitDatabaseBuilder()
             .WithMemoryStorage()
             .WithBTree()
-            .WithMvcc(IsolationLevel.Serializable)
+            .WithMvcc(WitIsolationLevel.Serializable)
             .Build();
 
         Assert.That(db.SupportsMvcc, Is.True);
 
         using var tx = db.BeginTransaction();
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Serializable));
         tx.Rollback();
     }
 

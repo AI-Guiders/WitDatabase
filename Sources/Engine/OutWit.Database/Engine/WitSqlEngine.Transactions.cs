@@ -16,7 +16,7 @@ public sealed partial class WitSqlEngine
     /// <returns>A disposable handle that will auto-rollback if not committed.</returns>
     public IDisposable BeginTransaction()
     {
-        return BeginTransaction(IsolationLevel.ReadCommitted);
+        return BeginTransaction(WitIsolationLevel.ReadCommitted);
     }
 
     /// <summary>
@@ -24,7 +24,7 @@ public sealed partial class WitSqlEngine
     /// </summary>
     /// <param name="isolationLevel">The isolation level for the transaction.</param>
     /// <returns>A disposable handle that will auto-rollback if not committed.</returns>
-    public IDisposable BeginTransaction(IsolationLevel isolationLevel)
+    public IDisposable BeginTransaction(WitIsolationLevel isolationLevel)
     {
         if (m_currentTransaction != null)
             throw new InvalidOperationException("A transaction is already active. Commit or rollback it first.");

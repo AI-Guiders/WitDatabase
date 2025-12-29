@@ -531,7 +531,7 @@ public sealed class WitDatabase : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="isolationLevel">The isolation level for the transaction.</param>
     /// <exception cref="InvalidOperationException">Thrown if transactions are not enabled.</exception>
-    public ITransaction BeginTransaction(IsolationLevel isolationLevel)
+    public ITransaction BeginTransaction(WitIsolationLevel isolationLevel)
     {
         ThrowIfDisposed();
         if (m_transactionalStore == null)
@@ -573,7 +573,7 @@ public sealed class WitDatabase : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="isolationLevel">The isolation level for the transaction.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public ValueTask<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+    public ValueTask<ITransaction> BeginTransactionAsync(WitIsolationLevel isolationLevel, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         if (m_transactionalStore == null)

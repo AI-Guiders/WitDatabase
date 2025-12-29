@@ -29,7 +29,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             // NOT committed yet
 
             // Start a ReadUncommitted transaction
-            using var readTx = store.BeginTransaction(IsolationLevel.ReadUncommitted);
+            using var readTx = store.BeginTransaction(WitIsolationLevel.ReadUncommitted);
             
             // ReadUncommitted should see the uncommitted change
             // Note: In our MVCC implementation, uncommitted changes from OTHER transactions
@@ -47,7 +47,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("initial"));
 
-            using var tx = store.BeginTransaction(IsolationLevel.ReadUncommitted);
+            using var tx = store.BeginTransaction(WitIsolationLevel.ReadUncommitted);
             tx.Put(Key("key1"), Value("modified"));
 
             // Should see own uncommitted change
@@ -66,7 +66,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             store.Put(Key("key1"), Value("v1"));
 
             // Start a ReadCommitted transaction
-            using var readTx = store.BeginTransaction(IsolationLevel.ReadCommitted);
+            using var readTx = store.BeginTransaction(WitIsolationLevel.ReadCommitted);
             
             // First read
             var value1 = readTx.Get(Key("key1"));
@@ -95,7 +95,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             writeTx.Put(Key("key1"), Value("uncommitted"));
 
             // ReadCommitted should not see uncommitted change
-            using var readTx = store.BeginTransaction(IsolationLevel.ReadCommitted);
+            using var readTx = store.BeginTransaction(WitIsolationLevel.ReadCommitted);
             var value = readTx.Get(Key("key1"));
             Assert.That(ToString(value), Is.EqualTo("initial"));
 
@@ -108,7 +108,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            using var readTx = store.BeginTransaction(IsolationLevel.ReadCommitted);
+            using var readTx = store.BeginTransaction(WitIsolationLevel.ReadCommitted);
             
             // First read
             var read1 = readTx.Get(Key("key1"));
@@ -137,7 +137,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            using var readTx = store.BeginTransaction(IsolationLevel.RepeatableRead);
+            using var readTx = store.BeginTransaction(WitIsolationLevel.RepeatableRead);
             
             // First read
             var read1 = readTx.Get(Key("key1"));
@@ -161,7 +161,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            var readTx = (MvccTransaction)store.BeginTransaction(IsolationLevel.RepeatableRead);
+            var readTx = (MvccTransaction)store.BeginTransaction(WitIsolationLevel.RepeatableRead);
             
             // Read should add to read set
             readTx.Get(Key("key1"));
@@ -175,7 +175,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            var tx = store.BeginTransaction(IsolationLevel.RepeatableRead);
+            var tx = store.BeginTransaction(WitIsolationLevel.RepeatableRead);
             
             // Read the key
             tx.Get(Key("key1"));
@@ -206,7 +206,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             store.Put(Key("key1"), Value("v1"));
             store.Put(Key("key2"), Value("v2"));
 
-            using var snapshotTx = store.BeginTransaction(IsolationLevel.Snapshot);
+            using var snapshotTx = store.BeginTransaction(WitIsolationLevel.Snapshot);
             
             // Read first value
             var read1 = snapshotTx.Get(Key("key1"));
@@ -234,7 +234,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            var snapshotTx = (MvccTransaction)store.BeginTransaction(IsolationLevel.Snapshot);
+            var snapshotTx = (MvccTransaction)store.BeginTransaction(WitIsolationLevel.Snapshot);
             snapshotTx.Get(Key("key1"));
             
             // Snapshot isolation doesn't need to track reads for conflict detection
@@ -248,8 +248,8 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            var tx1 = store.BeginTransaction(IsolationLevel.Snapshot);
-            var tx2 = store.BeginTransaction(IsolationLevel.Snapshot);
+            var tx1 = store.BeginTransaction(WitIsolationLevel.Snapshot);
+            var tx2 = store.BeginTransaction(WitIsolationLevel.Snapshot);
 
             // Both modify same key
             tx1.Put(Key("key1"), Value("tx1"));
@@ -275,7 +275,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            var tx = (MvccTransaction)store.BeginTransaction(IsolationLevel.Serializable);
+            var tx = (MvccTransaction)store.BeginTransaction(WitIsolationLevel.Serializable);
             tx.Get(Key("key1"));
             
             Assert.That(tx.ReadSet.Count, Is.EqualTo(1));
@@ -288,7 +288,7 @@ namespace OutWit.Database.Core.Tests.Transactions
             using var store = CreateStore();
             store.Put(Key("key1"), Value("v1"));
 
-            var tx = store.BeginTransaction(IsolationLevel.Serializable);
+            var tx = store.BeginTransaction(WitIsolationLevel.Serializable);
             
             // Read the key
             tx.Get(Key("key1"));
@@ -320,8 +320,8 @@ namespace OutWit.Database.Core.Tests.Transactions
             store.Put(Key("key1"), Value("initial"));
 
             // Start transactions with different isolation levels
-            using var snapshotTx = store.BeginTransaction(IsolationLevel.Snapshot);
-            using var readCommittedTx = store.BeginTransaction(IsolationLevel.ReadCommitted);
+            using var snapshotTx = store.BeginTransaction(WitIsolationLevel.Snapshot);
+            using var readCommittedTx = store.BeginTransaction(WitIsolationLevel.ReadCommitted);
 
             // Both read initial value
             var snapshot1 = snapshotTx.Get(Key("key1"));

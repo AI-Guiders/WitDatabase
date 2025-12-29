@@ -6,9 +6,6 @@ using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Core.Providers;
 using OutWit.Database.Core.Utils;
 using OutWit.Database.Engine;
-using WitDatabaseInstance = OutWit.Database.Core.Builder.WitDatabase;
-using CoreIsolationLevel = OutWit.Database.Core.Interfaces.IsolationLevel;
-using DataIsolationLevel = System.Data.IsolationLevel;
 
 namespace OutWit.Database.AdoNet;
 
@@ -25,12 +22,13 @@ public sealed class WitDbConnection : DbConnection
 
     #region Fields
 
+    private readonly Lock m_lock = new();
+
     private string m_connectionString = string.Empty;
     private ConnectionState m_state = ConnectionState.Closed;
     private WitSqlEngine? m_engine;
-    private WitDatabaseInstance? m_database;
+    private WitDatabase? m_database;
     private WitDbTransaction? m_currentTransaction;
-    private readonly object m_lock = new();
 
     #endregion
 
@@ -89,7 +87,7 @@ public sealed class WitDbConnection : DbConnection
                 if (m_engine == null)
                 {
                     var options = new WitDbConnectionStringBuilder(m_connectionString);
-                    m_database = CreateDatabase(options);
+                    m_database = BuildDatabase(options);
                     m_engine = new WitSqlEngine(m_database, ownsStore: true);
                     OwnsEngine = true;
                 }
@@ -133,9 +131,6 @@ public sealed class WitDbConnection : DbConnection
 
             if (OwnsEngine && m_engine != null)
             {
-                // Flush data to disk before disposing
-                m_database?.Flush();
-                
                 m_engine.Dispose();
                 m_engine = null;
                 m_database = null;
@@ -156,7 +151,7 @@ public sealed class WitDbConnection : DbConnection
     #region Transaction
 
     /// <inheritdoc/>
-    protected override DbTransaction BeginDbTransaction(DataIsolationLevel isolationLevel)
+    protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
     {
         EnsureOpen();
 
@@ -166,15 +161,15 @@ public sealed class WitDbConnection : DbConnection
         var witIsolation = MapIsolationLevel(isolationLevel);
         m_engine!.Execute("BEGIN TRANSACTION");
 
-        if (witIsolation != CoreIsolationLevel.ReadCommitted)
+        if (witIsolation != WitIsolationLevel.ReadCommitted)
         {
             var isolationName = witIsolation switch
             {
-                CoreIsolationLevel.ReadUncommitted => "READ UNCOMMITTED",
-                CoreIsolationLevel.ReadCommitted => "READ COMMITTED",
-                CoreIsolationLevel.RepeatableRead => "REPEATABLE READ",
-                CoreIsolationLevel.Serializable => "SERIALIZABLE",
-                CoreIsolationLevel.Snapshot => "SNAPSHOT",
+                WitIsolationLevel.ReadUncommitted => "READ UNCOMMITTED",
+                WitIsolationLevel.ReadCommitted => "READ COMMITTED",
+                WitIsolationLevel.RepeatableRead => "REPEATABLE READ",
+                WitIsolationLevel.Serializable => "SERIALIZABLE",
+                WitIsolationLevel.Snapshot => "SNAPSHOT",
                 _ => "READ COMMITTED"
             };
             m_engine.Execute($"SET TRANSACTION ISOLATION LEVEL {isolationName}");
@@ -187,7 +182,7 @@ public sealed class WitDbConnection : DbConnection
     /// <summary>
     /// Begins a database transaction asynchronously.
     /// </summary>
-    public new async ValueTask<DbTransaction> BeginTransactionAsync(DataIsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+    public new async ValueTask<DbTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
     {
         return await Task.Run(() => BeginDbTransaction(isolationLevel), cancellationToken).ConfigureAwait(false);
     }
@@ -197,7 +192,7 @@ public sealed class WitDbConnection : DbConnection
     /// </summary>
     public new async ValueTask<DbTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
-        return await BeginTransactionAsync(DataIsolationLevel.Unspecified, cancellationToken).ConfigureAwait(false);
+        return await BeginTransactionAsync(IsolationLevel.Unspecified, cancellationToken).ConfigureAwait(false);
     }
 
     internal void ClearTransaction()
@@ -239,37 +234,36 @@ public sealed class WitDbConnection : DbConnection
 
     #endregion
 
-    #region Database Creation
+    #region Schema
 
-    private static WitDatabaseInstance CreateDatabase(WitDbConnectionStringBuilder options)
+    /// <inheritdoc/>
+    public override DataTable GetSchema()
+    {
+        return GetSchema(null);
+    }
+
+    /// <inheritdoc/>
+    public override DataTable GetSchema(string collectionName)
+    {
+        return GetSchema(collectionName, null);
+    }
+
+    /// <inheritdoc/>
+    public override DataTable GetSchema(string collectionName, string?[]? restrictionValues)
+    {
+        EnsureOpen();
+        var provider = new SchemaProvider(m_engine!);
+        return provider.GetSchema(collectionName, restrictionValues);
+    }
+
+    #endregion
+
+    #region Database Building
+
+    private static WitDatabase BuildDatabase(WitDbConnectionStringBuilder options)
     {
         options.ThrowIfInvalid();
         
-        // Check if this is a memory database
-        if (options.Mode == WitDbConnectionMode.Memory ||
-            string.Equals(options.DataSource, ":memory:", StringComparison.OrdinalIgnoreCase))
-        {
-            return CreateNewDatabase(options);
-        }
-        
-        // For file-based databases, check if file exists to open vs create
-        if (!string.IsNullOrEmpty(options.DataSource))
-        {
-            var exists = File.Exists(options.DataSource) || Directory.Exists(options.DataSource);
-            
-            if (exists)
-            {
-                // Open existing database
-                return OpenExistingDatabase(options);
-            }
-        }
-        
-        // Create new database
-        return CreateNewDatabase(options);
-    }
-
-    private static WitDatabaseInstance CreateNewDatabase(WitDbConnectionStringBuilder options)
-    {
         var builder = new WitDatabaseBuilder();
         
         // Collect all provider parameters from connection string
@@ -298,74 +292,10 @@ public sealed class WitDbConnection : DbConnection
         // Configure transactions
         ConfigureTransactions(builder, options);
 
+        // Configure file locking
+        ConfigureFileLocking(builder, providerParams);
+
         return builder.Build();
-    }
-
-    private static WitDatabaseInstance OpenExistingDatabase(WitDbConnectionStringBuilder options)
-    {
-        var path = options.DataSource!;
-        
-        // If encryption is specified, use CreateOrOpen with password
-        // This handles both new and existing databases correctly
-        if (!string.IsNullOrEmpty(options.Encryption) && !string.IsNullOrEmpty(options.Password))
-        {
-            // For encrypted databases, we need to use the builder approach
-            // because WitDatabase.Open with password doesn't support all options
-            var builder = new WitDatabaseBuilder();
-            var providerParams = new ProviderParameters();
-            
-            foreach (var (key, value) in options.GetProviderParameters())
-            {
-                if (value != null)
-                    providerParams.Set(key, value);
-            }
-
-            // Use StorageDetector to get database info
-            var detection = StorageDetector.Detect(path);
-            
-            // Configure based on detected store type
-            if (detection.StoreType == "lsm" || detection.IsDirectory)
-            {
-                builder.WithLsmTree(path);
-            }
-            else
-            {
-                builder.WithFilePath(path).WithBTree();
-            }
-
-            // Configure encryption
-            ConfigureEncryption(builder, options, providerParams);
-
-            // Configure transactions based on detection or connection string options
-            if (detection.HasTransactions || options.Transactions)
-            {
-                // Use MVCC if detected or specified in connection string
-                if (detection.HasMvcc || options.Mvcc)
-                {
-                    var coreIsolationLevel = MapDbIsolationLevel(options.IsolationLevel);
-                    builder.WithMvcc(coreIsolationLevel);
-                }
-                else
-                {
-                    builder.WithTransactions();
-                }
-            }
-            else
-            {
-                builder.WithoutTransactions();
-            }
-
-            // Configure file locking from detection
-            if (detection.HasFileLocking)
-                builder.WithFileLocking();
-            else
-                builder.WithoutFileLocking();
-
-            return builder.Build();
-        }
-        
-        // For non-encrypted databases, use WitDatabase.Open which auto-detects settings
-        return WitDatabaseInstance.Open(path);
     }
 
     private static void ConfigureStorage(WitDatabaseBuilder builder, WitDbConnectionStringBuilder options)
@@ -407,24 +337,47 @@ public sealed class WitDbConnection : DbConnection
 
     private static void ConfigureEncryption(WitDatabaseBuilder builder, WitDbConnectionStringBuilder options, ProviderParameters providerParams)
     {
-        var encryptionKey = options.Encryption?.ToLowerInvariant();
-        
-        // No encryption if not specified or no password
-        if (string.IsNullOrEmpty(encryptionKey) || string.IsNullOrEmpty(options.Password))
+        // No encryption if no password
+        if (string.IsNullOrEmpty(options.Password))
             return;
 
         // Check for fast encryption flag
         bool fastEncryption = providerParams.Get<bool>("FastEncryption", false) || 
                               providerParams.Get<bool>("Fast Encryption", false);
-        int iterations = fastEncryption ? CryptoUtils.WASM_PBKDF2_ITERATIONS : CryptoUtils.DEFAULT_PBKDF2_ITERATIONS;
 
-        if (!string.IsNullOrEmpty(options.User))
+        var encryptionKey = options.Encryption?.ToLowerInvariant();
+
+        // If encryption provider specified, use provider key
+        if (!string.IsNullOrEmpty(encryptionKey))
         {
-            builder.WithEncryptionKey(encryptionKey, options.User, options.Password, iterations);
+            int iterations = fastEncryption ? CryptoUtils.WASM_PBKDF2_ITERATIONS : CryptoUtils.DEFAULT_PBKDF2_ITERATIONS;
+
+            if (!string.IsNullOrEmpty(options.User))
+            {
+                builder.WithEncryptionKey(encryptionKey, options.User, options.Password, iterations);
+            }
+            else
+            {
+                builder.WithEncryptionKey(encryptionKey, options.Password, iterations);
+            }
         }
         else
         {
-            builder.WithEncryptionKey(encryptionKey, options.Password, iterations);
+            // Default to AES-GCM
+            if (fastEncryption)
+            {
+                if (!string.IsNullOrEmpty(options.User))
+                    builder.WithEncryptionFast(options.User, options.Password);
+                else
+                    builder.WithEncryptionFast(options.Password);
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(options.User))
+                    builder.WithEncryption(options.User, options.Password);
+                else
+                    builder.WithEncryption(options.Password);
+            }
         }
     }
 
@@ -472,10 +425,6 @@ public sealed class WitDbConnection : DbConnection
             return;
         }
 
-        // MVCC provides snapshot isolation and is generally recommended.
-        // However, MVCC stores data with version suffixes which changes the key format.
-        // For file-based databases, we still use MVCC since the database will be
-        // reopened with the same MVCC setting (stored in metadata).
         if (options.Mvcc)
         {
             var coreIsolationLevel = MapDbIsolationLevel(options.IsolationLevel);
@@ -489,61 +438,48 @@ public sealed class WitDbConnection : DbConnection
         }
         else
         {
-            // Default: use regular transactions when Mvcc=false
             builder.WithTransactions();
         }
     }
 
-    private static CoreIsolationLevel MapDbIsolationLevel(WitDbIsolationLevel level)
+    private static void ConfigureFileLocking(WitDatabaseBuilder builder, ProviderParameters providerParams)
+    {
+        // Check for explicit FileLocking=false
+        var fileLocking = providerParams.Get<object?>("FileLocking", null);
+        if (fileLocking is false || 
+            fileLocking is string s && s.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.WithoutFileLocking();
+        }
+        // else use default (with file locking)
+    }
+
+    private static WitIsolationLevel MapDbIsolationLevel(WitDbIsolationLevel level)
     {
         return level switch
         {
-            WitDbIsolationLevel.ReadUncommitted => CoreIsolationLevel.ReadUncommitted,
-            WitDbIsolationLevel.ReadCommitted => CoreIsolationLevel.ReadCommitted,
-            WitDbIsolationLevel.RepeatableRead => CoreIsolationLevel.RepeatableRead,
-            WitDbIsolationLevel.Serializable => CoreIsolationLevel.Serializable,
-            WitDbIsolationLevel.Snapshot => CoreIsolationLevel.Snapshot,
-            _ => CoreIsolationLevel.ReadCommitted
+            WitDbIsolationLevel.ReadUncommitted => WitIsolationLevel.ReadUncommitted,
+            WitDbIsolationLevel.ReadCommitted => WitIsolationLevel.ReadCommitted,
+            WitDbIsolationLevel.RepeatableRead => WitIsolationLevel.RepeatableRead,
+            WitDbIsolationLevel.Serializable => WitIsolationLevel.Serializable,
+            WitDbIsolationLevel.Snapshot => WitIsolationLevel.Snapshot,
+            _ => WitIsolationLevel.ReadCommitted
         };
     }
 
-    private static CoreIsolationLevel MapIsolationLevel(DataIsolationLevel level)
+    private static WitIsolationLevel MapIsolationLevel(IsolationLevel level)
     {
         return level switch
         {
-            DataIsolationLevel.Unspecified => CoreIsolationLevel.ReadCommitted,
-            DataIsolationLevel.Chaos => CoreIsolationLevel.ReadUncommitted,
-            DataIsolationLevel.ReadUncommitted => CoreIsolationLevel.ReadUncommitted,
-            DataIsolationLevel.ReadCommitted => CoreIsolationLevel.ReadCommitted,
-            DataIsolationLevel.RepeatableRead => CoreIsolationLevel.RepeatableRead,
-            DataIsolationLevel.Serializable => CoreIsolationLevel.Serializable,
-            DataIsolationLevel.Snapshot => CoreIsolationLevel.Snapshot,
-            _ => CoreIsolationLevel.ReadCommitted
+            IsolationLevel.Unspecified => WitIsolationLevel.ReadCommitted,
+            IsolationLevel.Chaos => WitIsolationLevel.ReadUncommitted,
+            IsolationLevel.ReadUncommitted => WitIsolationLevel.ReadUncommitted,
+            IsolationLevel.ReadCommitted => WitIsolationLevel.ReadCommitted,
+            IsolationLevel.RepeatableRead => WitIsolationLevel.RepeatableRead,
+            IsolationLevel.Serializable => WitIsolationLevel.Serializable,
+            IsolationLevel.Snapshot => WitIsolationLevel.Snapshot,
+            _ => WitIsolationLevel.ReadCommitted
         };
-    }
-
-    #endregion
-
-    #region Schema
-
-    /// <inheritdoc/>
-    public override DataTable GetSchema()
-    {
-        return GetSchema(null);
-    }
-
-    /// <inheritdoc/>
-    public override DataTable GetSchema(string collectionName)
-    {
-        return GetSchema(collectionName, null);
-    }
-
-    /// <inheritdoc/>
-    public override DataTable GetSchema(string collectionName, string?[]? restrictionValues)
-    {
-        EnsureOpen();
-        var provider = new SchemaProvider(m_engine!);
-        return provider.GetSchema(collectionName, restrictionValues);
     }
 
     #endregion

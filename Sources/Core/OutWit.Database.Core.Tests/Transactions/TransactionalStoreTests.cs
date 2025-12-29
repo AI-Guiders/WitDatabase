@@ -429,47 +429,47 @@ public class TransactionalStoreTests : IDisposable
     {
         using var tx = m_store.BeginTransaction();
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadCommitted));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.ReadCommitted));
     }
 
     [Test]
     public void BeginTransactionWithSpecificIsolationLevelTest()
     {
-        using var tx = m_store.BeginTransaction(IsolationLevel.Serializable);
+        using var tx = m_store.BeginTransaction(WitIsolationLevel.Serializable);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Serializable));
     }
 
     [Test]
     public void BeginTransactionWithReadUncommittedTest()
     {
-        using var tx = m_store.BeginTransaction(IsolationLevel.ReadUncommitted);
+        using var tx = m_store.BeginTransaction(WitIsolationLevel.ReadUncommitted);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadUncommitted));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.ReadUncommitted));
         Assert.That(tx.State, Is.EqualTo(TransactionState.Active));
     }
 
     [Test]
     public void BeginTransactionWithRepeatableReadTest()
     {
-        using var tx = m_store.BeginTransaction(IsolationLevel.RepeatableRead);
+        using var tx = m_store.BeginTransaction(WitIsolationLevel.RepeatableRead);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.RepeatableRead));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.RepeatableRead));
     }
 
     [Test]
     public void BeginTransactionWithSnapshotTest()
     {
-        using var tx = m_store.BeginTransaction(IsolationLevel.Snapshot);
+        using var tx = m_store.BeginTransaction(WitIsolationLevel.Snapshot);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Snapshot));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Snapshot));
     }
 
     [Test]
     public void BeginTransactionWithInvalidIsolationLevelThrowsTest()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => 
-            m_store.BeginTransaction((IsolationLevel)999));
+            m_store.BeginTransaction((WitIsolationLevel)999));
     }
 
     [Test]
@@ -477,28 +477,28 @@ public class TransactionalStoreTests : IDisposable
     {
         await using var tx = await m_store.BeginTransactionAsync();
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.ReadCommitted));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.ReadCommitted));
     }
 
     [Test]
     public async Task BeginTransactionAsyncWithSpecificIsolationLevelTest()
     {
-        await using var tx = await m_store.BeginTransactionAsync(IsolationLevel.Serializable);
+        await using var tx = await m_store.BeginTransactionAsync(WitIsolationLevel.Serializable);
         
-        Assert.That(tx.IsolationLevel, Is.EqualTo(IsolationLevel.Serializable));
+        Assert.That(tx.IsolationLevel, Is.EqualTo(WitIsolationLevel.Serializable));
     }
 
     [Test]
     public async Task BeginTransactionAsyncWithInvalidIsolationLevelThrowsTest()
     {
         Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => 
-            await m_store.BeginTransactionAsync((IsolationLevel)999));
+            await m_store.BeginTransactionAsync((WitIsolationLevel)999));
     }
 
     [Test]
     public void TransactionWithIsolationLevelCommitsSuccessfullyTest()
     {
-        using var tx = m_store.BeginTransaction(IsolationLevel.Serializable);
+        using var tx = m_store.BeginTransaction(WitIsolationLevel.Serializable);
         tx.Put(ToBytes("key"), ToBytes("value"));
         tx.Commit();
         
@@ -509,7 +509,7 @@ public class TransactionalStoreTests : IDisposable
     [Test]
     public void TransactionWithIsolationLevelRollsBackSuccessfullyTest()
     {
-        using var tx = m_store.BeginTransaction(IsolationLevel.Snapshot);
+        using var tx = m_store.BeginTransaction(WitIsolationLevel.Snapshot);
         tx.Put(ToBytes("key"), ToBytes("value"));
         tx.Rollback();
         

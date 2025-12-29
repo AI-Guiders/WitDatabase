@@ -115,7 +115,7 @@ namespace OutWit.Database.Core.Interfaces
         /// <summary>
         /// Gets the isolation level of this transaction.
         /// </summary>
-        IsolationLevel IsolationLevel { get; }
+        WitIsolationLevel IsolationLevel { get; }
 
         #endregion
     }

@@ -593,7 +593,7 @@ public static class WitDatabaseBuilderExtensions
     public static WitDatabaseBuilder WithMvcc(this WitDatabaseBuilder builder)
     {
         builder.Options.TransactionParameters.Set("mvcc", true);
-        builder.Options.TransactionParameters.Set("isolationLevel", IsolationLevel.Snapshot);
+        builder.Options.TransactionParameters.Set("isolationLevel", WitIsolationLevel.Snapshot);
         builder.Options.EnableTransactions = true;
         return builder;
     }
@@ -601,7 +601,7 @@ public static class WitDatabaseBuilderExtensions
     /// <summary>
     /// Enable MVCC with a specific default isolation level.
     /// </summary>
-    public static WitDatabaseBuilder WithMvcc(this WitDatabaseBuilder builder, IsolationLevel defaultIsolationLevel)
+    public static WitDatabaseBuilder WithMvcc(this WitDatabaseBuilder builder, WitIsolationLevel defaultIsolationLevel)
     {
         builder.Options.TransactionParameters.Set("mvcc", true);
         builder.Options.TransactionParameters.Set("isolationLevel", defaultIsolationLevel);
@@ -612,7 +612,7 @@ public static class WitDatabaseBuilderExtensions
     /// <summary>
     /// Set the default isolation level for transactions.
     /// </summary>
-    public static WitDatabaseBuilder WithDefaultIsolationLevel(this WitDatabaseBuilder builder, IsolationLevel isolationLevel)
+    public static WitDatabaseBuilder WithDefaultIsolationLevel(this WitDatabaseBuilder builder, WitIsolationLevel isolationLevel)
     {
         builder.Options.TransactionParameters.Set("isolationLevel", isolationLevel);
         return builder;

@@ -37,7 +37,7 @@ namespace OutWit.Database.Core.Transactions
             long transactionId, 
             ITransactionJournal? journal, 
             IDisposable? lockHandle = null,
-            IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
+            WitIsolationLevel isolationLevel = WitIsolationLevel.ReadCommitted)
         {
             m_store = store;
             m_journal = journal;
@@ -60,7 +60,7 @@ namespace OutWit.Database.Core.Transactions
             long transactionId, 
             ITransactionJournal? journal, 
             IAsyncDisposable? asyncLockHandle,
-            IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
+            WitIsolationLevel isolationLevel = WitIsolationLevel.ReadCommitted)
         {
             m_store = store;
             m_journal = journal;
@@ -567,7 +567,7 @@ namespace OutWit.Database.Core.Transactions
         public long TransactionId { get; }
 
         /// <inheritdoc/>
-        public IsolationLevel IsolationLevel { get; }
+        public WitIsolationLevel IsolationLevel { get; }
 
         /// <inheritdoc/>
         public IReadOnlyList<string> Savepoints => m_savepoints.Select(sp => sp.Name).ToList().AsReadOnly();

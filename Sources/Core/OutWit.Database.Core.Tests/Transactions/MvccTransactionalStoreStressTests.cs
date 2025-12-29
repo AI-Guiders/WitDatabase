@@ -396,12 +396,12 @@ namespace OutWit.Database.Core.Tests.Transactions
         #region Isolation Level Tests
 
         [Test]
-        [TestCase(IsolationLevel.ReadUncommitted)]
-        [TestCase(IsolationLevel.ReadCommitted)]
-        [TestCase(IsolationLevel.RepeatableRead)]
-        [TestCase(IsolationLevel.Snapshot)]
-        [TestCase(IsolationLevel.Serializable)]
-        public void IsolationLevelUnderConcurrentLoadTest(IsolationLevel isolationLevel)
+        [TestCase(WitIsolationLevel.ReadUncommitted)]
+        [TestCase(WitIsolationLevel.ReadCommitted)]
+        [TestCase(WitIsolationLevel.RepeatableRead)]
+        [TestCase(WitIsolationLevel.Snapshot)]
+        [TestCase(WitIsolationLevel.Serializable)]
+        public void IsolationLevelUnderConcurrentLoadTest(WitIsolationLevel isolationLevel)
         {
             using var store = CreateStore();
 

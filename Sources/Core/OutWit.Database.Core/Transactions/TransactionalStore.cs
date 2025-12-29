@@ -20,7 +20,7 @@ public sealed class TransactionalStore : ITransactionalStore, IAsyncDisposable
     /// <summary>
     /// Default isolation level for transactions.
     /// </summary>
-    public const IsolationLevel DEFAULT_ISOLATION_LEVEL = IsolationLevel.ReadCommitted;
+    public const WitIsolationLevel DEFAULT_ISOLATION_LEVEL = WitIsolationLevel.ReadCommitted;
 
     #endregion
 
@@ -87,7 +87,7 @@ public sealed class TransactionalStore : ITransactionalStore, IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    public ITransaction BeginTransaction(IsolationLevel isolationLevel)
+    public ITransaction BeginTransaction(WitIsolationLevel isolationLevel)
     {
         ThrowIfDisposed();
         ValidateIsolationLevel(isolationLevel);
@@ -122,7 +122,7 @@ public sealed class TransactionalStore : ITransactionalStore, IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    public async ValueTask<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+    public async ValueTask<ITransaction> BeginTransactionAsync(WitIsolationLevel isolationLevel, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         ValidateIsolationLevel(isolationLevel);
@@ -415,7 +415,7 @@ public sealed class TransactionalStore : ITransactionalStore, IAsyncDisposable
         ObjectDisposedException.ThrowIf(m_disposed, this);
     }
 
-    private static void ValidateIsolationLevel(IsolationLevel isolationLevel)
+    private static void ValidateIsolationLevel(WitIsolationLevel isolationLevel)
     {
         // Currently only ReadCommitted is fully supported
         // Other levels are accepted but will behave as ReadCommitted until MVCC is implemented

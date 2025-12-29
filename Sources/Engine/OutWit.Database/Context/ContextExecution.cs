@@ -58,7 +58,7 @@ public sealed class ContextExecution
     /// Gets or sets the pending isolation level for the next transaction.
     /// Set by SET TRANSACTION ISOLATION LEVEL and consumed by BEGIN TRANSACTION.
     /// </summary>
-    public IsolationLevel? PendingIsolationLevel { get; set; }
+    public WitIsolationLevel? PendingIsolationLevel { get; set; }
 
     /// <summary>
     /// Gets the CTE (Common Table Expression) definitions for the current query.

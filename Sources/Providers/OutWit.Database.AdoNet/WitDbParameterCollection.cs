@@ -10,8 +10,8 @@ public sealed class WitDbParameterCollection : DbParameterCollection
 {
     #region Fields
 
-    private readonly List<WitDbParameter> m_parameters = new();
     private readonly object m_syncRoot = new();
+    private readonly List<WitDbParameter> m_parameters = [];
 
     #endregion
 

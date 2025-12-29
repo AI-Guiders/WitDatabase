@@ -44,7 +44,7 @@ namespace OutWit.Database.Core.Transactions
             long snapshotTimestamp,
             ITransactionTimestampManager timestampManager,
             IDisposable? lockHandle = null,
-            IsolationLevel isolationLevel = IsolationLevel.Snapshot)
+            WitIsolationLevel isolationLevel = WitIsolationLevel.Snapshot)
         {
             m_store = store;
             m_timestampManager = timestampManager;
@@ -75,7 +75,7 @@ namespace OutWit.Database.Core.Transactions
             long snapshotTimestamp,
             ITransactionTimestampManager timestampManager,
             IAsyncDisposable? asyncLockHandle,
-            IsolationLevel isolationLevel = IsolationLevel.Snapshot)
+            WitIsolationLevel isolationLevel = WitIsolationLevel.Snapshot)
         {
             m_store = store;
             m_timestampManager = timestampManager;
@@ -112,8 +112,8 @@ namespace OutWit.Database.Core.Transactions
             var keyArray = key.ToArray();
 
             // Track read for conflict detection (RepeatableRead, Serializable)
-            if (IsolationLevel == IsolationLevel.RepeatableRead || 
-                IsolationLevel == IsolationLevel.Serializable)
+            if (IsolationLevel == WitIsolationLevel.RepeatableRead || 
+                IsolationLevel == WitIsolationLevel.Serializable)
             {
                 m_readSet.Add(keyArray);
             }
@@ -132,11 +132,11 @@ namespace OutWit.Database.Core.Transactions
             // Read behavior depends on isolation level
             return IsolationLevel switch
             {
-                IsolationLevel.ReadUncommitted => GetReadUncommitted(key),
-                IsolationLevel.ReadCommitted => GetReadCommitted(key),
-                IsolationLevel.RepeatableRead => GetSnapshot(key),
-                IsolationLevel.Serializable => GetSnapshot(key),
-                IsolationLevel.Snapshot => GetSnapshot(key),
+                WitIsolationLevel.ReadUncommitted => GetReadUncommitted(key),
+                WitIsolationLevel.ReadCommitted => GetReadCommitted(key),
+                WitIsolationLevel.RepeatableRead => GetSnapshot(key),
+                WitIsolationLevel.Serializable => GetSnapshot(key),
+                WitIsolationLevel.Snapshot => GetSnapshot(key),
                 _ => GetSnapshot(key)
             };
         }
@@ -560,7 +560,7 @@ namespace OutWit.Database.Core.Transactions
         public bool HasWriteConflict()
         {
             if (m_writeSet.Count == 0 && 
-                (IsolationLevel != IsolationLevel.RepeatableRead && IsolationLevel != IsolationLevel.Serializable))
+                (IsolationLevel != WitIsolationLevel.RepeatableRead && IsolationLevel != WitIsolationLevel.Serializable))
             {
                 return false;
             }
@@ -576,8 +576,8 @@ namespace OutWit.Database.Core.Transactions
 
             // For RepeatableRead and Serializable: also check read set
             // If any key we read has been modified since our snapshot, that's a conflict
-            if (IsolationLevel == IsolationLevel.RepeatableRead || 
-                IsolationLevel == IsolationLevel.Serializable)
+            if (IsolationLevel == WitIsolationLevel.RepeatableRead || 
+                IsolationLevel == WitIsolationLevel.Serializable)
             {
                 foreach (var key in m_readSet)
                 {
@@ -714,8 +714,8 @@ namespace OutWit.Database.Core.Transactions
         private void ValidateNoConflicts()
         {
             // ReadUncommitted and ReadCommitted don't detect conflicts on read set
-            if (IsolationLevel == IsolationLevel.ReadUncommitted || 
-                IsolationLevel == IsolationLevel.ReadCommitted)
+            if (IsolationLevel == WitIsolationLevel.ReadUncommitted || 
+                IsolationLevel == WitIsolationLevel.ReadCommitted)
             {
                 // Only check write-write conflicts
                 if (m_writeSet.Count > 0)
@@ -736,8 +736,8 @@ namespace OutWit.Database.Core.Transactions
             // Snapshot, RepeatableRead, Serializable - check write conflicts
             if (HasWriteConflict())
             {
-                if (IsolationLevel == IsolationLevel.RepeatableRead || 
-                    IsolationLevel == IsolationLevel.Serializable)
+                if (IsolationLevel == WitIsolationLevel.RepeatableRead || 
+                    IsolationLevel == WitIsolationLevel.Serializable)
                 {
                     throw new InvalidOperationException(
                         $"Transaction cannot commit due to serialization failure ({IsolationLevel}). " +
@@ -923,7 +923,7 @@ namespace OutWit.Database.Core.Transactions
         public long TransactionId { get; }
 
         /// <inheritdoc/>
-        public IsolationLevel IsolationLevel { get; }
+        public WitIsolationLevel IsolationLevel { get; }
 
         /// <inheritdoc/>
         public long SnapshotTimestamp { get; }

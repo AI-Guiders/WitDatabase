@@ -198,8 +198,8 @@ public sealed class WitDatabaseBuilderOptions
     /// <summary>
     /// Gets the default isolation level.
     /// </summary>
-    public IsolationLevel DefaultIsolationLevel => 
-        TransactionParameters.Get("isolationLevel", IsolationLevel.ReadCommitted);
+    public WitIsolationLevel DefaultIsolationLevel => 
+        TransactionParameters.Get("isolationLevel", WitIsolationLevel.ReadCommitted);
 
     /// <summary>
     /// Gets whether file locking is enabled.

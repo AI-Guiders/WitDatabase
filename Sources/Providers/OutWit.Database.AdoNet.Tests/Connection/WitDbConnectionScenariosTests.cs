@@ -44,7 +44,6 @@ public class WitDbConnectionScenariosTests
     #region Full Workflow Scenarios
 
     [Test]
-    [Ignore("Encrypted data persistence across sessions requires storage layer improvements")]
     public void FullWorkflowWithEncryptionAndMvccTest()
     {
         var connectionString = $"Data Source={m_testDbPath};Encryption=aes-gcm;Password=SecurePass123;MVCC=true;Isolation Level=Snapshot";
