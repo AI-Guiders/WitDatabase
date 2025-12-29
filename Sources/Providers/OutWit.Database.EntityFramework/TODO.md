@@ -32,7 +32,7 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 
 ### Current Test Status
 
-- **326 tests passing** (net9.0 and net10.0)
+- **336 tests passing** (net9.0 and net10.0)
 - **0 tests skipped**
 - **100% build success**
 
@@ -59,6 +59,8 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 | Update Pipeline | ModificationCommandBatchFactory | ? Complete |
 | Migrations | MigrationsSqlGenerator (20+ operations) | ? Complete |
 | Migrations | HistoryRepository | ? Complete |
+| Migrations | **Foreign Key constraints** | ? **Full SQL generation** |
+| Migrations | **Check constraints** | ? **Full SQL generation** |
 | Database Creation | DatabaseCreator | ? Complete |
 | Function Translations | String methods (16 methods) | ? Complete |
 | Function Translations | Math methods (16 methods) | ? Complete |
@@ -84,24 +86,34 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 | Category | Test Count | Coverage |
 |----------|------------|----------|
 | Infrastructure | 33 tests | Full |
-| Storage | 66 tests | Full |
-| Query Translators | 108 tests | Full |
-| Migrations | 41 tests | Full |
-| Metadata | 13 tests | Full |
+| Storage | 71 tests | Full |
+| Query Translators | 120 tests | Full |
+| Migrations | 51 tests | Full |
+| Metadata | 14 tests | Full |
 | Update | 8 tests | Full |
 | Integration | 27 tests | Full |
 | Extensions | 20 tests | Full |
 | Property Builder | 10 tests | Full |
-| **Total** | **326 tests** | **100%** |
+| **Total** | **336 tests** | **100%** |
 
 ### ?? Known Limitations (by Design)
 
-1. **Schema support** - WitDatabase doesn't support schemas (validated and throws clear error)
-2. **Foreign key constraints** - Limited support (generates comments instead of SQL)
-3. **Check constraints** - Limited support (generates comments instead of SQL)
-4. **Primary key modification** - Limited support after table creation
-5. **Full-text search** - Not implemented (future feature)
-6. **Spatial data** - Not implemented (future feature)
+1. **Custom schemas** - Only default 'public' schema supported (WitDatabase stores all tables in single schema)
+2. **Add PRIMARY KEY to existing table** - Not supported (WitDatabase limitation, like SQLite)
+3. **Drop PRIMARY KEY** - Not supported (same limitation)
+4. **Full-text search** - Not implemented (future feature)
+5. **Spatial data** - Not implemented (future feature)
+
+### ? Features Fully Supported
+
+| Feature | Implementation |
+|---------|---------------|
+| Foreign Keys | Full SQL with ON DELETE/UPDATE CASCADE, SET NULL, RESTRICT |
+| Check Constraints | Full SQL generation |
+| Unique Constraints | Via unique indexes |
+| Indexes | Full support including composite, unique, filtered |
+| Sequences | Full CREATE/ALTER/DROP SEQUENCE |
+| Computed Columns | VIRTUAL and STORED |
 
 ### ?? Dependencies
 
@@ -177,7 +189,7 @@ OutWit.Database.EntityFramework.Tests/
 ??? Migrations/
 ?   ??? WitHistoryRepositoryTests.cs (18 tests)
 ?   ??? WitMigrationsSqlGeneratorComputedColumnTests.cs (5 tests)
-?   ??? WitMigrationsSqlGeneratorTests.cs (18 tests)
+?   ??? WitMigrationsSqlGeneratorTests.cs (28 tests)
 ??? Query/
 ?   ??? WitDateTimeMethodTranslatorTests.cs (7 tests)
 ?   ??? WitGuidMethodTranslatorTests.cs (1 test)

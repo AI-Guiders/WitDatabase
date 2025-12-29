@@ -33,21 +33,25 @@ public sealed class WitModelValidator : RelationalModelValidator
     {
         base.Validate(model, logger);
 
-        ValidateNoSchemas(model, logger);
+        ValidateSchemas(model, logger);
         ValidateKeyTypes(model, logger);
         ValidatePropertyTypes(model, logger);
     }
 
-    private static void ValidateNoSchemas(IModel model, IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    private static void ValidateSchemas(IModel model, IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
     {
-        // WitDatabase doesn't support schemas
+        // WitDatabase supports a default "public" schema
+        // Custom schemas other than "public" or empty are not supported
         foreach (var entityType in model.GetEntityTypes())
         {
             var schema = entityType.GetSchema();
-            if (!string.IsNullOrEmpty(schema))
+            if (!string.IsNullOrEmpty(schema) &&
+                !schema.Equals("public", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"WitDatabase does not support schemas. Entity '{entityType.DisplayName()}' is mapped to schema '{schema}'.");
+                    $"WitDatabase only supports the default 'public' schema. " +
+                    $"Entity '{entityType.DisplayName()}' is mapped to schema '{schema}'. " +
+                    $"Remove the schema specification or use 'public'.");
             }
         }
     }

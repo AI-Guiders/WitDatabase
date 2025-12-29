@@ -12,14 +12,25 @@ public class WitModelValidatorTests
     #region Schema Validation Tests
 
     [Test]
-    public void ModelWithSchemaThrowsExceptionTest()
+    public void ModelWithCustomSchemaThrowsExceptionTest()
     {
-        var optionsBuilder = new DbContextOptionsBuilder<SchemaTestDbContext>();
+        var optionsBuilder = new DbContextOptionsBuilder<CustomSchemaTestDbContext>();
         optionsBuilder.UseWitDbInMemory();
 
-        using var context = new SchemaTestDbContext(optionsBuilder.Options);
+        using var context = new CustomSchemaTestDbContext(optionsBuilder.Options);
 
         Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+    }
+
+    [Test]
+    public void ModelWithPublicSchemaSucceedsTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<PublicSchemaTestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new PublicSchemaTestDbContext(optionsBuilder.Options);
+
+        Assert.DoesNotThrow(() => _ = context.Model);
     }
 
     [Test]
@@ -85,21 +96,41 @@ public class WitModelValidatorTests
 
     #region Test Models
 
-    public class EntityWithSchema
+    public class EntityWithCustomSchema
     {
         public int Id { get; set; }
         public string? Name { get; set; }
     }
 
-    public class SchemaTestDbContext : DbContext
+    public class CustomSchemaTestDbContext : DbContext
     {
-        public SchemaTestDbContext(DbContextOptions<SchemaTestDbContext> options) : base(options) { }
+        public CustomSchemaTestDbContext(DbContextOptions<CustomSchemaTestDbContext> options) : base(options) { }
 
-        public DbSet<EntityWithSchema> Entities => Set<EntityWithSchema>();
+        public DbSet<EntityWithCustomSchema> Entities => Set<EntityWithCustomSchema>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<EntityWithSchema>().ToTable("Entities", "dbo");
+            // Using "dbo" schema which is NOT supported (only "public" is supported)
+            modelBuilder.Entity<EntityWithCustomSchema>().ToTable("Entities", "dbo");
+        }
+    }
+
+    public class EntityWithPublicSchema
+    {
+        public int Id { get; set; }
+        public string? Name { get; set; }
+    }
+
+    public class PublicSchemaTestDbContext : DbContext
+    {
+        public PublicSchemaTestDbContext(DbContextOptions<PublicSchemaTestDbContext> options) : base(options) { }
+
+        public DbSet<EntityWithPublicSchema> Entities => Set<EntityWithPublicSchema>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            // Using "public" schema which IS supported (WitDatabase default schema)
+            modelBuilder.Entity<EntityWithPublicSchema>().ToTable("Entities", "public");
         }
     }
 
