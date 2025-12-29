@@ -1,7 +1,7 @@
 # OutWit.Database.EntityFramework - Implementation TODO
 
 **Version:** 1.0  
-**Last Updated:** 2025-02-05
+**Last Updated:** 2025-02-06
 
 ---
 
@@ -32,13 +32,13 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 
 ### Current Test Status
 
-- **336 tests passing** (net9.0 and net10.0)
+- **386 tests passing** (net9.0 and net10.0)
 - **0 tests skipped**
 - **100% build success**
 
 ---
 
-## Production Readiness Audit (2025-02-05)
+## Production Readiness Audit (2025-02-06)
 
 ### ? Completed Items
 
@@ -91,10 +91,13 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 | Migrations | 51 tests | Full |
 | Metadata | 14 tests | Full |
 | Update | 8 tests | Full |
-| Integration | 27 tests | Full |
+| Integration - Basic | 27 tests | Full |
+| Integration - E2E Config | 22 tests | Full |
+| Integration - Relationships | 12 tests | Full |
+| Integration - InMemory | 15 tests | Full |
 | Extensions | 20 tests | Full |
 | Property Builder | 10 tests | Full |
-| **Total** | **336 tests** | **100%** |
+| **Total** | **386 tests** | **100%** |
 
 ### ?? Known Limitations (by Design)
 
@@ -103,6 +106,14 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 3. **Drop PRIMARY KEY** - Not supported (same limitation)
 4. **Full-text search** - Not implemented (future feature)
 5. **Spatial data** - Not implemented (future feature)
+
+### ?? SaveChanges / Full CRUD Limitation
+
+The `SaveChanges()` method requires additional EF Core services to be configured for the Update Pipeline:
+- `IRelationalModel` building requires complete service registration
+- Full E2E CRUD tests with `SaveChanges()` are pending this configuration
+
+**Workaround:** Use raw SQL via ADO.NET (`WitDbCommand`) for actual database operations until this is resolved.
 
 ### ? Features Fully Supported
 
@@ -183,6 +194,9 @@ OutWit.Database.EntityFramework.Tests/
 ??? Integration/
 ?   ??? BasicDbContextTests.cs (10 tests)
 ?   ??? CrudOperationsTests.cs (17 tests)
+?   ??? EndToEndTests.cs (22 tests)
+?   ??? InMemoryTests.cs (15 tests)
+?   ??? RelationshipTests.cs (12 tests)
 ??? Metadata/
 ?   ??? WitAnnotationProviderTests.cs (8 tests)
 ?   ??? WitModelValidatorTests.cs (6 tests)
@@ -207,6 +221,18 @@ OutWit.Database.EntityFramework.Tests/
     ??? WitModificationCommandBatchFactoryTests.cs (5 tests)
     ??? WitUpdateSqlGeneratorTests.cs (3 tests)
 ```
+
+---
+
+## Next Steps for Full SaveChanges Support
+
+To enable `SaveChanges()` with actual database writes, the following services need investigation:
+
+1. **IRelationalModel** - Need to ensure proper RelationalModel building
+2. **CommandBatchPreparer** - Verify modification command batch generation
+3. **BatchExecutor** - Execute batched commands against the database
+
+Reference: See SQLite EF Core provider for complete service registration pattern.
 
 ---
 
