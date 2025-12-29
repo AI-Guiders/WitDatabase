@@ -35,8 +35,8 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 
 ### Current Test Status
 
-- **233 tests passing**
-- **2 integration tests skipped** (require full provider implementation)
+- **241 tests passing** (net9.0 and net10.0)
+- **0 tests skipped**
 
 ---
 
@@ -517,7 +517,7 @@ OutWit.Database.EntityFramework.Tests/
 |   +-- WitDbContextOptionsExtensionTests.cs          [Done] (16 tests)
 |   +-- WitDatabaseProviderTests.cs                   [Done] (3 tests)
 +-- Integration/
-|   +-- BasicDbContextTests.cs                        (2 tests skipped)
+|   +-- BasicDbContextTests.cs                        [Done] (10 tests)
 +-- Migrations/
 |   +-- WitHistoryRepositoryTests.cs                  [Done] (18 tests)
 |   +-- WitMigrationsSqlGeneratorTests.cs             [Done] (18 tests)
@@ -537,10 +537,7 @@ OutWit.Database.EntityFramework.Tests/
 
 ## Next Steps
 
-1. **Enable skipped integration tests**
-   - Once full provider works, enable BasicDbContextTests
-
-2. **Phase 10:** Advanced features (P2)
+1. **Phase 10:** Advanced features (P2)
    - JSON support
    - Computed columns
    - Concurrency tokens

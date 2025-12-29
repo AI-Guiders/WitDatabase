@@ -61,7 +61,6 @@ public class BasicDbContextTests
     }
 
     [Test]
-    [Ignore("Requires full provider implementation with database creation")]
     public void DatabaseProviderNameIsCorrectTest()
     {
         var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
@@ -77,7 +76,6 @@ public class BasicDbContextTests
     #region Model Tests
 
     [Test]
-    [Ignore("Requires full provider implementation with database creation")]
     public void DbContextModelContainsEntityTypesTest()
     {
         var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
@@ -87,6 +85,95 @@ public class BasicDbContextTests
         var model = context.Model;
 
         Assert.That(model.GetEntityTypes().Any(e => e.ClrType == typeof(TestEntity)), Is.True);
+    }
+
+    [Test]
+    public void DbContextModelHasTableNameTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new TestDbContext(optionsBuilder.Options);
+        var entityType = context.Model.FindEntityType(typeof(TestEntity));
+
+        Assert.That(entityType, Is.Not.Null);
+        Assert.That(entityType!.GetTableName(), Is.Not.Null.And.Not.Empty);
+    }
+
+    [Test]
+    public void DbContextModelHasCorrectPrimaryKeyTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new TestDbContext(optionsBuilder.Options);
+        var entityType = context.Model.FindEntityType(typeof(TestEntity));
+        var primaryKey = entityType?.FindPrimaryKey();
+
+        Assert.That(primaryKey, Is.Not.Null);
+        Assert.That(primaryKey!.Properties.Count, Is.EqualTo(1));
+        Assert.That(primaryKey.Properties[0].Name, Is.EqualTo("Id"));
+    }
+
+    #endregion
+
+    #region DbSet Tests
+
+    [Test]
+    public void DbSetIsAccessibleTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new TestDbContext(optionsBuilder.Options);
+
+        Assert.That(context.TestEntities, Is.Not.Null);
+    }
+
+    [Test]
+    public void DbSetLocalIsAccessibleTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new TestDbContext(optionsBuilder.Options);
+
+        Assert.That(context.TestEntities.Local, Is.Not.Null);
+        Assert.That(context.TestEntities.Local.Count, Is.EqualTo(0));
+    }
+
+    #endregion
+
+    #region ChangeTracker Tests
+
+    [Test]
+    public void ChangeTrackerTracksAddedEntitiesTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new TestDbContext(optionsBuilder.Options);
+        
+        var entity = new TestEntity { Name = "Test", CreatedAt = DateTime.UtcNow, IsActive = true };
+        context.TestEntities.Add(entity);
+
+        var entry = context.Entry(entity);
+        Assert.That(entry.State, Is.EqualTo(EntityState.Added));
+    }
+
+    [Test]
+    public void ChangeTrackerHasChangesAfterAddTest()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TestDbContext>();
+        optionsBuilder.UseWitDbInMemory();
+
+        using var context = new TestDbContext(optionsBuilder.Options);
+        
+        Assert.That(context.ChangeTracker.HasChanges(), Is.False);
+        
+        context.TestEntities.Add(new TestEntity { Name = "Test" });
+
+        Assert.That(context.ChangeTracker.HasChanges(), Is.True);
     }
 
     #endregion
