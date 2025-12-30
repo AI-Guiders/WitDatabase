@@ -31,20 +31,20 @@ This package provides an Entity Framework Core provider for WitDatabase, enablin
 | Phase 9 | Function Translations | ? Complete |
 | Phase 10 | Advanced Features | ? Complete |
 | Phase 11 | SaveChanges / Full CRUD | ? Complete |
-| **Phase 12** | **Bulk Extensions** | ? **NEW** |
+| **Phase 12** | **Bulk Extensions** | ? **Complete** |
 
 ### Test Results
 
 | Framework | Passed | Failed | Skipped | Total |
 |-----------|--------|--------|---------|-------|
-| net9.0 | 403 | 0 | 0 | 403 |
-| net10.0 | 403 | 0 | 0 | 403 |
+| net9.0 | 434 | 0 | 0 | 434 |
+| net10.0 | 434 | 0 | 0 | 434 |
 
 **Build Status:** ? 0 Errors, 0 Warnings
 
 ---
 
-## NEW: Bulk Extensions (Phase 12) ??
+## Bulk Extensions (Phase 12) ??
 
 High-performance bulk operations for WitDatabase, similar to EFCore.BulkExtensions:
 
@@ -58,8 +58,25 @@ High-performance bulk operations for WitDatabase, similar to EFCore.BulkExtensio
 | `BulkUpdateAsync<T>()` | Async bulk update | Prepared statement reuse |
 | `BulkDelete<T>()` | Bulk delete by PK | Prepared statement reuse |
 | `BulkDeleteAsync<T>()` | Async bulk delete | Prepared statement reuse |
+| `BulkDeleteAsync<T>(predicate)` | Delete by predicate | Uses EF Core ExecuteDelete |
 | `BulkInsertOrUpdate<T>()` | Upsert (insert or update) | ON CONFLICT support |
 | `BulkInsertOrUpdateAsync<T>()` | Async upsert | ON CONFLICT support |
+
+### Bulk Options
+
+```csharp
+var options = new BulkOptions
+{
+    BatchSize = 1000,           // Process in batches (triggers BatchProgress)
+    BatchProgress = count => Console.WriteLine($"Processed {count}"),
+    UseTransaction = true,      // Wrap in transaction (default: true)
+    SetOutputIdentity = true,   // Include auto-generated columns
+    PropertiesToInclude = ["Name", "Email"],  // Only these columns
+    PropertiesToExclude = ["CreatedAt"]       // Skip these columns
+};
+
+await context.BulkInsertAsync(entities, options);
+```
 
 ### Usage Examples
 
@@ -72,16 +89,31 @@ var users = Enumerable.Range(1, 10000)
 
 int inserted = await context.BulkInsertAsync(users);
 
-// Bulk Update - update entities by primary key
-var usersToUpdate = context.Users.Take(1000).ToList();
+// Bulk Insert with progress reporting
+var options = new BulkOptions 
+{ 
+    BatchSize = 1000,
+    BatchProgress = count => Console.WriteLine($"Inserted {count} rows")
+};
+await context.BulkInsertAsync(users, options);
+
+// Bulk Update - update only specific columns
+var usersToUpdate = context.Users.AsNoTracking().Take(1000).ToList();
 foreach (var user in usersToUpdate)
     user.Status = "Active";
 
-int updated = await context.BulkUpdateAsync(usersToUpdate);
+var updateOptions = new BulkOptions
+{
+    PropertiesToInclude = new[] { "Status" }  // Only update Status
+};
+int updated = await context.BulkUpdateAsync(usersToUpdate, updateOptions);
 
 // Bulk Delete - delete entities by primary key
 var usersToDelete = context.Users.Where(u => u.Status == "Inactive").ToList();
 int deleted = await context.BulkDeleteAsync(usersToDelete);
+
+// Bulk Delete with predicate (uses EF Core ExecuteDelete)
+int deleted = await context.BulkDeleteAsync<User>(u => u.Name == "Test");
 
 // Bulk InsertOrUpdate (Upsert) - insert new or update existing
 var mixedUsers = new[] {
@@ -91,21 +123,6 @@ var mixedUsers = new[] {
 int affected = await context.BulkInsertOrUpdateAsync(mixedUsers);
 ```
 
-### Bulk Options
-
-```csharp
-var options = new BulkOptions
-{
-    BatchSize = 1000,           // Process in batches
-    UseTransaction = true,      // Wrap in transaction
-    SetOutputIdentity = true,   // Get generated IDs back
-    PropertiesToInclude = ["Name", "Email"],  // Only update specific columns
-    PropertiesToExclude = ["CreatedAt"]       // Skip certain columns
-};
-
-await context.BulkInsertAsync(entities, options);
-```
-
 ### Performance Comparison
 
 | Operation | Standard EF | Bulk Extensions | Speedup |
@@ -113,6 +130,21 @@ await context.BulkInsertAsync(entities, options);
 | Insert 500 rows | 93ms | 29ms | **3.2x** |
 | Insert 1000 rows | ~200ms | ~65ms | **3x** |
 | Update 500 rows | ~150ms | ~50ms | **3x** |
+
+### Test Coverage (31 tests)
+
+| Test Category | Count |
+|---------------|-------|
+| BulkInsert basic | 3 |
+| BulkInsert with options | 4 |
+| BulkUpdate | 5 |
+| BulkDelete | 3 |
+| BulkInsertOrUpdate | 3 |
+| Cancellation tokens | 3 |
+| Edge cases | 6 |
+| Performance comparison | 1 |
+| Multiple entity types | 1 |
+| Async variants | 2 |
 
 ---
 
@@ -140,8 +172,9 @@ await context.BulkInsertAsync(entities, options);
 | Update | 8 tests | ? Full |
 | Integration | 82 tests | ? Full |
 | Extensions | 23 tests | ? Full |
-| **Bulk Operations** | **10 tests** | ? **NEW** |
-| **Total** | **403 tests** | ? **100%** |
+| **Bulk Operations** | **31 tests** | ? **Complete** |
+| Scaffolding | 50 tests | ? Full |
+| **Total** | **434 tests** | ? **100%** |
 
 ### ? Feature Completeness
 
@@ -162,44 +195,7 @@ await context.BulkInsertAsync(entities, options);
 | Foreign keys | ? | CASCADE, RESTRICT, SET NULL |
 | Check constraints | ? | Full SQL generation |
 | Sequences | ? | CREATE/ALTER/DROP |
-| **Bulk Operations** | ? | **BulkInsert/Update/Delete/Upsert** |
-
-### ? Type Mappings
-
-| CLR Type | WitSQL Type | Status |
-|----------|-------------|--------|
-| `sbyte` | TINYINT | ? |
-| `byte` | UTINYINT | ? |
-| `short` | SMALLINT | ? |
-| `ushort` | USMALLINT | ? |
-| `int` | INT | ? |
-| `uint` | UINT | ? |
-| `long` | BIGINT | ? |
-| `ulong` | UBIGINT | ? |
-| `float` | FLOAT | ? |
-| `double` | DOUBLE | ? |
-| `decimal` | DECIMAL | ? |
-| `bool` | BOOLEAN | ? |
-| `DateOnly` | DATE | ? |
-| `TimeOnly` | TIME | ? |
-| `DateTime` | DATETIME | ? |
-| `DateTimeOffset` | DATETIMEOFFSET | ? |
-| `TimeSpan` | INTERVAL | ? |
-| `string` | TEXT | ? |
-| `byte[]` | BLOB | ? |
-| `Guid` | GUID | ? |
-| JSON | JSON | ? |
-
-### ? LINQ Method Translations
-
-| Category | Methods | Status |
-|----------|---------|--------|
-| String | 16 methods | ? |
-| Math | 16 methods | ? |
-| DateTime | 7+ methods | ? |
-| JSON | 6 methods | ? |
-| Guid | 1 method | ? |
-| Members | 30+ properties | ? |
+| **Bulk Operations** | ? | **All operations + options** |
 
 ---
 
@@ -300,6 +296,4 @@ OutWit.Database.EntityFramework/
 ## See Also
 
 - [EF Core Provider Documentation](https://docs.microsoft.com/en-us/ef/core/providers/)
-- [Writing an EF Core Provider](https://docs.microsoft.com/en-us/ef/core/providers/writing-a-provider)
-- [EF Core Source Code](https://github.com/dotnet/efcore)
-- [SQLite Provider](https://github.com/dotnet/efcore/tree/main/src/EFCore.Sqlite.Core) - Reference implementation
+- [PARALLEL_STORAGE_PLAN.md](../../Docs/PARALLEL_STORAGE_PLAN.md) - Future parallel storage mode
