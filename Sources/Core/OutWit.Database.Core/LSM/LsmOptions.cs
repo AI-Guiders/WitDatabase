@@ -27,11 +27,21 @@ namespace OutWit.Database.Core.LSM
         public bool EnableWal { get; set; } = true;
 
         /// <summary>
-        /// Whether to sync WAL to disk after each write.
-        /// If false, relies on OS buffering (faster but less durable).
-        /// Default: true
+        /// Whether to sync WAL to disk after each write operation.
+        /// If false, relies on OS buffering (faster but less durable per-write).
+        /// Data is still synced on transaction commit and explicit Flush() calls.
+        /// Default: false (matches SQLite behavior - sync on commit, not per-write)
         /// </summary>
-        public bool SyncWrites { get; set; } = true;
+        /// <remarks>
+        /// Setting to true provides maximum durability but significantly impacts performance:
+        /// - Each write triggers fsync (~0.5-1ms per call on SSD)
+        /// - 10K writes with SyncWrites=true: ~10 seconds
+        /// - 10K writes with SyncWrites=false: ~100-500ms
+        /// 
+        /// For most use cases, SyncWrites=false with proper transaction usage provides
+        /// sufficient durability while maintaining good performance.
+        /// </remarks>
+        public bool SyncWrites { get; set; } = false;
 
         /// <summary>
         /// Maximum number of Level-0 SSTables before triggering compaction.

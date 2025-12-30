@@ -6,7 +6,7 @@ namespace OutWit.Database.Tests.Performance;
 
 /// <summary>
 /// Tests to investigate constraint validation performance.
-/// These tests are designed to identify O(n²) behavior in UNIQUE constraint checking.
+/// These tests verify that implicit PK index provides O(n log n) UNIQUE constraint checking.
 /// </summary>
 [TestFixture]
 public class Level3_ConstraintValidationTests
@@ -94,8 +94,9 @@ public class Level3_ConstraintValidationTests
     #region AUTOINCREMENT Tests
 
     /// <summary>
-    /// INSERT with AUTOINCREMENT PK - UNIQUE check should be SKIPPED.
+    /// INSERT with AUTOINCREMENT PK - UNIQUE check is SKIPPED.
     /// This should be almost as fast as no constraints.
+    /// No implicit index is created for AUTOINCREMENT PK.
     /// </summary>
     [Test]
     public void InsertAutoIncrementPkTest()
@@ -152,15 +153,31 @@ public class Level3_ConstraintValidationTests
 
     #endregion
 
-    #region Explicit PK Tests (UNIQUE Check Required)
+    #region Explicit PK Tests (With Implicit Index)
 
     /// <summary>
-    /// INSERT with explicit PK value WITHOUT index.
-    /// This is where O(n²) behavior is expected - full table scan per insert.
+    /// INSERT with explicit PK value - implicit unique index is auto-created.
+    /// This should be O(n log n) thanks to the implicit _PK_{TableName} index.
     /// </summary>
     [Test]
     public void InsertExplicitPkNoIndexTest()
     {
+        // Warmup: create and drop a table to avoid JIT overhead in measurements
+        // Need sufficient warmup to stabilize JIT compilation
+        m_engine.Execute("CREATE TABLE Warmup (Id INT PRIMARY KEY, Name VARCHAR(100), Value DOUBLE)");
+        for (int i = 0; i < 100; i++)
+        {
+            m_engine.Execute(
+                "INSERT INTO Warmup (Id, Name, Value) VALUES (@id, @name, @value)",
+                new Dictionary<string, object?>
+                {
+                    { "@id", i },
+                    { "@name", $"Warmup{i}" },
+                    { "@value", i * 1.5 }
+                });
+        }
+        m_engine.Execute("DROP TABLE Warmup");
+        
         var counts = new[] { 100, 200, 500, 1000 };
         var times = new List<(int Count, double Ms)>();
         var tableIdx = 0;
@@ -174,6 +191,7 @@ public class Level3_ConstraintValidationTests
                     Name VARCHAR(100),
                     Value DOUBLE
                 )");
+            // Note: Implicit index _PK_{tableName} is auto-created for non-AUTOINCREMENT PK
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
             for (int i = 0; i < count; i++)
@@ -191,31 +209,29 @@ public class Level3_ConstraintValidationTests
             
             times.Add((count, sw.Elapsed.TotalMilliseconds));
             
-            // Cleanup
             m_engine.Execute($"DROP TABLE {tableName}");
         }
 
-        TestContext.Out.WriteLine("=== INSERT with Explicit PK (NO INDEX) ===");
+        TestContext.Out.WriteLine("=== INSERT with Explicit PK (implicit index auto-created) ===");
         foreach (var (count, ms) in times)
         {
             TestContext.Out.WriteLine($"  {count,5} rows: {ms,8:F2} ms ({ms / count:F4} ms/row)");
         }
 
-        // Check for O(n²) behavior
-        // 1000 rows = 10x of 100 rows. Linear = 10x time, Quadratic = 100x time
+        // Check for O(n log n) behavior (not O(n²))
+        // Compare 1000 to 100: linear = 10x, O(n log n) ? 13x, O(n²) = 100x
         var ratio = times[3].Ms / times[0].Ms;
-        TestContext.Out.WriteLine($"  Scaling ratio (1000/100): {ratio:F2}x (linear=10x, quadratic=100x)");
+        TestContext.Out.WriteLine($"  Scaling ratio (1000/100): {ratio:F2}x (linear=10x, O(n²)=100x)");
         
-        // Document the behavior (this test may fail showing the problem)
-        if (ratio > 50)
-        {
-            TestContext.Out.WriteLine("  ?? WARNING: O(n²) behavior detected!");
-        }
+        // With implicit index, should be much better than O(n²)
+        // Allow up to 50x to account for variability and JIT warmup in CI environments
+        // Key point: this was 76x+ before implicit index implementation
+        Assert.That(ratio, Is.LessThan(50), "INSERT with implicit PK index should scale as O(n log n), not O(n²)");
     }
 
     /// <summary>
-    /// INSERT with explicit PK value WITH UNIQUE index.
-    /// This should be O(n log n) - index seek per insert.
+    /// INSERT with explicit PK value WITH additional explicit UNIQUE index.
+    /// This creates TWO indexes: implicit _PK_ + explicit IX_, which adds overhead.
     /// </summary>
     [Test]
     public void InsertExplicitPkWithIndexTest()
@@ -234,7 +250,8 @@ public class Level3_ConstraintValidationTests
                     Value DOUBLE
                 )");
         
-            // Create UNIQUE index to speed up constraint checking
+            // Create additional UNIQUE index (implicit _PK_ already exists)
+            // This is redundant now but tests the overhead of multiple indexes
             m_engine.Execute($"CREATE UNIQUE INDEX IX_{tableName}_Id ON {tableName}(Id)");
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -253,11 +270,10 @@ public class Level3_ConstraintValidationTests
             
             times.Add((count, sw.Elapsed.TotalMilliseconds));
             
-            // Cleanup
             m_engine.Execute($"DROP TABLE {tableName}");
         }
 
-        TestContext.Out.WriteLine("=== INSERT with Explicit PK (WITH INDEX) ===");
+        TestContext.Out.WriteLine("=== INSERT with Explicit PK (implicit + explicit index) ===");
         foreach (var (count, ms) in times)
         {
             TestContext.Out.WriteLine($"  {count,5} rows: {ms,8:F2} ms ({ms / count:F4} ms/row)");
@@ -266,9 +282,7 @@ public class Level3_ConstraintValidationTests
         var ratio = times[3].Ms / times[1].Ms;
         TestContext.Out.WriteLine($"  Scaling ratio (2000/500): {ratio:F2}x (linear=4x, O(n log n)?4.4x)");
         
-        // Allow some variance in performance tests - anything under 12x is acceptable
-        // (compared to 76x+ for O(n²) without index)
-        Assert.That(ratio, Is.LessThan(12), "INSERT with index should scale significantly better than O(n²)");
+        Assert.That(ratio, Is.LessThan(12), "INSERT with indexes should scale as O(n log n)");
     }
 
     #endregion
@@ -289,35 +303,32 @@ public class Level3_ConstraintValidationTests
         var t1 = MeasureInsertTime("S1", rowCount, includeId: true);
         m_engine.Execute("DROP TABLE S1");
 
-        // Scenario 2: AUTOINCREMENT PK
+        // Scenario 2: AUTOINCREMENT PK (no implicit index)
         m_engine.Execute("CREATE TABLE S2 (Id BIGINT PRIMARY KEY AUTOINCREMENT, Name VARCHAR(100), Value DOUBLE)");
         var t2 = MeasureInsertTime("S2", rowCount, includeId: false);
         m_engine.Execute("DROP TABLE S2");
 
-        // Scenario 3: Explicit PK, no index
+        // Scenario 3: Explicit PK (implicit index auto-created)
         m_engine.Execute("CREATE TABLE S3 (Id INT PRIMARY KEY, Name VARCHAR(100), Value DOUBLE)");
         var t3 = MeasureInsertTime("S3", rowCount, includeId: true);
         m_engine.Execute("DROP TABLE S3");
 
-        // Scenario 4: Explicit PK with index
+        // Scenario 4: Explicit PK with redundant explicit index (2 indexes)
         m_engine.Execute("CREATE TABLE S4 (Id INT PRIMARY KEY, Name VARCHAR(100), Value DOUBLE)");
         m_engine.Execute("CREATE UNIQUE INDEX IX_S4_Id ON S4(Id)");
         var t4 = MeasureInsertTime("S4", rowCount, includeId: true);
         m_engine.Execute("DROP TABLE S4");
 
         TestContext.Out.WriteLine($"=== Comparison ({rowCount} rows) ===");
-        TestContext.Out.WriteLine($"  No constraints:      {t1,8:F2} ms ({t1 / rowCount:F4} ms/row) [baseline]");
-        TestContext.Out.WriteLine($"  AUTOINCREMENT PK:    {t2,8:F2} ms ({t2 / rowCount:F4} ms/row) [{t2 / t1:F2}x baseline]");
-        TestContext.Out.WriteLine($"  Explicit PK (no idx):{t3,8:F2} ms ({t3 / rowCount:F4} ms/row) [{t3 / t1:F2}x baseline]");
-        TestContext.Out.WriteLine($"  Explicit PK (w/ idx):{t4,8:F2} ms ({t4 / rowCount:F4} ms/row) [{t4 / t1:F2}x baseline]");
-
-        // The bottleneck should be obvious from this comparison
-        if (t3 > t1 * 10)
-        {
-            TestContext.Out.WriteLine();
-            TestContext.Out.WriteLine("?? BOTTLENECK IDENTIFIED: Explicit PK without index is significantly slower");
-            TestContext.Out.WriteLine("   This suggests O(n²) full table scan for UNIQUE constraint validation");
-        }
+        TestContext.Out.WriteLine($"  No constraints:           {t1,8:F2} ms ({t1 / rowCount:F4} ms/row) [baseline]");
+        TestContext.Out.WriteLine($"  AUTOINCREMENT PK:         {t2,8:F2} ms ({t2 / rowCount:F4} ms/row) [{t2 / t1:F2}x baseline]");
+        TestContext.Out.WriteLine($"  Explicit PK (auto-idx):   {t3,8:F2} ms ({t3 / rowCount:F4} ms/row) [{t3 / t1:F2}x baseline]");
+        TestContext.Out.WriteLine($"  Explicit PK (2 indexes):  {t4,8:F2} ms ({t4 / rowCount:F4} ms/row) [{t4 / t1:F2}x baseline]");
+        
+        // Verify that explicit PK with implicit index is now reasonable
+        // Allow up to 10x (was 20x+ before implicit index, now typically 2-6x)
+        Assert.That(t3 / t1, Is.LessThan(10), 
+            "Explicit PK should be less than 10x slower than no constraints (was 20x+ before implicit index)");
     }
 
     #endregion
@@ -339,17 +350,18 @@ public class Level3_ConstraintValidationTests
             m_engine.Execute($"INSERT INTO CV (Id, Name) VALUES ({i}, 'Name{i}')");
         }
 
-        // Now measure time to validate one more insert (worst case - scan all existing rows)
+        // Now measure time to validate one more insert
+        // With implicit index, this should be O(log n), not O(n)
         var sw = System.Diagnostics.Stopwatch.StartNew();
         m_engine.Execute($"INSERT INTO CV (Id, Name) VALUES ({rowCount}, 'Name{rowCount}')");
         sw.Stop();
 
         TestContext.Out.WriteLine($"Single INSERT after {rowCount} rows: {sw.Elapsed.TotalMilliseconds:F2} ms");
-        TestContext.Out.WriteLine($"This includes UNIQUE check scanning {rowCount} existing rows");
+        TestContext.Out.WriteLine("With implicit PK index, UNIQUE check is O(log n) via index seek");
     }
 
     /// <summary>
-    /// Test with multiple UNIQUE constraints.
+    /// Test with multiple UNIQUE constraints (each needs its own index for fast validation).
     /// </summary>
     [Test]
     public void MultipleUniqueConstraintsTest()
@@ -381,7 +393,7 @@ public class Level3_ConstraintValidationTests
 
         TestContext.Out.WriteLine($"INSERT with 3 UNIQUE constraints: {sw.Elapsed.TotalMilliseconds:F2} ms for {rowCount} rows");
         TestContext.Out.WriteLine($"Per row: {sw.Elapsed.TotalMilliseconds / rowCount:F4} ms");
-        TestContext.Out.WriteLine("(Each INSERT requires 3 full table scans without indexes)");
+        TestContext.Out.WriteLine("(PK has implicit index; Code and Email use full table scan without explicit indexes)");
     }
 
     #endregion
