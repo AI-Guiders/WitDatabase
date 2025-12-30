@@ -248,7 +248,8 @@ public class BTreeConcurrentStoreTests : IDisposable
         var options = new BTreeConcurrencyOptions 
         { 
             EnableConcurrentAccess = true,
-            UseOptimisticReads = true 
+            UseOptimisticReads = true,
+            TrackStatistics = true  // Enable statistics for this test
         };
         using var store = new BTreeConcurrentStore(filePath, options);
 
@@ -279,7 +280,8 @@ public class BTreeConcurrentStoreTests : IDisposable
     public void StatisticsTrackCorrectlyTest()
     {
         var filePath = Path.Combine(m_testDir, "stats.witdb");
-        var options = BTreeConcurrencyOptions.HighConcurrency;
+        // Use Debug mode which has TrackStatistics = true
+        var options = BTreeConcurrencyOptions.Debug;
         using var store = new BTreeConcurrentStore(filePath, options);
 
         Assert.That(store.ReadCount, Is.EqualTo(0));

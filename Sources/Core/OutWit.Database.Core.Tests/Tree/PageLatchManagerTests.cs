@@ -319,4 +319,67 @@ public class PageLatchManagerTests
     }
 
     #endregion
+
+    #region Timeout Tests
+
+    [Test]
+    public void LatchTimeoutThrowsTimeoutExceptionTest()
+    {
+        using var manager = new PageLatchManager();
+        
+        // Hold exclusive latch
+        using var exclusiveHandle = manager.AcquireExclusive(1);
+        
+        // Try to acquire with short timeout from another thread
+        Exception? caughtException = null;
+        var task = Task.Run(() =>
+        {
+            try
+            {
+                manager.AcquireExclusive(1, TimeSpan.FromMilliseconds(50));
+            }
+            catch (Exception ex)
+            {
+                caughtException = ex;
+            }
+        });
+        
+        task.Wait();
+        
+        Assert.That(caughtException, Is.Not.Null);
+        Assert.That(caughtException, Is.TypeOf<TimeoutException>());
+    }
+
+    [Test]
+    public void AcquireWithInfiniteTimeoutWorksTest()
+    {
+        using var manager = new PageLatchManager();
+        var releaseSignal = new ManualResetEventSlim(false);
+        var acquiredSignal = new ManualResetEventSlim(false);
+        
+        // Hold exclusive latch temporarily
+        var holderTask = Task.Run(() =>
+        {
+            using var handle = manager.AcquireExclusive(1);
+            acquiredSignal.Wait(TimeSpan.FromSeconds(1));
+            releaseSignal.Set();
+        });
+        
+        // Wait a bit then try to acquire
+        Thread.Sleep(50);
+        
+        var waiterTask = Task.Run(() =>
+        {
+            acquiredSignal.Set();
+            using var handle = manager.AcquireExclusive(1, Timeout.InfiniteTimeSpan);
+            return true;
+        });
+        
+        releaseSignal.Wait(TimeSpan.FromSeconds(2));
+        Task.WaitAll([holderTask, waiterTask], TimeSpan.FromSeconds(3));
+        
+        Assert.That(waiterTask.Result, Is.True);
+    }
+
+    #endregion
 }

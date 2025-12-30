@@ -7,11 +7,6 @@ namespace OutWit.Database.Core.Tree;
 /// <remarks>
 /// Latches are short-term locks held only during page access.
 /// They differ from database locks which are held for transaction duration.
-/// 
-/// Latch coupling (crabbing) protocol:
-/// 1. Acquire latch on parent
-/// 2. Acquire latch on child  
-/// 3. Release parent latch if child is safe (won't split/merge)
 /// </remarks>
 public sealed class PageLatch : IDisposable
 {
@@ -37,7 +32,7 @@ public sealed class PageLatch : IDisposable
 
     #endregion
 
-    #region Latch Operations
+    #region Shared Latch Operations
 
     /// <summary>
     /// Acquires a shared (read) latch. Multiple readers allowed.
@@ -78,6 +73,10 @@ public sealed class PageLatch : IDisposable
         m_lock.ExitReadLock();
     }
 
+    #endregion
+
+    #region Exclusive Latch Operations
+
     /// <summary>
     /// Acquires an exclusive (write) latch. No other readers or writers allowed.
     /// </summary>
@@ -115,28 +114,6 @@ public sealed class PageLatch : IDisposable
     {
         ThrowIfDisposed();
         m_lock.ExitWriteLock();
-    }
-
-    /// <summary>
-    /// Upgrades a shared latch to exclusive.
-    /// Must already hold a shared latch.
-    /// </summary>
-    public void UpgradeToExclusive()
-    {
-        ThrowIfDisposed();
-        m_lock.EnterUpgradeableReadLock();
-        m_lock.EnterWriteLock();
-    }
-
-    /// <summary>
-    /// Downgrades an exclusive latch to shared.
-    /// </summary>
-    public void DowngradeToShared()
-    {
-        ThrowIfDisposed();
-        // ReaderWriterLockSlim doesn't support direct downgrade
-        // This is a limitation - caller should release exclusive and acquire shared
-        throw new NotSupportedException("Direct downgrade not supported. Release exclusive and acquire shared.");
     }
 
     #endregion

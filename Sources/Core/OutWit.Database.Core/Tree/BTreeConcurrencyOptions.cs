@@ -29,24 +29,17 @@ public sealed class BTreeConcurrencyOptions
 
     /// <summary>
     /// Gets or sets the timeout for latch acquisition.
-    /// If a latch cannot be acquired within this time, an exception is thrown.
+    /// If a latch cannot be acquired within this time, a TimeoutException is thrown.
     /// Default: 30 seconds
     /// </summary>
     public TimeSpan LatchTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Gets or sets whether to track latch statistics.
-    /// Adds overhead but helps diagnose contention issues.
+    /// Gets or sets whether to track operation statistics.
+    /// Enabling adds slight overhead but helps diagnose contention issues.
     /// Default: false
     /// </summary>
     public bool TrackStatistics { get; set; } = false;
-
-    /// <summary>
-    /// Gets or sets whether to use latch coupling (crabbing) for traversal.
-    /// More complex but allows better concurrency during splits.
-    /// Default: true
-    /// </summary>
-    public bool UseLatchCoupling { get; set; } = true;
 
     /// <summary>
     /// Creates default options with concurrent access disabled.
@@ -60,7 +53,6 @@ public sealed class BTreeConcurrencyOptions
     {
         EnableConcurrentAccess = true,
         UseOptimisticReads = true,
-        UseLatchCoupling = true,
         LatchManagerCapacity = 1024,
         TrackStatistics = false
     };
@@ -72,7 +64,6 @@ public sealed class BTreeConcurrencyOptions
     {
         EnableConcurrentAccess = true,
         UseOptimisticReads = false,
-        UseLatchCoupling = true,
         LatchManagerCapacity = 256,
         TrackStatistics = true,
         LatchTimeout = TimeSpan.FromSeconds(5)

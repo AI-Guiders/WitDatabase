@@ -68,6 +68,18 @@ public sealed class PageLatchManager : IDisposable
     /// <returns>A handle that releases the latch when disposed.</returns>
     public LatchHandle AcquireShared(uint pageNumber)
     {
+        return AcquireShared(pageNumber, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    /// Acquires a shared (read) latch on a page with timeout.
+    /// </summary>
+    /// <param name="pageNumber">The page number.</param>
+    /// <param name="timeout">Maximum time to wait for latch.</param>
+    /// <returns>A handle that releases the latch when disposed.</returns>
+    /// <exception cref="TimeoutException">Thrown if latch cannot be acquired within timeout.</exception>
+    public LatchHandle AcquireShared(uint pageNumber, TimeSpan timeout)
+    {
         ThrowIfDisposed();
         
         var latch = GetLatch(pageNumber);
@@ -78,9 +90,16 @@ public sealed class PageLatchManager : IDisposable
             Interlocked.Increment(ref m_contentionCount);
         }
         
-        latch.AcquireShared();
-        Interlocked.Increment(ref m_acquireCount);
+        if (timeout == Timeout.InfiniteTimeSpan)
+        {
+            latch.AcquireShared();
+        }
+        else if (!latch.TryAcquireShared(timeout))
+        {
+            throw new TimeoutException($"Failed to acquire shared latch on page {pageNumber} within {timeout}");
+        }
         
+        Interlocked.Increment(ref m_acquireCount);
         IncrementCleanupCounter();
         
         return new LatchHandle(this, pageNumber, isExclusive: false);
@@ -117,6 +136,18 @@ public sealed class PageLatchManager : IDisposable
     /// <returns>A handle that releases the latch when disposed.</returns>
     public LatchHandle AcquireExclusive(uint pageNumber)
     {
+        return AcquireExclusive(pageNumber, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    /// Acquires an exclusive (write) latch on a page with timeout.
+    /// </summary>
+    /// <param name="pageNumber">The page number.</param>
+    /// <param name="timeout">Maximum time to wait for latch.</param>
+    /// <returns>A handle that releases the latch when disposed.</returns>
+    /// <exception cref="TimeoutException">Thrown if latch cannot be acquired within timeout.</exception>
+    public LatchHandle AcquireExclusive(uint pageNumber, TimeSpan timeout)
+    {
         ThrowIfDisposed();
         
         var latch = GetLatch(pageNumber);
@@ -128,9 +159,16 @@ public sealed class PageLatchManager : IDisposable
             Interlocked.Increment(ref m_contentionCount);
         }
         
-        latch.AcquireExclusive();
-        Interlocked.Increment(ref m_acquireCount);
+        if (timeout == Timeout.InfiniteTimeSpan)
+        {
+            latch.AcquireExclusive();
+        }
+        else if (!latch.TryAcquireExclusive(timeout))
+        {
+            throw new TimeoutException($"Failed to acquire exclusive latch on page {pageNumber} within {timeout}");
+        }
         
+        Interlocked.Increment(ref m_acquireCount);
         IncrementCleanupCounter();
         
         return new LatchHandle(this, pageNumber, isExclusive: true);

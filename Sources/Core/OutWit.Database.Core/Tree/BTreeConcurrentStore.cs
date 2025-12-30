@@ -13,8 +13,7 @@ namespace OutWit.Database.Core.Tree;
 /// Features:
 /// - Page-level latching for fine-grained concurrency
 /// - Optimistic reads (no latch for simple reads)
-/// - Latch coupling (crabbing) for safe traversal during modifications
-/// - Statistics tracking for contention analysis
+/// - Configurable statistics tracking
 /// </remarks>
 public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatistics
 {
@@ -91,7 +90,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public byte[]? Get(ReadOnlySpan<byte> key)
     {
         ThrowIfDisposed();
-        Interlocked.Increment(ref m_readCount);
+        IncrementReadCount();
 
         if (!m_options.EnableConcurrentAccess)
         {
@@ -107,18 +106,18 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
             try
             {
                 var result = m_store.Get(key);
-                Interlocked.Increment(ref m_optimisticReadHits);
+                IncrementOptimisticHits();
                 return result;
             }
             catch
             {
                 // If read fails, retry with latch
-                Interlocked.Increment(ref m_optimisticReadMisses);
+                IncrementOptimisticMisses();
             }
         }
 
         // Pessimistic read with root latch
-        using var latch = m_latchManager.AcquireShared(m_store.RootPageNumber);
+        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
         return m_store.Get(key);
     }
 
@@ -126,7 +125,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public async ValueTask<byte[]?> GetAsync(byte[] key, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        Interlocked.Increment(ref m_readCount);
+        IncrementReadCount();
 
         if (!m_options.EnableConcurrentAccess)
         {
@@ -143,16 +142,16 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
             try
             {
                 var result = await m_store.GetAsync(key, cancellationToken);
-                Interlocked.Increment(ref m_optimisticReadHits);
+                IncrementOptimisticHits();
                 return result;
             }
             catch
             {
-                Interlocked.Increment(ref m_optimisticReadMisses);
+                IncrementOptimisticMisses();
             }
         }
 
-        using var latch = m_latchManager.AcquireShared(m_store.RootPageNumber);
+        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
         return await m_store.GetAsync(key, cancellationToken);
     }
 
@@ -164,7 +163,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
     {
         ThrowIfDisposed();
-        Interlocked.Increment(ref m_writeCount);
+        IncrementWriteCount();
 
         if (!m_options.EnableConcurrentAccess)
         {
@@ -176,8 +175,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         }
 
         // Write requires exclusive latch on root
-        // Note: Full latch coupling would require latching all pages in path
-        using var latch = m_latchManager.AcquireExclusive(m_store.RootPageNumber);
+        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
         m_store.Put(key, value);
     }
 
@@ -185,17 +183,18 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public async ValueTask PutAsync(byte[] key, byte[] value, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        Interlocked.Increment(ref m_writeCount);
+        IncrementWriteCount();
 
         if (!m_options.EnableConcurrentAccess)
         {
             lock (m_globalLock)
             {
+                m_store.Put(key, value);
                 return;
             }
         }
 
-        using var latch = m_latchManager.AcquireExclusive(m_store.RootPageNumber);
+        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
         await m_store.PutAsync(key, value, cancellationToken);
     }
 
@@ -207,7 +206,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public bool Delete(ReadOnlySpan<byte> key)
     {
         ThrowIfDisposed();
-        Interlocked.Increment(ref m_writeCount);
+        IncrementWriteCount();
 
         if (!m_options.EnableConcurrentAccess)
         {
@@ -217,7 +216,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
             }
         }
 
-        using var latch = m_latchManager.AcquireExclusive(m_store.RootPageNumber);
+        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
         return m_store.Delete(key);
     }
 
@@ -225,7 +224,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public async ValueTask<bool> DeleteAsync(byte[] key, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        Interlocked.Increment(ref m_writeCount);
+        IncrementWriteCount();
 
         if (!m_options.EnableConcurrentAccess)
         {
@@ -235,7 +234,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
             }
         }
 
-        using var latch = m_latchManager.AcquireExclusive(m_store.RootPageNumber);
+        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
         return await m_store.DeleteAsync(key, cancellationToken);
     }
 
@@ -258,7 +257,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         }
 
         // Scan with shared latch
-        using var latch = m_latchManager.AcquireShared(m_store.RootPageNumber);
+        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
         return m_store.Scan(startKey, endKey).ToList();
     }
 
@@ -281,7 +280,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         }
         else
         {
-            using var latch = m_latchManager.AcquireShared(m_store.RootPageNumber);
+            using var latch = AcquireSharedLatch(m_store.RootPageNumber);
             results = m_store.Scan(startKey, endKey).ToList();
         }
 
@@ -313,7 +312,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         }
 
         // Flush with exclusive latch on root
-        using var latch = m_latchManager.AcquireExclusive(m_store.RootPageNumber);
+        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
         m_store.Flush();
     }
 
@@ -331,7 +330,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
             }
         }
 
-        using var latch = m_latchManager.AcquireExclusive(m_store.RootPageNumber);
+        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
         await m_store.FlushAsync(cancellationToken);
     }
 
@@ -352,7 +351,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
             }
         }
 
-        using var latch = m_latchManager.AcquireShared(m_store.RootPageNumber);
+        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
         return m_store.Count();
     }
 
@@ -432,7 +431,49 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
 
     #endregion
 
-    #region Tools
+    #region Private Helpers
+
+    private PageLatchManager.LatchHandle AcquireSharedLatch(uint pageNumber)
+    {
+        return m_latchManager.AcquireShared(pageNumber, m_options.LatchTimeout);
+    }
+
+    private PageLatchManager.LatchHandle AcquireExclusiveLatch(uint pageNumber)
+    {
+        return m_latchManager.AcquireExclusive(pageNumber, m_options.LatchTimeout);
+    }
+
+    private void IncrementReadCount()
+    {
+        if (m_options.TrackStatistics)
+        {
+            Interlocked.Increment(ref m_readCount);
+        }
+    }
+
+    private void IncrementWriteCount()
+    {
+        if (m_options.TrackStatistics)
+        {
+            Interlocked.Increment(ref m_writeCount);
+        }
+    }
+
+    private void IncrementOptimisticHits()
+    {
+        if (m_options.TrackStatistics)
+        {
+            Interlocked.Increment(ref m_optimisticReadHits);
+        }
+    }
+
+    private void IncrementOptimisticMisses()
+    {
+        if (m_options.TrackStatistics)
+        {
+            Interlocked.Increment(ref m_optimisticReadMisses);
+        }
+    }
 
     private void ThrowIfDisposed()
     {
