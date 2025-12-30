@@ -76,6 +76,28 @@ namespace OutWit.Database.Core.LSM
         public bool BackgroundCompaction { get; set; } = true;
 
         /// <summary>
+        /// Whether to enable parallel MemTable flush.
+        /// When enabled, multiple MemTables can be flushed concurrently.
+        /// Default: false
+        /// </summary>
+        public bool EnableParallelFlush { get; set; } = false;
+
+        /// <summary>
+        /// Maximum number of concurrent MemTable flush operations.
+        /// Only used if EnableParallelFlush is true.
+        /// Default: 2
+        /// </summary>
+        public int MaxParallelFlushes { get; set; } = 2;
+
+        /// <summary>
+        /// Maximum number of immutable MemTables waiting for flush.
+        /// When exceeded, writes will block until flush completes.
+        /// Only used if EnableParallelFlush is true.
+        /// Default: 4
+        /// </summary>
+        public int MaxImmutableMemTables { get; set; } = 4;
+
+        /// <summary>
         /// Creates default options.
         /// </summary>
         public static LsmOptions Default => new();
