@@ -24,6 +24,8 @@ namespace OutWit.Database.AdoNet;
 /// <item><term>Isolation Level</term><description>Default transaction isolation level</description></item>
 /// <item><term>MVCC</term><description>Enable Multi-Version Concurrency Control</description></item>
 /// <item><term>Transactions</term><description>Enable transaction support</description></item>
+/// <item><term>Parallel Mode</term><description>Parallel access mode (None, Auto, Buffered, Latched, Optimistic)</description></item>
+/// <item><term>Max Writers</term><description>Maximum number of parallel writers</description></item>
 /// </list>
 /// <para>All other parameters are passed through to provider factories via ProviderParameters.</para>
 /// </remarks>
@@ -38,8 +40,8 @@ namespace OutWit.Database.AdoNet;
 /// // LSM-Tree with custom parameters
 /// var cs = "Data Source=./data;Store=lsm;MemTableSize=67108864";
 /// 
-/// // Full configuration
-/// var cs = "Data Source=app.witdb;Store=btree;Encryption=aes-gcm;Password=pass;Cache=clock;CacheSize=5000";
+/// // Full configuration with parallel writes
+/// var cs = "Data Source=app.witdb;Store=btree;Encryption=aes-gcm;Password=pass;Parallel Mode=Auto";
 /// </code>
 /// </example>
 public sealed class WitDbConnectionStringBuilder : DbConnectionStringBuilder
@@ -63,6 +65,10 @@ public sealed class WitDbConnectionStringBuilder : DbConnectionStringBuilder
     private const string KEY_ISOLATION_LEVEL = "Isolation Level";
     private const string KEY_MVCC = "MVCC";
     private const string KEY_TRANSACTIONS = "Transactions";
+    
+    // Parallel mode settings
+    private const string KEY_PARALLEL_MODE = "Parallel Mode";
+    private const string KEY_MAX_WRITERS = "Max Writers";
     
     // Pooling settings (ADO.NET level)
     private const string KEY_POOLING = "Pooling";
@@ -169,6 +175,12 @@ public sealed class WitDbConnectionStringBuilder : DbConnectionStringBuilder
             errors.Add("Data Source is required unless Mode is Memory.");
         }
 
+        // Validate max writers
+        if (MaxWriters < 1)
+        {
+            errors.Add("Max Writers must be at least 1.");
+        }
+
         return errors;
     }
 
@@ -196,6 +208,7 @@ public sealed class WitDbConnectionStringBuilder : DbConnectionStringBuilder
             KEY_DATA_SOURCE, KEY_MODE, KEY_READ_ONLY,
             KEY_STORE, KEY_ENCRYPTION, KEY_PASSWORD, KEY_USER, KEY_CACHE, KEY_JOURNAL,
             KEY_ISOLATION_LEVEL, KEY_MVCC, KEY_TRANSACTIONS,
+            KEY_PARALLEL_MODE, KEY_MAX_WRITERS,
             KEY_POOLING, KEY_MIN_POOL_SIZE, KEY_MAX_POOL_SIZE, KEY_DEFAULT_TIMEOUT
         };
 
@@ -337,6 +350,31 @@ public sealed class WitDbConnectionStringBuilder : DbConnectionStringBuilder
 
     #endregion
 
+    #region Parallel Mode Properties
+
+    /// <summary>
+    /// Gets or sets the parallel access mode.
+    /// Default is None (single-threaded behavior).
+    /// </summary>
+    public WitDbParallelMode ParallelMode
+    {
+        get => GetValue(KEY_PARALLEL_MODE, WitDbParallelMode.None);
+        set => SetValue(KEY_PARALLEL_MODE, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of parallel writers.
+    /// Only applicable when ParallelMode is not None.
+    /// Default is number of processors.
+    /// </summary>
+    public int MaxWriters
+    {
+        get => GetValue(KEY_MAX_WRITERS, Environment.ProcessorCount);
+        set => SetValue(KEY_MAX_WRITERS, value);
+    }
+
+    #endregion
+
     #region Pooling Properties
 
     /// <summary>
@@ -437,4 +475,35 @@ public enum WitDbIsolationLevel
     /// Snapshot isolation using MVCC.
     /// </summary>
     Snapshot
+}
+
+/// <summary>
+/// Specifies the parallel access mode for WitDatabase connections.
+/// </summary>
+public enum WitDbParallelMode
+{
+    /// <summary>
+    /// No parallelism. Single global lock for all operations.
+    /// </summary>
+    None,
+
+    /// <summary>
+    /// Automatic mode selection based on store type.
+    /// </summary>
+    Auto,
+
+    /// <summary>
+    /// Thread-local write buffers with background merge.
+    /// </summary>
+    Buffered,
+
+    /// <summary>
+    /// Page-level latching for fine-grained concurrency.
+    /// </summary>
+    Latched,
+
+    /// <summary>
+    /// Optimistic concurrency with minimal locking.
+    /// </summary>
+    Optimistic
 }

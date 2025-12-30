@@ -739,4 +739,73 @@ public static class WitDatabaseBuilderExtensions
     }
 
     #endregion
+
+    #region Parallel Mode
+
+    /// <summary>
+    /// Enable parallel write mode with automatic selection.
+    /// </summary>
+    public static WitDatabaseBuilder WithParallelWrites(this WitDatabaseBuilder builder)
+    {
+        builder.Options.StoreParameters.Set("parallelMode", ParallelMode.Auto);
+        return builder;
+    }
+
+    /// <summary>
+    /// Enable parallel write mode with the specified mode.
+    /// </summary>
+    public static WitDatabaseBuilder WithParallelWrites(this WitDatabaseBuilder builder, ParallelMode mode)
+    {
+        builder.Options.StoreParameters.Set("parallelMode", mode);
+        return builder;
+    }
+
+    /// <summary>
+    /// Enable parallel write mode with custom options.
+    /// </summary>
+    public static WitDatabaseBuilder WithParallelWrites(this WitDatabaseBuilder builder, ParallelModeOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        builder.Options.StoreParameters.Set("parallelMode", options.Mode);
+        builder.Options.StoreParameters.Set("parallelOptions", options);
+        return builder;
+    }
+
+    /// <summary>
+    /// Enable parallel write mode with custom configuration.
+    /// </summary>
+    public static WitDatabaseBuilder WithParallelWrites(this WitDatabaseBuilder builder, Action<ParallelModeOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new ParallelModeOptions();
+        configure(options);
+        builder.Options.StoreParameters.Set("parallelMode", options.Mode);
+        builder.Options.StoreParameters.Set("parallelOptions", options);
+        return builder;
+    }
+
+    /// <summary>
+    /// Set the maximum number of parallel writers.
+    /// Only applicable when parallel mode is enabled.
+    /// </summary>
+    public static WitDatabaseBuilder WithMaxWriters(this WitDatabaseBuilder builder, int maxWriters)
+    {
+        if (maxWriters < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxWriters), "Max writers must be at least 1");
+        
+        builder.Options.StoreParameters.Set("maxWriters", maxWriters);
+        return builder;
+    }
+
+    /// <summary>
+    /// Disable parallel writes (use single-threaded mode).
+    /// </summary>
+    public static WitDatabaseBuilder WithoutParallelWrites(this WitDatabaseBuilder builder)
+    {
+        builder.Options.StoreParameters.Set("parallelMode", ParallelMode.None);
+        builder.Options.StoreParameters.Remove("parallelOptions");
+        return builder;
+    }
+
+    #endregion
 }
