@@ -70,13 +70,58 @@ public sealed partial class WitSqlEngine
 
     /// <summary>
     /// Create a prepared statement for reuse.
+    /// Uses the query plan cache to avoid re-parsing identical SQL.
     /// </summary>
     /// <param name="sql">SQL query text to prepare.</param>
     /// <returns>A prepared statement that can be executed multiple times.</returns>
+    /// <remarks>
+    /// Prepared statements provide significant performance benefits:
+    /// - SQL is parsed once at preparation time
+    /// - Parameters can be bound efficiently without re-parsing
+    /// - ExecuteBatch() allows multiple executions with different parameters in a single operation
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Simple usage
+    /// using var stmt = engine.Prepare("SELECT * FROM Users WHERE Id = @id");
+    /// stmt.SetParameter("id", 1);
+    /// using var result = stmt.Execute();
+    /// 
+    /// // Batch usage for bulk inserts
+    /// using var insertStmt = engine.Prepare("INSERT INTO Users (Name, Email) VALUES (@name, @email)");
+    /// var users = Enumerable.Range(1, 10000).Select(i => new Dictionary&lt;string, object?&gt; 
+    /// { 
+    ///     ["name"] = $"User{i}", 
+    ///     ["email"] = $"user{i}@test.com" 
+    /// });
+    /// int rowsAffected = insertStmt.ExecuteBatch(users);
+    /// </code>
+    /// </example>
     public WitSqlEngineStatement Prepare(string sql)
     {
-        var statements = WitSql.Parse(sql);
-        return new WitSqlEngineStatement(this, statements);
+        // Try to get cached parsed statement
+        IReadOnlyList<Parser.Statements.WitSqlStatement> statements;
+        
+        if (m_planCache.TryGet(sql, out var cachedEntry) && cachedEntry != null)
+        {
+            // Use cached parsed statement
+            statements = [cachedEntry.Statement];
+        }
+        else
+        {
+            // Parse and cache
+            statements = WitSql.Parse(sql);
+            if (statements.Count == 0)
+                throw new InvalidOperationException("No SQL statement found");
+
+            // Cache single statements
+            if (statements.Count == 1)
+            {
+                m_planCache.Add(sql, statements[0]);
+            }
+        }
+
+        return new WitSqlEngineStatement(this, statements, sql);
     }
 
     #endregion

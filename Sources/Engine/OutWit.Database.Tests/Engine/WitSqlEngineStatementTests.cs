@@ -28,6 +28,23 @@ public sealed class WitSqlEngineStatementTests : WitSqlEngineTestsBase
         Assert.That(result.CurrentRow["Value"].AsInt64(), Is.EqualTo(1));
     }
 
+    [Test]
+    public void PreparedStatementHasSqlPropertyTest()
+    {
+        const string sql = "SELECT 1 AS Value";
+        using var prepared = m_engine.Prepare(sql);
+        
+        Assert.That(prepared.Sql, Is.EqualTo(sql));
+    }
+
+    [Test]
+    public void PreparedStatementHasStatementCountPropertyTest()
+    {
+        using var prepared = m_engine.Prepare("SELECT 1");
+        
+        Assert.That(prepared.StatementCount, Is.EqualTo(1));
+    }
+
     #endregion
 
     #region Parameter Tests
@@ -84,6 +101,27 @@ public sealed class WitSqlEngineStatementTests : WitSqlEngineTestsBase
     }
 
     [Test]
+    public void SetParametersBindsMultipleValuesTest()
+    {
+        CreateTestTable();
+        
+        using var prepared = m_engine.Prepare("INSERT INTO TestTable (Name, Value) VALUES (@name, @value)");
+        
+        prepared.SetParameters(new Dictionary<string, object?>
+        {
+            ["name"] = "Test",
+            ["value"] = 42
+        });
+        
+        using var result = prepared.Execute();
+        
+        var row = m_engine.QueryFirstOrDefault("SELECT * FROM TestTable");
+        Assert.That(row, Is.Not.Null);
+        Assert.That(row.Value["Name"].AsString(), Is.EqualTo("Test"));
+        Assert.That(row.Value["Value"].AsInt64(), Is.EqualTo(42));
+    }
+
+    [Test]
     public void ClearParametersClearsAllParametersTest()
     {
         CreateTestTable();
@@ -117,6 +155,20 @@ public sealed class WitSqlEngineStatementTests : WitSqlEngineTestsBase
     }
 
     [Test]
+    public void SetParametersReturnsFluentInterfaceTest()
+    {
+        using var prepared = m_engine.Prepare("SELECT @a, @b");
+        
+        var result = prepared.SetParameters(new Dictionary<string, object?>
+        {
+            ["a"] = 1,
+            ["b"] = 2
+        });
+        
+        Assert.That(result, Is.SameAs(prepared));
+    }
+
+    [Test]
     public void ClearParametersReturnsFluentInterfaceTest()
     {
         using var prepared = m_engine.Prepare("SELECT 1");
@@ -124,6 +176,27 @@ public sealed class WitSqlEngineStatementTests : WitSqlEngineTestsBase
         var result = prepared.ClearParameters();
         
         Assert.That(result, Is.SameAs(prepared));
+    }
+
+    #endregion
+
+    #region Execute with Parameters Tests
+
+    [Test]
+    public void ExecuteWithParametersBindsAndExecutesTest()
+    {
+        CreateTestTable();
+        
+        using var prepared = m_engine.Prepare("INSERT INTO TestTable (Name, Value) VALUES (@name, @value)");
+        
+        using var result = prepared.Execute(new Dictionary<string, object?>
+        {
+            ["name"] = "Test",
+            ["value"] = 123
+        });
+        
+        var row = m_engine.QueryFirstOrDefault("SELECT * FROM TestTable");
+        Assert.That(row!.Value["Value"].AsInt64(), Is.EqualTo(123));
     }
 
     #endregion
@@ -201,6 +274,54 @@ public sealed class WitSqlEngineStatementTests : WitSqlEngineTestsBase
         prepared.Dispose();
         
         Assert.DoesNotThrow(() => prepared.Dispose());
+    }
+
+    [Test]
+    public void DisposedStatementThrowsOnSetParameterTest()
+    {
+        var prepared = m_engine.Prepare("SELECT @p");
+        prepared.Dispose();
+        
+        Assert.Throws<ObjectDisposedException>(() => prepared.SetParameter("p", 1));
+    }
+
+    [Test]
+    public void DisposedStatementThrowsOnExecuteTest()
+    {
+        var prepared = m_engine.Prepare("SELECT 1");
+        prepared.Dispose();
+        
+        Assert.Throws<ObjectDisposedException>(() => prepared.Execute());
+    }
+
+    [Test]
+    public void DisposedStatementThrowsOnExecuteBatchTest()
+    {
+        var prepared = m_engine.Prepare("SELECT @p");
+        prepared.Dispose();
+        
+        var paramSets = new[] { new Dictionary<string, object?> { ["p"] = 1 } };
+        Assert.Throws<ObjectDisposedException>(() => prepared.ExecuteBatch(paramSets));
+    }
+
+    #endregion
+
+    #region Cache Integration Tests
+
+    [Test]
+    public void PrepareSameSqlUsesCacheTest()
+    {
+        var cache = m_engine.PlanCache;
+        cache.ResetStatistics();
+        
+        // First prepare - should miss cache
+        using var stmt1 = m_engine.Prepare("SELECT * FROM Users WHERE Id = @id");
+        Assert.That(cache.MissCount, Is.EqualTo(1));
+        Assert.That(cache.HitCount, Is.EqualTo(0));
+        
+        // Second prepare with same SQL - should hit cache
+        using var stmt2 = m_engine.Prepare("SELECT * FROM Users WHERE Id = @id");
+        Assert.That(cache.HitCount, Is.EqualTo(1));
     }
 
     #endregion

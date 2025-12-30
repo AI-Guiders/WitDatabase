@@ -527,8 +527,13 @@ public sealed class WitDbConnection : DbConnection
 
     /// <summary>
     /// Gets the underlying SQL engine.
+    /// Available only when the connection is open.
     /// </summary>
-    internal WitSqlEngine? Engine => m_engine;
+    /// <remarks>
+    /// This property provides direct access to the WitSqlEngine for advanced operations
+    /// such as bulk operations and prepared statements.
+    /// </remarks>
+    public WitSqlEngine? Engine => m_engine;
 
     /// <summary>
     /// Gets whether this connection owns the engine.
