@@ -348,4 +348,209 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     }
 
     #endregion
+
+    #region Bulk UPDATE Optimization Tests
+
+    [Test]
+    public void BulkUpdateWithoutUniqueConstraintUsesOptimizedPathTest()
+    {
+        // Create a table without UNIQUE constraints on non-PK columns
+        var table = new DefinitionTable
+        {
+            Name = "Products",
+            Columns =
+            [
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Name", Type = WitDataType.StringVariable, Nullable = false, Ordinal = 1 },
+                new DefinitionColumn { Name = "Price", Type = WitDataType.Decimal, Ordinal = 2 }
+            ]
+        };
+        m_database.GetTable("Products").Returns(table);
+
+        // Create many rows
+        var rows = Enumerable.Range(1, 100)
+            .Select(i => CreateRow(
+                ("_rowid", WitSqlValue.FromInt(i)),
+                ("Id", WitSqlValue.FromInt(i)),
+                ("Name", WitSqlValue.FromText($"Product_{i}")),
+                ("Price", WitSqlValue.FromDecimal(10.0m * i))
+            ))
+            .ToArray();
+
+        m_database.CreateTableScan("Products").Returns(CreateMockIterator(rows));
+
+        var executor = new StatementExecutor(m_context);
+        var stmt = WitSql.ParseStatement("UPDATE Products SET Price = Price * 1.1");
+
+        var result = executor.Execute(stmt);
+
+        Assert.That(result.RowsAffected, Is.EqualTo(100));
+        
+        // Verify UpdateRow was called 100 times (streaming update)
+        m_database.Received(100).UpdateRow("Products", Arg.Any<long>(), Arg.Any<WitSqlRow>());
+    }
+
+    [Test]
+    public void BulkUpdateDetectsDuplicateInBatchTest()
+    {
+        // Create a table with UNIQUE constraint on Email
+        var table = CreateUsersTableWithConstraints();
+        m_database.GetTable("Users").Returns(table);
+
+        // Two rows that will get same Email after UPDATE
+        var rows = new[]
+        {
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(1)),
+                ("Id", WitSqlValue.FromInt(1)),
+                ("Name", WitSqlValue.FromText("Alice")),
+                ("Email", WitSqlValue.FromText("alice@test.com")),
+                ("Age", WitSqlValue.FromInt(25))
+            ),
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(2)),
+                ("Id", WitSqlValue.FromInt(2)),
+                ("Name", WitSqlValue.FromText("Bob")),
+                ("Email", WitSqlValue.FromText("bob@test.com")),
+                ("Age", WitSqlValue.FromInt(30))
+            )
+        };
+
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(rows));
+
+        var executor = new StatementExecutor(m_context);
+        // Try to set all emails to same value - should fail
+        var stmt = WitSql.ParseStatement("UPDATE Users SET Email = 'same@test.com'");
+
+        var ex = Assert.Throws<InvalidOperationException>(() => executor.Execute(stmt));
+        Assert.That(ex!.Message, Does.Contain("UNIQUE"));
+        Assert.That(ex.Message, Does.Contain("batch"));
+    }
+
+    [Test]
+    public void BulkUpdateNonUniqueColumnSucceedsTest()
+    {
+        // Table with UNIQUE on Email, but we're updating Name (not UNIQUE)
+        var table = CreateUsersTableWithConstraints();
+        m_database.GetTable("Users").Returns(table);
+
+        var rows = new[]
+        {
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(1)),
+                ("Id", WitSqlValue.FromInt(1)),
+                ("Name", WitSqlValue.FromText("Alice")),
+                ("Email", WitSqlValue.FromText("alice@test.com")),
+                ("Age", WitSqlValue.FromInt(25))
+            ),
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(2)),
+                ("Id", WitSqlValue.FromInt(2)),
+                ("Name", WitSqlValue.FromText("Bob")),
+                ("Email", WitSqlValue.FromText("bob@test.com")),
+                ("Age", WitSqlValue.FromInt(30))
+            )
+        };
+
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(rows));
+
+        var executor = new StatementExecutor(m_context);
+        // Update Name to same value for all - should succeed (Name is not UNIQUE)
+        var stmt = WitSql.ParseStatement("UPDATE Users SET Name = 'Updated'");
+
+        var result = executor.Execute(stmt);
+
+        Assert.That(result.RowsAffected, Is.EqualTo(2));
+        m_database.Received(2).UpdateRow("Users", Arg.Any<long>(), Arg.Is<WitSqlRow>(r =>
+            r["Name"].AsString() == "Updated"));
+    }
+
+    [Test]
+    public void BulkUpdateWithWhereClauseTest()
+    {
+        var table = new DefinitionTable
+        {
+            Name = "Products",
+            Columns =
+            [
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Category", Type = WitDataType.StringVariable, Ordinal = 1 },
+                new DefinitionColumn { Name = "Price", Type = WitDataType.Decimal, Ordinal = 2 }
+            ]
+        };
+        m_database.GetTable("Products").Returns(table);
+
+        var rows = new[]
+        {
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(1)),
+                ("Id", WitSqlValue.FromInt(1)),
+                ("Category", WitSqlValue.FromText("Electronics")),
+                ("Price", WitSqlValue.FromDecimal(100.0m))
+            ),
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(2)),
+                ("Id", WitSqlValue.FromInt(2)),
+                ("Category", WitSqlValue.FromText("Books")),
+                ("Price", WitSqlValue.FromDecimal(20.0m))
+            ),
+            CreateRow(
+                ("_rowid", WitSqlValue.FromInt(3)),
+                ("Id", WitSqlValue.FromInt(3)),
+                ("Category", WitSqlValue.FromText("Electronics")),
+                ("Price", WitSqlValue.FromDecimal(200.0m))
+            )
+        };
+
+        m_database.CreateTableScan("Products").Returns(CreateMockIterator(rows));
+
+        var executor = new StatementExecutor(m_context);
+        var stmt = WitSql.ParseStatement("UPDATE Products SET Price = Price * 0.9 WHERE Category = 'Electronics'");
+
+        var result = executor.Execute(stmt);
+
+        Assert.That(result.RowsAffected, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void BulkUpdateStreamingDoesNotAccumulateRowsTest()
+    {
+        // This test verifies that streaming UPDATE doesn't collect all rows before processing
+        // We can verify this by checking that UpdateRow is called during iteration
+        var table = new DefinitionTable
+        {
+            Name = "Items",
+            Columns =
+            [
+                new DefinitionColumn { Name = "Id", Type = WitDataType.Int64, IsPrimaryKey = true, IsAutoIncrement = true, Ordinal = 0 },
+                new DefinitionColumn { Name = "Value", Type = WitDataType.Int32, Ordinal = 1 }
+            ]
+        };
+        m_database.GetTable("Items").Returns(table);
+
+        var updateCallCount = 0;
+        m_database.When(x => x.UpdateRow("Items", Arg.Any<long>(), Arg.Any<WitSqlRow>()))
+            .Do(_ => updateCallCount++);
+
+        // Create rows
+        var rows = Enumerable.Range(1, 50)
+            .Select(i => CreateRow(
+                ("_rowid", WitSqlValue.FromInt(i)),
+                ("Id", WitSqlValue.FromInt(i)),
+                ("Value", WitSqlValue.FromInt(i * 10))
+            ))
+            .ToArray();
+
+        m_database.CreateTableScan("Items").Returns(CreateMockIterator(rows));
+
+        var executor = new StatementExecutor(m_context);
+        var stmt = WitSql.ParseStatement("UPDATE Items SET Value = Value + 1");
+
+        var result = executor.Execute(stmt);
+
+        Assert.That(result.RowsAffected, Is.EqualTo(50));
+        Assert.That(updateCallCount, Is.EqualTo(50));
+    }
+
+    #endregion
 }

@@ -1,3 +1,4 @@
+using System.Buffers;
 using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Iterators;
@@ -50,6 +51,12 @@ public sealed partial class StatementExecutor
         if (TryExecuteUpdateBatchFastPath(update, table, out var batchResult))
         {
             return batchResult;
+        }
+
+        // Try streaming path for bulk updates without BEFORE/INSTEAD OF triggers
+        if (TryExecuteUpdateStreaming(update, table, out var streamingResult))
+        {
+            return streamingResult;
         }
 
         // Fall back to standard iterator-based execution
@@ -189,7 +196,8 @@ public sealed partial class StatementExecutor
                     {
                         if (!string.IsNullOrEmpty(computedCol.ComputedExpression))
                         {
-                            var expr = Parser.WitSql.ParseExpression(computedCol.ComputedExpression);
+                            // Use cached expression parsing for better performance
+                            var expr = GetOrParseExpression(computedCol.ComputedExpression);
                             newValues[i] = evaluator.Evaluate(expr, intermediateRow);
                         }
                         break;
@@ -374,7 +382,8 @@ public sealed partial class StatementExecutor
                         {
                             if (!string.IsNullOrEmpty(computedCol.ComputedExpression))
                             {
-                                var expr = Parser.WitSql.ParseExpression(computedCol.ComputedExpression);
+                                // Use cached expression parsing for better performance
+                                var expr = GetOrParseExpression(computedCol.ComputedExpression);
                                 newValues[i] = evaluator.Evaluate(expr, intermediateRow);
                             }
                             break;
@@ -423,6 +432,222 @@ public sealed partial class StatementExecutor
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Attempts to execute UPDATE using streaming (update rows during iteration).
+    /// This is used when:
+    /// - No FROM clause (simple table UPDATE)
+    /// - No BEFORE/INSTEAD OF triggers
+    /// - No RETURNING clause (would need to accumulate results)
+    /// - No UNIQUE constraints on SET columns (avoids conflicts during streaming)
+    /// </summary>
+    private bool TryExecuteUpdateStreaming(WitSqlStatementUpdate update, DefinitionTable table, out WitSqlResult result)
+    {
+        result = default!;
+
+        // Streaming not applicable with FROM clause (need full join context)
+        if (update.FromClause != null && update.FromClause.Count > 0)
+            return false;
+
+        // Streaming not applicable with RETURNING clause (need all rows)
+        if (update.ReturningClause != null)
+            return false;
+
+        // Check for BEFORE or INSTEAD OF triggers
+        var beforeTriggers = m_context.Database.GetTriggersForTable(
+            update.TableName, TriggerEvent.Update, TriggerTime.Before);
+        if (beforeTriggers.Any())
+            return false;
+
+        var insteadOfTriggers = m_context.Database.GetTriggersForTable(
+            update.TableName, TriggerEvent.Update, TriggerTime.InsteadOf);
+        if (insteadOfTriggers.Any())
+            return false;
+
+        // Get columns being modified
+        var setColumnNames = update.SetClauses
+            .Select(s => s.ColumnName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Check if any UNIQUE constraint involves SET columns
+        // (streaming could cause temporary duplicates which would fail validation)
+        bool hasUniqueOnSetColumns = false;
+        foreach (var col in table.Columns)
+        {
+            if (col.IsUnique && setColumnNames.Contains(col.Name))
+            {
+                hasUniqueOnSetColumns = true;
+                break;
+            }
+        }
+        if (table.UniqueConstraints != null)
+        {
+            foreach (var uniqueColumns in table.UniqueConstraints)
+            {
+                if (uniqueColumns.Any(c => setColumnNames.Contains(c)))
+                {
+                    hasUniqueOnSetColumns = true;
+                    break;
+                }
+            }
+        }
+
+        // If UNIQUE constraints on SET columns, fall back to standard path
+        if (hasUniqueOnSetColumns)
+            return false;
+
+        // Execute streaming update
+        result = ExecuteUpdateStreamingCore(update, table, setColumnNames);
+        return true;
+    }
+
+    /// <summary>
+    /// Core streaming UPDATE implementation.
+    /// Updates rows immediately during iteration without accumulating.
+    /// </summary>
+    private WitSqlResult ExecuteUpdateStreamingCore(
+        WitSqlStatementUpdate update,
+        DefinitionTable table,
+        HashSet<string> setColumnNames)
+    {
+        // First pass: collect row IDs to update (minimal memory)
+        var rowIdsToUpdate = new List<long>();
+        
+        using (var iterator = CreateUpdateIterator(update))
+        {
+            iterator.Open();
+            var tableAlias = update.TableAlias ?? update.TableName;
+            
+            while (iterator.MoveNext())
+            {
+                var rowId = GetRowIdFromRow(iterator.Current, tableAlias, update.TableName);
+                rowIdsToUpdate.Add(rowId);
+            }
+        }
+
+        if (rowIdsToUpdate.Count == 0)
+        {
+            m_context.LastChangesCount = 0;
+            return new WitSqlResult(0);
+        }
+
+        // Get computed and ROWVERSION columns info
+        var storedComputedColumns = table.Columns.Where(c => c.IsComputed && c.IsStored).ToList();
+        var rowVersionColumns = table.Columns.Where(c => c.Type == WitDataType.RowVersion).ToList();
+
+        // Check if AFTER triggers exist
+        var afterTriggers = m_context.Database.GetTriggersForTable(
+            update.TableName, TriggerEvent.Update, TriggerTime.After);
+        bool hasAfterTriggers = afterTriggers.Any();
+
+        var evaluator = new ExpressionEvaluator(m_context);
+        int rowsAffected = 0;
+
+        // Second pass: update rows by ID
+        foreach (var rowId in rowIdsToUpdate)
+        {
+            var existingRow = m_context.Database.GetRowById(update.TableName, rowId);
+            if (existingRow == null)
+                continue; // Row was deleted between passes
+
+            // Extract row values
+            var oldValues = existingRow.Value.Values;
+            var columnNames = existingRow.Value.ColumnNames;
+
+            var dataStartIndex = columnNames[0] == "_rowid" ? 1 : 0;
+            var dataColumnCount = columnNames.Count - dataStartIndex;
+
+            var newValues = new WitSqlValue[dataColumnCount];
+            var dataColumnNames = new string[dataColumnCount];
+
+            for (int i = 0; i < dataColumnCount; i++)
+            {
+                newValues[i] = oldValues[i + dataStartIndex];
+                dataColumnNames[i] = columnNames[i + dataStartIndex];
+            }
+
+            // Track modified columns for this row
+            var modifiedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Apply SET clauses
+            foreach (var setClause in update.SetClauses)
+            {
+                for (int i = 0; i < dataColumnNames.Length; i++)
+                {
+                    if (dataColumnNames[i].Equals(setClause.ColumnName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var newValue = evaluator.Evaluate(setClause.Value, existingRow.Value);
+                        if (!newValues[i].Equals(newValue))
+                        {
+                            newValues[i] = newValue;
+                            modifiedColumns.Add(setClause.ColumnName);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Handle ROWVERSION columns
+            foreach (var rowVersionCol in rowVersionColumns)
+            {
+                for (int i = 0; i < dataColumnNames.Length; i++)
+                {
+                    if (dataColumnNames[i].Equals(rowVersionCol.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        newValues[i] = WitSqlValue.FromRowVersion(m_context.Database.GetNextRowVersion(table.Name));
+                        break;
+                    }
+                }
+            }
+
+            // Handle STORED computed columns
+            if (storedComputedColumns.Count > 0)
+            {
+                var intermediateRow = new WitSqlRow(newValues, dataColumnNames);
+                foreach (var computedCol in storedComputedColumns)
+                {
+                    for (int i = 0; i < dataColumnNames.Length; i++)
+                    {
+                        if (dataColumnNames[i].Equals(computedCol.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!string.IsNullOrEmpty(computedCol.ComputedExpression))
+                            {
+                                var expr = GetOrParseExpression(computedCol.ComputedExpression);
+                                newValues[i] = evaluator.Evaluate(expr, intermediateRow);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            var newRow = new WitSqlRow(newValues, dataColumnNames);
+
+            // Validate NOT NULL constraints
+            ValidateNotNullConstraints(table, newRow);
+
+            // Validate CHECK and FK constraints only (no UNIQUE since we checked earlier)
+            ValidateCheckConstraintsFastPath(table, newRow, update.TableName, modifiedColumns);
+            ValidateForeignKeyConstraintsFastPath(table, newRow, update.TableName, modifiedColumns);
+
+            // Perform the update
+            m_context.Database.UpdateRow(update.TableName, rowId, newRow);
+            rowsAffected++;
+
+            // Fire AFTER UPDATE triggers if any
+            if (hasAfterTriggers)
+            {
+                var oldRow = new WitSqlRow(
+                    oldValues.Skip(dataStartIndex).ToArray(),
+                    columnNames.Skip(dataStartIndex).ToArray());
+                WitSqlRow? afterRow = newRow;
+                FireTriggers(update.TableName, TriggerEvent.Update, TriggerTime.After, oldRow, ref afterRow);
+            }
+        }
+
+        m_context.LastChangesCount = rowsAffected;
+        return new WitSqlResult(rowsAffected);
     }
 
     /// <summary>
@@ -475,7 +700,8 @@ public sealed partial class StatementExecutor
             if (columnValue.IsNull)
                 continue;
 
-            var checkExpr = Parser.WitSql.ParseExpression(col.CheckExpression);
+            // Use cached expression parsing
+            var checkExpr = GetOrParseExpression(col.CheckExpression);
             var result = evaluator.Evaluate(checkExpr, row);
 
             if (!result.IsNull && !result.AsBool())
@@ -489,7 +715,8 @@ public sealed partial class StatementExecutor
         {
             foreach (var checkSql in table.CheckExpressions)
             {
-                var checkExpr = Parser.WitSql.ParseExpression(checkSql);
+                // Use cached expression parsing
+                var checkExpr = GetOrParseExpression(checkSql);
                 var result = evaluator.Evaluate(checkExpr, row);
 
                 if (!result.IsNull && !result.AsBool())

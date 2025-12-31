@@ -374,7 +374,8 @@ public sealed partial class StatementExecutor
                 
                 if (col?.DefaultValue != null)
                 {
-                    var defaultExpr = WitSql.ParseExpression(col.DefaultValue);
+                    // Use cached expression parsing
+                    var defaultExpr = GetOrParseExpression(col.DefaultValue);
                     var defaultValue = evaluator.Evaluate(defaultExpr, oldRow);
                     newValues[i] = defaultValue;
                 }
@@ -617,7 +618,8 @@ public sealed partial class StatementExecutor
             if (columnValue.IsNull)
                 continue;
 
-            var checkExpr = WitSql.ParseExpression(col.CheckExpression);
+            // Use cached expression parsing
+            var checkExpr = GetOrParseExpression(col.CheckExpression);
             var result = evaluator.Evaluate(checkExpr, row);
 
             // Skip if result is NULL
@@ -635,7 +637,8 @@ public sealed partial class StatementExecutor
         {
             foreach (var checkSql in table.CheckExpressions)
             {
-                var checkExpr = WitSql.ParseExpression(checkSql);
+                // Use cached expression parsing
+                var checkExpr = GetOrParseExpression(checkSql);
                 var result = evaluator.Evaluate(checkExpr, row);
 
                 // Skip if result is NULL
@@ -780,7 +783,7 @@ public sealed partial class StatementExecutor
         }
     }
 
-    private static void ValidateNamedCheckConstraint(
+    private void ValidateNamedCheckConstraint(
         DefinitionNamedConstraint constraint, 
         WitSqlRow row, 
         string tableName,
@@ -789,7 +792,8 @@ public sealed partial class StatementExecutor
         if (string.IsNullOrEmpty(constraint.CheckExpression))
             return;
 
-        var checkExpr = WitSql.ParseExpression(constraint.CheckExpression);
+        // Use cached expression parsing
+        var checkExpr = GetOrParseExpression(constraint.CheckExpression);
         var result = evaluator.Evaluate(checkExpr, row);
 
         // Skip if result is NULL (SQL standard: NULL is not FALSE)

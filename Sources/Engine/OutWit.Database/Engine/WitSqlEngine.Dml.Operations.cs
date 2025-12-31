@@ -108,6 +108,19 @@ public sealed partial class WitSqlEngine
     /// <param name="newRow">The new row data.</param>
     public void UpdateRow(string tableName, long rowId, WitSqlRow newRow)
     {
+        UpdateRow(tableName, rowId, newRow, modifiedColumns: null);
+    }
+
+    /// <summary>
+    /// Update a row in a table with knowledge of which columns were modified.
+    /// This enables optimization to skip index updates when no indexed columns changed.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="rowId">The row ID to update.</param>
+    /// <param name="newRow">The new row data.</param>
+    /// <param name="modifiedColumns">Set of column names that were modified, or null to update all indexes.</param>
+    public void UpdateRow(string tableName, long rowId, WitSqlRow newRow, IReadOnlySet<string>? modifiedColumns)
+    {
         var table = m_schema.GetTable(tableName)
                     ?? throw new InvalidOperationException($"Table '{tableName}' not found");
 
@@ -126,7 +139,8 @@ public sealed partial class WitSqlEngine
         PutToStore(key, newValue);
 
         // Update indexes (remove old keys, add new keys)
-        UpdateIndexesOnUpdate(tableName, table, rowId, oldRow, newRow);
+        // Pass modified columns for optimization
+        UpdateIndexesOnUpdate(tableName, table, rowId, oldRow, newRow, modifiedColumns);
     }
 
     #endregion

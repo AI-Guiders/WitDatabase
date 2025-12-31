@@ -64,9 +64,34 @@ public sealed partial class WitSqlEngine
     /// </summary>
     private void UpdateIndexesOnUpdate(string tableName, DefinitionTable table, long rowId, WitSqlRow? oldRow, WitSqlRow newRow)
     {
+        UpdateIndexesOnUpdate(tableName, table, rowId, oldRow, newRow, modifiedColumns: null);
+    }
+
+    /// <summary>
+    /// Updates secondary indexes after a row update, with optimization for known modified columns.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="table">The table definition.</param>
+    /// <param name="rowId">The row ID being updated.</param>
+    /// <param name="oldRow">The old row data (before update).</param>
+    /// <param name="newRow">The new row data (after update).</param>
+    /// <param name="modifiedColumns">Set of column names that were modified, or null to check all indexes.</param>
+    private void UpdateIndexesOnUpdate(
+        string tableName, 
+        DefinitionTable table, 
+        long rowId, 
+        WitSqlRow? oldRow, 
+        WitSqlRow newRow,
+        IReadOnlySet<string>? modifiedColumns)
+    {
         var indexes = m_schema.GetTableIndexes(tableName);
         foreach (var indexDef in indexes)
         {
+            // Early exit: if we know which columns were modified and this index
+            // doesn't use any of them, skip the index entirely
+            if (modifiedColumns != null && !IndexUsesAnyColumn(indexDef, modifiedColumns))
+                continue;
+
             var secondaryIndex = m_database.GetIndex(indexDef.Name);
             if (secondaryIndex == null)
                 continue;
@@ -113,6 +138,52 @@ public sealed partial class WitSqlEngine
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Checks if an index uses any of the specified columns.
+    /// </summary>
+    /// <param name="indexDef">The index definition.</param>
+    /// <param name="columns">Set of column names to check.</param>
+    /// <returns>True if the index uses any of the columns, false otherwise.</returns>
+    private static bool IndexUsesAnyColumn(DefinitionIndex indexDef, IReadOnlySet<string> columns)
+    {
+        // Check direct column references
+        foreach (var indexColumn in indexDef.Columns)
+        {
+            if (columns.Contains(indexColumn))
+                return true;
+        }
+
+        // For expression indexes, we need to check if any modified column appears in the expression
+        // This is a conservative check - if we can't determine, assume the index is affected
+        if (indexDef.ExpressionColumns != null)
+        {
+            foreach (var expr in indexDef.ExpressionColumns)
+            {
+                if (!string.IsNullOrEmpty(expr))
+                {
+                    // Check if any modified column name appears in the expression
+                    foreach (var col in columns)
+                    {
+                        if (expr.Contains(col, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                }
+            }
+        }
+
+        // Check if index has a WHERE clause that references modified columns
+        if (!string.IsNullOrEmpty(indexDef.WhereExpression))
+        {
+            foreach (var col in columns)
+            {
+                if (indexDef.WhereExpression.Contains(col, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     #endregion

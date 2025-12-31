@@ -5,6 +5,7 @@ using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Interfaces;
 using OutWit.Database.Iterators;
+using OutWit.Database.Parser;
 using OutWit.Database.Parser.Expressions;
 using OutWit.Database.Parser.Schema;
 using OutWit.Database.Parser.Schema.ColumnConstraints;
@@ -23,10 +24,25 @@ namespace OutWit.Database.Statements;
 /// </summary>
 public sealed partial class StatementExecutor
 {
+    #region Constants
+
+    /// <summary>
+    /// Maximum number of expressions to cache.
+    /// </summary>
+    private const int MAX_EXPRESSION_CACHE_SIZE = 256;
+
+    #endregion
+
     #region Fields
 
     private readonly ContextExecution m_context;
     private readonly QueryPlanner m_planner;
+    
+    /// <summary>
+    /// Cache for parsed SQL expressions (CHECK constraints, computed columns, etc.).
+    /// Key is the SQL expression string, value is the parsed expression.
+    /// </summary>
+    private readonly Dictionary<string, WitSqlExpression> m_expressionCache = new(StringComparer.Ordinal);
 
     #endregion
 
@@ -98,6 +114,39 @@ public sealed partial class StatementExecutor
             
             _ => throw new NotSupportedException($"Statement type not supported: {statement.GetType().Name}")
         };
+    }
+
+    #endregion
+
+    #region Expression Cache
+
+    /// <summary>
+    /// Gets a parsed expression from cache or parses it and adds to cache.
+    /// </summary>
+    /// <param name="expressionSql">The SQL expression string.</param>
+    /// <returns>The parsed expression.</returns>
+    private WitSqlExpression GetOrParseExpression(string expressionSql)
+    {
+        if (m_expressionCache.TryGetValue(expressionSql, out var cached))
+            return cached;
+
+        var parsed = WitSql.ParseExpression(expressionSql);
+
+        // Only cache if we haven't exceeded the limit
+        if (m_expressionCache.Count < MAX_EXPRESSION_CACHE_SIZE)
+        {
+            m_expressionCache[expressionSql] = parsed;
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    /// Clears the expression cache.
+    /// </summary>
+    public void ClearExpressionCache()
+    {
+        m_expressionCache.Clear();
     }
 
     #endregion

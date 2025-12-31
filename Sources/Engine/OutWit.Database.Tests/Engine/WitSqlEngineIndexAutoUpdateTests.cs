@@ -256,6 +256,145 @@ public sealed class WitSqlEngineIndexAutoUpdateTests : WitSqlEngineTestsBase
 
     #endregion
 
+    #region Index Update Optimization Tests (P1.4)
+
+    [Test]
+    public void UpdateNonIndexedColumnSkipsIndexUpdateTest()
+    {
+        // Arrange - Create table with index on Name, but we'll update Email
+        CreateUsersTable();
+        m_engine.Execute("CREATE INDEX idx_users_name ON Users (Name)");
+        m_engine.Execute("INSERT INTO Users (Name, Email) VALUES ('Alice', 'alice@test.com')");
+
+        // Act - Update non-indexed column (Email)
+        // The index on Name should NOT be touched
+        m_engine.Execute("UPDATE Users SET Email = 'newalice@test.com' WHERE Name = 'Alice'");
+
+        // Assert - Row is updated and index still works
+        using var iterator = m_engine.CreateIndexSeek("Users", "idx_users_name", [WitSqlValue.FromText("Alice")]);
+        iterator.Open();
+        Assert.That(iterator.MoveNext(), Is.True);
+        Assert.That(iterator.Current["Email"].AsString(), Is.EqualTo("newalice@test.com"));
+    }
+
+    [Test]
+    public void UpdateWithMultipleIndexesOnlyUpdatesAffectedTest()
+    {
+        // Arrange - Create table with two separate indexes
+        CreateUsersTable();
+        m_engine.Execute("CREATE INDEX idx_users_name ON Users (Name)");
+        m_engine.Execute("CREATE INDEX idx_users_email ON Users (Email)");
+        m_engine.Execute("INSERT INTO Users (Name, Email) VALUES ('Alice', 'alice@test.com')");
+
+        // Act - Update only Email (should only touch idx_users_email)
+        m_engine.Execute("UPDATE Users SET Email = 'newalice@test.com' WHERE Name = 'Alice'");
+
+        // Assert - Name index still works
+        using var iteratorName = m_engine.CreateIndexSeek("Users", "idx_users_name", [WitSqlValue.FromText("Alice")]);
+        iteratorName.Open();
+        Assert.That(iteratorName.MoveNext(), Is.True);
+
+        // Assert - Old email not in index
+        using var iteratorOldEmail = m_engine.CreateIndexSeek("Users", "idx_users_email", [WitSqlValue.FromText("alice@test.com")]);
+        iteratorOldEmail.Open();
+        Assert.That(iteratorOldEmail.MoveNext(), Is.False);
+
+        // Assert - New email in index
+        using var iteratorNewEmail = m_engine.CreateIndexSeek("Users", "idx_users_email", [WitSqlValue.FromText("newalice@test.com")]);
+        iteratorNewEmail.Open();
+        Assert.That(iteratorNewEmail.MoveNext(), Is.True);
+    }
+
+    [Test]
+    public void BulkUpdateNonIndexedColumnDoesNotTouchIndexTest()
+    {
+        // Arrange - Create table with index on Name, update another column in bulk
+        m_engine.Execute(@"
+            CREATE TABLE Products (
+                Id BIGINT PRIMARY KEY AUTOINCREMENT,
+                Name VARCHAR(100) NOT NULL,
+                Price DECIMAL,
+                Stock INT
+            )");
+        m_engine.Execute("CREATE INDEX idx_products_name ON Products (Name)");
+
+        // Insert 100 products
+        for (int i = 1; i <= 100; i++)
+        {
+            m_engine.Execute($"INSERT INTO Products (Name, Price, Stock) VALUES ('Product_{i}', {i * 10}, {i})");
+        }
+
+        // Act - Bulk update Stock (not indexed) - should be fast as no index update needed
+        m_engine.Execute("UPDATE Products SET Stock = Stock + 100");
+
+        // Assert - All rows updated, index still works
+        var rows = m_engine.Query("SELECT * FROM Products WHERE Stock > 100");
+        Assert.That(rows, Has.Count.EqualTo(100));
+
+        // Verify index still works
+        using var iterator = m_engine.CreateIndexSeek("Products", "idx_products_name", [WitSqlValue.FromText("Product_50")]);
+        iterator.Open();
+        Assert.That(iterator.MoveNext(), Is.True);
+        Assert.That(iterator.Current["Stock"].AsInt64(), Is.EqualTo(150)); // 50 + 100
+    }
+
+    [Test]
+    public void UpdateCompositeIndexOnlyWhenAnyColumnChangedTest()
+    {
+        // Arrange - Composite index on (Name, Email)
+        CreateUsersTable();
+        m_engine.Execute("CREATE INDEX idx_users_name_email ON Users (Name, Email)");
+        m_engine.Execute("INSERT INTO Users (Name, Email) VALUES ('Alice', 'alice@test.com')");
+
+        // Act - Update Email (part of composite index)
+        m_engine.Execute("UPDATE Users SET Email = 'newalice@test.com' WHERE Name = 'Alice'");
+
+        // Assert - Can find with new composite key
+        var rows = m_engine.Query("SELECT * FROM Users WHERE Name = 'Alice' AND Email = 'newalice@test.com'");
+        Assert.That(rows, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void UpdateColumnInExpressionIndexTriggersUpdateTest()
+    {
+        // Arrange - Expression index on LOWER(Name)
+        CreateUsersTable();
+        m_engine.Execute("CREATE INDEX idx_users_name_lower ON Users (LOWER(Name))");
+        m_engine.Execute("INSERT INTO Users (Name, Email) VALUES ('Alice', 'alice@test.com')");
+
+        // Act - Update Name (used in expression index)
+        m_engine.Execute("UPDATE Users SET Name = 'Bob' WHERE Name = 'Alice'");
+
+        // Assert - Expression index updated (can find via query using LOWER)
+        var rows = m_engine.Query("SELECT * FROM Users WHERE LOWER(Name) = 'bob'");
+        Assert.That(rows, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void UpdateColumnInPartialIndexWhereClauseTest()
+    {
+        // Arrange - Partial index with WHERE Status = 'active'
+        m_engine.Execute(@"
+            CREATE TABLE Tasks (
+                Id BIGINT PRIMARY KEY AUTOINCREMENT,
+                Title VARCHAR(100),
+                Status VARCHAR(20)
+            )");
+        m_engine.Execute("CREATE INDEX idx_active_tasks ON Tasks (Title) WHERE Status = 'active'");
+        m_engine.Execute("INSERT INTO Tasks (Title, Status) VALUES ('Task1', 'active')");
+
+        // Act - Update Status (referenced in partial index WHERE clause)
+        // This should trigger index update even though Status is not in index columns
+        m_engine.Execute("UPDATE Tasks SET Status = 'completed' WHERE Title = 'Task1'");
+
+        // Assert - Row should no longer be in partial index
+        var rows = m_engine.Query("SELECT * FROM Tasks WHERE Title = 'Task1'");
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["Status"].AsString(), Is.EqualTo("completed"));
+    }
+
+    #endregion
+
     #region DELETE Auto-Update Tests
 
     [Test]

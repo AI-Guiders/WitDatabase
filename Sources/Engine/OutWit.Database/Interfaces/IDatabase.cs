@@ -51,6 +51,16 @@ public interface IDatabase
     void UpdateRow(string tableName, long rowId, WitSqlRow newRow);
 
     /// <summary>
+    /// Update a row in a table with knowledge of which columns were modified.
+    /// This enables optimization to skip index updates when no indexed columns changed.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="rowId">The row ID to update.</param>
+    /// <param name="newRow">The new row data.</param>
+    /// <param name="modifiedColumns">Set of column names that were modified, or null to update all indexes.</param>
+    void UpdateRow(string tableName, long rowId, WitSqlRow newRow, IReadOnlySet<string>? modifiedColumns);
+
+    /// <summary>
     /// Delete a row from a table.
     /// </summary>
     void DeleteRow(string tableName, long rowId);
