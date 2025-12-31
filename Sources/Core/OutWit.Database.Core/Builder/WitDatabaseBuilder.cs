@@ -617,7 +617,8 @@ public sealed class WitDatabaseBuilder
             return Options.IndexDirectory;
 
         // For LSM-Tree, use directory + _indexes
-        if (!string.IsNullOrEmpty(Options.LsmDirectory))
+        // Only use LsmDirectory if we're actually using LSM-Tree
+        if (Options.UseLsmTree && !string.IsNullOrEmpty(Options.LsmDirectory))
             return Path.Combine(Options.LsmDirectory, "_indexes");
 
         // For BTree file, create index directory based on database filename
@@ -653,7 +654,10 @@ public sealed class WitDatabaseBuilder
             indexName =>
             {
                 var indexPath = Path.Combine(baseDirectory, indexName);
-                Directory.CreateDirectory(indexPath);
+                
+                // Ensure index directory exists - don't throw if already exists
+                if (!Directory.Exists(indexPath))
+                    Directory.CreateDirectory(indexPath);
 
                 var lsmOptions = new LsmOptions();
                 if (cryptoProvider != null && encryptionSalt != null)
@@ -676,7 +680,12 @@ public sealed class WitDatabaseBuilder
         return new SecondaryIndexFactoryKeyValueStore(
             indexName =>
             {
-                Directory.CreateDirectory(baseDirectory);
+                // Ensure index directory exists
+                // Check both Directory.Exists and !File.Exists to handle case where
+                // a file with same name exists (which would cause CreateDirectory to fail)
+                if (!Directory.Exists(baseDirectory) && !File.Exists(baseDirectory))
+                    Directory.CreateDirectory(baseDirectory);
+                
                 var indexPath = Path.Combine(baseDirectory, $"{indexName}.idx");
 
                 IStorage storage;

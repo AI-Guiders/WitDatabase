@@ -26,8 +26,11 @@
     <Project Path="Samples/OutWit.Database.Samples.BlazorWasm/OutWit.Database.Samples.BlazorWasm.csproj" />
   </Folder>
   <Folder Name="/Benchmarks/">
+    <Project Path="Benchmarks/OutWit.Database.AdoNet.Benchmarks/OutWit.Database.AdoNet.Benchmarks.csproj" />
+    <Project Path="Benchmarks/OutWit.Database.Benchmarks/OutWit.Database.Benchmarks.csproj" />
     <Project Path="Benchmarks/OutWit.Database.Comparison.Benchmarks/OutWit.Database.Comparison.Benchmarks.csproj" />
     <Project Path="Benchmarks/OutWit.Database.Core.Tests.Benchmarks/OutWit.Database.Core.Tests.Benchmarks.csproj" Id="218fe20c-91ee-4980-98ce-332906c1db1a" />
+    <Project Path="Benchmarks/OutWit.Database.EntityFramework.Benchmarks/OutWit.Database.EntityFramework.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/Sources/Providers/">
     <Project Path="Sources/Providers/OutWit.Database.AdoNet.Tests/OutWit.Database.AdoNet.Tests.csproj" Id="e513267f-5a9e-4d22-a243-33140b649bf9" />

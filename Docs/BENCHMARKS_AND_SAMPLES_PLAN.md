@@ -1,7 +1,8 @@
 # WitDatabase - Benchmarks and Samples Plan
 
 **Date:** 2025-02-06  
-**Version:** 1.0  
+**Version:** 1.1  
+**Last Updated:** 2025-02-07
 
 ---
 
@@ -26,137 +27,152 @@
 
 ### 1.2 Planned Benchmarks
 
-#### 1.2.1 OutWit.Database.Benchmarks (SQL Engine)
+#### 1.2.1 OutWit.Database.Benchmarks (SQL Engine) - ? DONE
 
 New project for SQL layer benchmarks.
 
 ```
 Benchmarks/
   OutWit.Database.Benchmarks/
-    QueryBenchmarks.cs
-    InsertBenchmarks.cs
-    UpdateBenchmarks.cs
-    JoinBenchmarks.cs
-    AggregateBenchmarks.cs
-    IndexBenchmarks.cs
-    TransactionBenchmarks.cs
-    Program.cs
+    QueryBenchmarks.cs       ?
+    InsertBenchmarks.cs      ?
+    UpdateBenchmarks.cs      ?
+    JoinBenchmarks.cs        ?
+    AggregateBenchmarks.cs   ?
+    IndexBenchmarks.cs       ?
+    TransactionBenchmarks.cs ?
+    BenchmarkConfig.cs       ?
+    Program.cs               ?
+    README.md                ?
 ```
 
-| Benchmark | Description | Priority |
-|----------|----------|-----------|
-| **QueryBenchmarks** | | |
-| SimpleSelect | `SELECT * FROM Users` | P0 |
-| SelectWithWhere | `SELECT * FROM Users WHERE Age > 18` | P0 |
-| SelectWithOrderBy | `SELECT * FROM Users ORDER BY Name` | P0 |
-| SelectWithLimit | `SELECT * FROM Users LIMIT 100` | P0 |
-| SelectProjection | `SELECT Id, Name FROM Users` | P1 |
-| **InsertBenchmarks** | | |
-| SingleInsert | Single row INSERT | P0 |
-| BulkInsert | Multi-row INSERT (100/1000 rows) | P0 |
-| InsertReturning | INSERT...RETURNING | P1 |
-| InsertOnConflict | UPSERT operations | P1 |
-| **UpdateBenchmarks** | | |
-| UpdateByPK | UPDATE by primary key | P0 |
-| UpdateByIndex | UPDATE with indexed WHERE | P0 |
-| UpdateFullScan | UPDATE with non-indexed WHERE | P1 |
-| UpdateReturning | UPDATE...RETURNING | P1 |
-| **JoinBenchmarks** | | |
-| InnerJoin | 2-table INNER JOIN | P0 |
-| LeftJoin | 2-table LEFT JOIN | P0 |
-| MultipleJoins | 3+ table JOINs | P1 |
-| JoinWithIndexes | JOIN on indexed columns | P1 |
-| **AggregateBenchmarks** | | |
-| CountAll | COUNT(*) | P0 |
-| GroupBySimple | GROUP BY single column | P0 |
-| GroupByMultiple | GROUP BY multiple columns | P1 |
-| AggregateWithHaving | GROUP BY...HAVING | P1 |
-| **IndexBenchmarks** | | |
-| IndexSeek | Equality lookup on index | P0 |
-| IndexRangeScan | Range query on index | P0 |
-| CoveringIndex | Query using covering index | P1 |
-| **TransactionBenchmarks** | | |
-| SingleTransaction | One transaction with N ops | P0 |
-| ConcurrentReads | Parallel SELECT | P0 |
-| ConcurrentWrites | Parallel INSERT | P1 |
-| MixedWorkload | 70% read / 30% write | P1 |
+**Engine Modes Tested:**
+- BTree (single-threaded)
+- LSM (single-threaded)  
+- BTreeParallelAuto (with parallel writes)
+- LsmParallelAuto (with parallel writes)
 
-#### 1.2.2 OutWit.Database.AdoNet.Benchmarks
+**Initial Results (InsertBenchmarks):**
+
+| Scenario | Best WitDb Mode | vs SQLite |
+|----------|-----------------|-----------|
+| 100 rows in transaction | BTree | **3.8x faster** |
+| 1000 rows in transaction | BTree | 2.1x slower |
+| 5000 rows in transaction | BTree | 5.4x slower |
+| INSERT RETURNING (500 ops) | BTree | ~same for 5000 rows |
+| Without transaction (100 rows) | LsmParallelAuto | **4-11x faster** |
+
+| Benchmark | Description | Priority | Status |
+|----------|----------|-----------|--------|
+| **QueryBenchmarks** | | | |
+| SimpleSelect | `SELECT * FROM Users` | P0 | ? Done |
+| SelectWithWhere | `SELECT * FROM Users WHERE Age > 18` | P0 | ? Done |
+| SelectWithOrderBy | `SELECT * FROM Users ORDER BY Name` | P0 | ? Done |
+| SelectWithLimit | `SELECT * FROM Users LIMIT 100` | P0 | ? Done |
+| SelectProjection | `SELECT Id, Name FROM Users` | P1 | ? Done |
+| **InsertBenchmarks** | | | |
+| SingleInsert | Single row INSERT | P0 | ? Done |
+| BulkInsert | Multi-row INSERT (100/1000 rows) | P0 | ? Done |
+| InsertReturning | INSERT...RETURNING | P1 | ? Done |
+| **UpdateBenchmarks** | | | |
+| UpdateByPK | UPDATE by primary key | P0 | ? Done |
+| UpdateByIndex | UPDATE with indexed WHERE | P0 | ? Done |
+| BulkUpdate | UPDATE all rows | P1 | ? Done |
+| UpdateReturning | UPDATE...RETURNING | P1 | ? Done |
+| **JoinBenchmarks** | | | |
+| InnerJoin | 2-table INNER JOIN | P0 | ? Done |
+| LeftJoin | 2-table LEFT JOIN | P0 | ? Done |
+| MultipleJoins | 3+ table JOINs | P1 | ? Done |
+| JoinWithGroupBy | JOIN + GROUP BY | P1 | ? Done |
+| **AggregateBenchmarks** | | | |
+| CountAll | COUNT(*) | P0 | ? Done |
+| GroupBySimple | GROUP BY single column | P0 | ? Done |
+| GroupByMultiple | GROUP BY multiple columns | P1 | ? Done |
+| AggregateWithHaving | GROUP BY...HAVING | P1 | ? Done |
+| **IndexBenchmarks** | | | |
+| IndexSeek | Equality lookup on index | P0 | ? Done |
+| IndexRangeScan | Range query on index | P0 | ? Done |
+| CompositeIndex | Query using composite index | P1 | ? Done |
+| **TransactionBenchmarks** | | | |
+| SingleTransaction | One transaction with N ops | P0 | ? Done |
+| MixedWorkload | INSERT + UPDATE + SELECT in tx | P1 | ? Done |
+| Savepoint | Transaction with savepoint | P1 | ? Done |
+
+#### 1.2.2 OutWit.Database.AdoNet.Benchmarks - ? DONE
 
 ```
 Benchmarks/
   OutWit.Database.AdoNet.Benchmarks/
-    ConnectionBenchmarks.cs
-    CommandBenchmarks.cs
-    DataReaderBenchmarks.cs
-    PoolingBenchmarks.cs
-    Program.cs
+    ConnectionBenchmarks.cs       ?
+    CommandBenchmarks.cs          ?
+    DataReaderBenchmarks.cs       ?
+    PreparedStatementBenchmarks.cs ?
+    BenchmarkConfig.cs            ?
+    Program.cs                    ?
+    README.md                     ?
 ```
 
-| Benchmark | Description | Priority |
-|----------|----------|-----------|
-| **ConnectionBenchmarks** | | |
-| OpenClose | Connection open/close cycle | P0 |
-| OpenClosePooled | With connection pooling | P0 |
-| **CommandBenchmarks** | | |
-| ExecuteNonQuery | INSERT/UPDATE/DELETE | P0 |
-| ExecuteScalar | Scalar result | P0 |
-| ExecuteReader | Full result set | P0 |
-| PreparedStatement | Prepared vs non-prepared | P1 |
-| **DataReaderBenchmarks** | | |
-| ReadAllRows | Iterate all rows | P0 |
-| GetTypedValues | GetInt32, GetString, etc. | P1 |
-| **PoolingBenchmarks** | | |
-| PoolContention | Multiple threads competing | P1 |
-| PoolSizing | Different pool sizes | P1 |
+| Benchmark | Description | Priority | Status |
+|----------|----------|-----------|--------|
+| **ConnectionBenchmarks** | | | |
+| OpenClose | Connection open/close cycle | P0 | ? Done |
+| OpenQueryClose | Open + query + close | P0 | ? Done |
+| SingleConnection100Queries | Reuse connection | P1 | ? Done |
+| **CommandBenchmarks** | | | |
+| ExecuteNonQuery | INSERT/UPDATE/DELETE | P0 | ? Done |
+| ExecuteScalar | Scalar result | P0 | ? Done |
+| ExecuteReader | Full result set | P0 | ? Done |
+| **DataReaderBenchmarks** | | | |
+| ReadAllRows | Iterate all rows | P0 | ? Done |
+| GetTypedValues | GetInt32, GetString, etc. | P1 | ? Done |
+| ReadByColumnName | Access by column name | P1 | ? Done |
+| **PreparedStatementBenchmarks** | | | |
+| ReuseCommand | Prepared vs non-prepared | P1 | ? Done |
+| BatchInsert | Batch in transaction | P1 | ? Done |
 
-#### 1.2.3 OutWit.Database.EntityFramework.Benchmarks
+#### 1.2.3 OutWit.Database.EntityFramework.Benchmarks - ? DONE
 
 ```
 Benchmarks/
   OutWit.Database.EntityFramework.Benchmarks/
-    QueryBenchmarks.cs
-    CrudBenchmarks.cs
-    TrackingBenchmarks.cs
-    ProjectionBenchmarks.cs
-    Program.cs
+    QueryBenchmarks.cs     ?
+    CrudBenchmarks.cs      ?
+    TrackingBenchmarks.cs  ?
+    Entities.cs            ?
+    BenchmarkContexts.cs   ?
+    BenchmarkConfig.cs     ?
+    Program.cs             ?
+    README.md              ?
 ```
 
-| Benchmark | Description | Priority |
-|----------|----------|-----------|
-| **QueryBenchmarks** | | |
-| SimpleQuery | `context.Users.ToList()` | P0 |
-| FilteredQuery | `.Where(u => u.Age > 18)` | P0 |
-| IncludeNavigation | `.Include(u => u.Orders)` | P0 |
-| NoTracking | `AsNoTracking()` | P1 |
-| **CrudBenchmarks** | | |
-| AddSingle | `Add()` + `SaveChanges()` | P0 |
-| AddRange | `AddRange()` + `SaveChanges()` | P0 |
-| UpdateSingle | Update + `SaveChanges()` | P0 |
-| RemoveSingle | `Remove()` + `SaveChanges()` | P0 |
-| **TrackingBenchmarks** | | |
-| TrackingVsNoTracking | Compare performance | P1 |
-| ChangeDetection | DetectChanges overhead | P1 |
-| **ProjectionBenchmarks** | | |
-| SelectProjection | `.Select(u => new {...})` | P1 |
-| AnonymousType | Anonymous type projection | P1 |
+| Benchmark | Description | Priority | Status |
+|----------|----------|-----------|--------|
+| **QueryBenchmarks** | | | |
+| SimpleQuery | `context.Users.ToList()` | P0 | ? Done |
+| FilteredQuery | `.Where(u => u.Age > 18)` | P0 | ? Done |
+| IncludeNavigation | `.Include(u => u.Orders)` | P0 | ? Done |
+| NoTracking | `AsNoTracking()` | P1 | ? Done |
+| SelectProjection | `.Select(u => new {...})` | P1 | ? Done |
+| **CrudBenchmarks** | | | |
+| AddSingle | `Add()` + `SaveChanges()` | P0 | ? Done |
+| AddRange | `AddRange()` + `SaveChanges()` | P0 | ? Done |
+| UpdateSingle | Update + `SaveChanges()` | P0 | ? Done |
+| RemoveSingle | `Remove()` + `SaveChanges()` | P0 | ? Done |
+| **TrackingBenchmarks** | | | |
+| TrackingVsNoTracking | Compare performance | P1 | ? Done |
+| ChangeDetection | DetectChanges overhead | P1 | ? Done |
 
-#### 1.2.4 Comparison Benchmarks (vs SQLite)
+#### 1.2.4 Comparison Benchmarks (vs SQLite) - Existing
 
-```
-Benchmarks/
-  OutWit.Database.Comparison.Benchmarks/
-    WitDbVsSqliteBenchmarks.cs
-    Program.cs
-```
+Already implemented in `OutWit.Database.Comparison.Benchmarks`:
 
-| Benchmark | Description | Priority |
-|----------|----------|-----------|
-| InsertPerformance | 10K/100K inserts | P0 |
-| SelectPerformance | Point/Range queries | P0 |
-| TransactionOverhead | Transaction throughput | P0 |
-| ConcurrentReads | Parallel readers | P1 |
-| EncryptedStorage | With encryption | P1 |
+| Benchmark | Description | Status |
+|----------|----------|--------|
+| InsertPerformance | 10K/100K inserts | ? Done |
+| SelectPerformance | Point/Range queries | ? Done |
+| TransactionOverhead | Transaction throughput | ? Done |
+| ConcurrentReads | Parallel readers | ? Done |
+| BTreeVsLsm | Storage engine comparison | ? Done |
 
 ---
 
