@@ -129,6 +129,15 @@ public class StatementExecutorDeleteTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
+        
+        // Setup GetRowById for batch fast path
+        var row1 = CreateUserRow(1, "Alice", "alice@test.com");
+        var row3 = CreateUserRow(3, "Charlie", "charlie@test.com");
+        m_database.GetRowById("Users", 1).Returns(row1);
+        m_database.GetRowById("Users", 3).Returns(row3);
+        // Id 5 not found - default null return from base Setup()
+        
+        // Also setup table scan for standard path fallback
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateUserRow(1, "Alice", "alice@test.com"),
             CreateUserRow(2, "Bob", "bob@test.com"),

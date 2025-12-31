@@ -138,9 +138,12 @@ public class StatementExecutorTriggerInvocationTests : StatementExecutorTestsBas
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
-        m_database.CreateTableScan("Users").Returns(CreateMockIterator(
-            CreateUserRow(1, "Alice", "alice@test.com")
-        ));
+        
+        // Set up GetRowById for PK lookup
+        var row = CreateUserRow(1, "Alice", "alice@test.com");
+        m_database.GetRowById("Users", 1).Returns(row);
+        
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(row));
 
         var trigger = new DefinitionTrigger
         {
@@ -192,9 +195,12 @@ public class StatementExecutorTriggerInvocationTests : StatementExecutorTestsBas
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
-        m_database.CreateTableScan("Users").Returns(CreateMockIterator(
-            CreateUserRow(1, "Alice", "alice@test.com")
-        ));
+        
+        // Set up GetRowById for PK lookup
+        var row = CreateUserRow(1, "Alice", "alice@test.com");
+        m_database.GetRowById("Users", 1).Returns(row);
+        
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(row));
 
         var trigger = new DefinitionTrigger
         {

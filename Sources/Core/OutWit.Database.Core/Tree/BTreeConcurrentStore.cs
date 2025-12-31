@@ -6,14 +6,17 @@ using OutWit.Database.Core.Stores;
 namespace OutWit.Database.Core.Tree;
 
 /// <summary>
-/// Thread-safe BTree store with page-level latching for concurrent access.
-/// Wraps StoreBTree and adds concurrent access capabilities.
+/// Thread-safe BTree store wrapper for concurrent access.
+/// Provides safe concurrent access to StoreBTree for multi-threaded scenarios.
 /// </summary>
 /// <remarks>
-/// Features:
-/// - Page-level latching for fine-grained concurrency
-/// - Optimistic reads (no latch for simple reads)
-/// - Configurable statistics tracking
+/// This store is designed for scenarios where multiple threads need to access the same BTree.
+/// It uses a simple but effective ReaderWriterLock strategy:
+/// - Multiple concurrent readers allowed
+/// - Single writer with exclusive access
+/// 
+/// For maximum single-threaded performance, use StoreBTree directly.
+/// This wrapper adds ~1-5% overhead for thread safety.
 /// </remarks>
 public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatistics
 {
@@ -29,15 +32,12 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     #region Fields
 
     private readonly StoreBTree m_store;
-    private readonly PageLatchManager m_latchManager;
+    private readonly ReaderWriterLockSlim m_lock;
     private readonly BTreeConcurrencyOptions m_options;
-    private readonly Lock m_globalLock = new();
     private readonly bool m_ownsStore;
 
     private long m_readCount;
     private long m_writeCount;
-    private long m_optimisticReadHits;
-    private long m_optimisticReadMisses;
     private bool m_disposed;
 
     #endregion
@@ -60,7 +60,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         m_options = options ?? BTreeConcurrencyOptions.Default;
         m_store = new StoreBTree(filePath, pageSize, cacheSize);
         m_ownsStore = true;
-        m_latchManager = new PageLatchManager(m_options.LatchManagerCapacity);
+        m_lock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         m_store = store;
         m_options = options ?? BTreeConcurrencyOptions.Default;
         m_ownsStore = ownsStore;
-        m_latchManager = new PageLatchManager(m_options.LatchManagerCapacity);
+        m_lock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
     }
 
     #endregion
@@ -92,33 +92,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         ThrowIfDisposed();
         IncrementReadCount();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterReadLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                return m_store.Get(key);
-            }
+            return m_store.Get(key);
         }
-
-        if (m_options.UseOptimisticReads)
+        finally
         {
-            // Optimistic read - try without latch first
-            try
-            {
-                var result = m_store.Get(key);
-                IncrementOptimisticHits();
-                return result;
-            }
-            catch
-            {
-                // If read fails, retry with latch
-                IncrementOptimisticMisses();
-            }
+            m_lock.ExitReadLock();
         }
-
-        // Pessimistic read with root latch
-        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
-        return m_store.Get(key);
     }
 
     /// <inheritdoc/>
@@ -127,32 +109,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         ThrowIfDisposed();
         IncrementReadCount();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterReadLock();
+        try
         {
-            byte[]? result;
-            lock (m_globalLock)
-            {
-                result = m_store.Get(key);
-            }
-            return result;
+            return await m_store.GetAsync(key, cancellationToken);
         }
-
-        if (m_options.UseOptimisticReads)
+        finally
         {
-            try
-            {
-                var result = await m_store.GetAsync(key, cancellationToken);
-                IncrementOptimisticHits();
-                return result;
-            }
-            catch
-            {
-                IncrementOptimisticMisses();
-            }
+            m_lock.ExitReadLock();
         }
-
-        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
-        return await m_store.GetAsync(key, cancellationToken);
     }
 
     #endregion
@@ -165,18 +130,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         ThrowIfDisposed();
         IncrementWriteCount();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterWriteLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                m_store.Put(key, value);
-                return;
-            }
+            m_store.Put(key, value);
         }
-
-        // Write requires exclusive latch on root
-        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
-        m_store.Put(key, value);
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <inheritdoc/>
@@ -185,17 +147,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         ThrowIfDisposed();
         IncrementWriteCount();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterWriteLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                m_store.Put(key, value);
-                return;
-            }
+            await m_store.PutAsync(key, value, cancellationToken);
         }
-
-        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
-        await m_store.PutAsync(key, value, cancellationToken);
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     #endregion
@@ -208,16 +168,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         ThrowIfDisposed();
         IncrementWriteCount();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterWriteLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                return m_store.Delete(key);
-            }
+            return m_store.Delete(key);
         }
-
-        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
-        return m_store.Delete(key);
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <inheritdoc/>
@@ -226,16 +185,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         ThrowIfDisposed();
         IncrementWriteCount();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterWriteLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                return m_store.Delete(key);
-            }
+            return await m_store.DeleteAsync(key, cancellationToken);
         }
-
-        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
-        return await m_store.DeleteAsync(key, cancellationToken);
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     #endregion
@@ -247,18 +205,16 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     {
         ThrowIfDisposed();
 
-        if (!m_options.EnableConcurrentAccess)
+        // Materialize results while holding read lock
+        m_lock.EnterReadLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                // Materialize results while holding lock
-                return m_store.Scan(startKey, endKey).ToList();
-            }
+            return m_store.Scan(startKey, endKey).ToList();
         }
-
-        // Scan with shared latch
-        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
-        return m_store.Scan(startKey, endKey).ToList();
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
     }
 
     /// <inheritdoc/>
@@ -271,17 +227,14 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
 
         List<(byte[] Key, byte[] Value)> results;
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterReadLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                results = m_store.Scan(startKey, endKey).ToList();
-            }
-        }
-        else
-        {
-            using var latch = AcquireSharedLatch(m_store.RootPageNumber);
             results = m_store.Scan(startKey, endKey).ToList();
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
         }
 
         foreach (var item in results)
@@ -302,18 +255,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     {
         ThrowIfDisposed();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterWriteLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                m_store.Flush();
-                return;
-            }
+            m_store.Flush();
         }
-
-        // Flush with exclusive latch on root
-        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
-        m_store.Flush();
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     /// <inheritdoc/>
@@ -321,17 +271,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     {
         ThrowIfDisposed();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterWriteLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                m_store.Flush();
-                return;
-            }
+            await m_store.FlushAsync(cancellationToken);
         }
-
-        using var latch = AcquireExclusiveLatch(m_store.RootPageNumber);
-        await m_store.FlushAsync(cancellationToken);
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
     }
 
     #endregion
@@ -343,16 +291,15 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     {
         ThrowIfDisposed();
 
-        if (!m_options.EnableConcurrentAccess)
+        m_lock.EnterReadLock();
+        try
         {
-            lock (m_globalLock)
-            {
-                return m_store.Count();
-            }
+            return m_store.Count();
         }
-
-        using var latch = AcquireSharedLatch(m_store.RootPageNumber);
-        return m_store.Count();
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
     }
 
     /// <inheritdoc/>
@@ -396,35 +343,6 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     public long WriteCount => Volatile.Read(ref m_writeCount);
 
     /// <summary>
-    /// Gets the number of successful optimistic reads.
-    /// </summary>
-    public long OptimisticReadHits => Volatile.Read(ref m_optimisticReadHits);
-
-    /// <summary>
-    /// Gets the number of failed optimistic reads (required retry with latch).
-    /// </summary>
-    public long OptimisticReadMisses => Volatile.Read(ref m_optimisticReadMisses);
-
-    /// <summary>
-    /// Gets the optimistic read hit ratio.
-    /// </summary>
-    public double OptimisticReadHitRatio
-    {
-        get
-        {
-            var hits = OptimisticReadHits;
-            var misses = OptimisticReadMisses;
-            var total = hits + misses;
-            return total > 0 ? (double)hits / total : 1.0;
-        }
-    }
-
-    /// <summary>
-    /// Gets the latch manager for statistics.
-    /// </summary>
-    public PageLatchManager LatchManager => m_latchManager;
-
-    /// <summary>
     /// Gets the concurrency options.
     /// </summary>
     public BTreeConcurrencyOptions Options => m_options;
@@ -432,16 +350,6 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
     #endregion
 
     #region Private Helpers
-
-    private PageLatchManager.LatchHandle AcquireSharedLatch(uint pageNumber)
-    {
-        return m_latchManager.AcquireShared(pageNumber, m_options.LatchTimeout);
-    }
-
-    private PageLatchManager.LatchHandle AcquireExclusiveLatch(uint pageNumber)
-    {
-        return m_latchManager.AcquireExclusive(pageNumber, m_options.LatchTimeout);
-    }
 
     private void IncrementReadCount()
     {
@@ -459,22 +367,6 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         }
     }
 
-    private void IncrementOptimisticHits()
-    {
-        if (m_options.TrackStatistics)
-        {
-            Interlocked.Increment(ref m_optimisticReadHits);
-        }
-    }
-
-    private void IncrementOptimisticMisses()
-    {
-        if (m_options.TrackStatistics)
-        {
-            Interlocked.Increment(ref m_optimisticReadMisses);
-        }
-    }
-
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(m_disposed, this);
@@ -489,7 +381,7 @@ public sealed class BTreeConcurrentStore : IKeyValueStore, IKeyValueStoreStatist
         if (m_disposed) return;
         m_disposed = true;
 
-        m_latchManager.Dispose();
+        m_lock.Dispose();
 
         if (m_ownsStore)
         {

@@ -26,6 +26,10 @@ public sealed class WitDbCommand : DbCommand
     private WitDbParameterCollection m_parameters;
     private bool m_designTimeVisible = true;
     private UpdateRowSource m_updatedRowSource = UpdateRowSource.None;
+    
+    // Prepared statement caching
+    private WitSqlEngineStatement? m_preparedStatement;
+    private string? m_preparedCommandText;
 
     #endregion
 
@@ -180,13 +184,16 @@ public sealed class WitDbCommand : DbCommand
             throw new InvalidOperationException("CommandText is not set.");
 
         var engine = m_connection!.Engine!;
-
-        // Build parameters dictionary
         var parameters = BuildParametersDictionary();
 
-        // Execute with timeout
-        var timeout = m_commandTimeout > 0 ? TimeSpan.FromSeconds(m_commandTimeout) : (TimeSpan?)null;
+        // If we have a valid prepared statement for this exact command text, use it
+        if (m_preparedStatement != null && m_preparedCommandText == m_commandText)
+        {
+            return m_preparedStatement.Execute(parameters, cancellationToken);
+        }
 
+        // Execute without prepared statement (uses engine's internal query plan cache)
+        var timeout = m_commandTimeout > 0 ? TimeSpan.FromSeconds(m_commandTimeout) : (TimeSpan?)null;
         return engine.Execute(m_commandText, parameters, timeout, cancellationToken);
     }
 
@@ -214,15 +221,39 @@ public sealed class WitDbCommand : DbCommand
 
     #region Prepare
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Prepares the SQL statement for execution.
+    /// After calling Prepare(), subsequent Execute calls will use the cached prepared statement,
+    /// avoiding SQL parsing overhead.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Prepared statements provide significant performance benefits for repeated executions:
+    /// - SQL is parsed only once during Prepare()
+    /// - Subsequent executions reuse the parsed statement
+    /// - Parameters are bound without re-parsing the SQL text
+    /// </para>
+    /// <para>
+    /// The prepared statement is invalidated if CommandText changes.
+    /// </para>
+    /// </remarks>
     public override void Prepare()
     {
-        // WitDatabase parses and caches query plans automatically
-        // This is essentially a no-op but validates the command
         EnsureConnectionOpen();
 
         if (string.IsNullOrWhiteSpace(m_commandText))
             throw new InvalidOperationException("CommandText is not set.");
+
+        // If already prepared with same command text, no need to re-prepare
+        if (m_preparedStatement != null && m_preparedCommandText == m_commandText)
+            return;
+
+        // Dispose old prepared statement if exists
+        m_preparedStatement?.Dispose();
+        
+        // Create new prepared statement
+        m_preparedStatement = m_connection!.Engine!.Prepare(m_commandText);
+        m_preparedCommandText = m_commandText;
     }
 
     /// <summary>
@@ -233,6 +264,21 @@ public sealed class WitDbCommand : DbCommand
     public override async Task PrepareAsync(CancellationToken cancellationToken = default)
     {
         await Task.Run(Prepare, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Gets whether the command has been prepared.
+    /// </summary>
+    public bool IsPrepared => m_preparedStatement != null && m_preparedCommandText == m_commandText;
+
+    /// <summary>
+    /// Unprepares the command, disposing the cached prepared statement.
+    /// </summary>
+    public void Unprepare()
+    {
+        m_preparedStatement?.Dispose();
+        m_preparedStatement = null;
+        m_preparedCommandText = null;
     }
 
     #endregion
@@ -286,6 +332,19 @@ public sealed class WitDbCommand : DbCommand
             throw new InvalidOperationException("Connection is not open.");
     }
 
+    /// <summary>
+    /// Invalidates the prepared statement when command text changes.
+    /// </summary>
+    private void InvalidatePreparedStatement()
+    {
+        if (m_preparedStatement != null && m_preparedCommandText != m_commandText)
+        {
+            m_preparedStatement.Dispose();
+            m_preparedStatement = null;
+            m_preparedCommandText = null;
+        }
+    }
+
     #endregion
 
     #region IDisposable
@@ -295,6 +354,9 @@ public sealed class WitDbCommand : DbCommand
     {
         if (disposing)
         {
+            m_preparedStatement?.Dispose();
+            m_preparedStatement = null;
+            m_preparedCommandText = null;
             m_parameters.Clear();
         }
         base.Dispose(disposing);
@@ -308,7 +370,16 @@ public sealed class WitDbCommand : DbCommand
     public override string CommandText
     {
         get => m_commandText;
-        set => m_commandText = value ?? string.Empty;
+        set
+        {
+            var newText = value ?? string.Empty;
+            if (m_commandText != newText)
+            {
+                m_commandText = newText;
+                // Invalidate prepared statement when command text changes
+                InvalidatePreparedStatement();
+            }
+        }
     }
 
     /// <inheritdoc/>

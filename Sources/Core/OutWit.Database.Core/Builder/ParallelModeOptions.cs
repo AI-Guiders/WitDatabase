@@ -6,36 +6,38 @@ namespace OutWit.Database.Core.Builder;
 public enum ParallelMode
 {
     /// <summary>
-    /// No parallelism. Single global lock for all operations.
-    /// Most compatible mode, suitable for single-threaded applications.
+    /// No parallelism. Single-threaded access, best performance for single-threaded apps.
+    /// Use this mode unless you need concurrent access from multiple threads.
     /// </summary>
     None,
 
     /// <summary>
-    /// Automatic mode selection based on store type and hardware.
-    /// - For LSM-Tree: Uses thread-local buffers with background merge
-    /// - For BTree: Uses page-level latching
+    /// Automatic mode - chooses the best strategy at runtime.
+    /// - Detects multi-threaded access patterns
+    /// - For single-thread: no overhead (equivalent to None)
+    /// - For multi-thread: activates thread-safe mode automatically
+    /// 
+    /// Note: Auto mode provides thread SAFETY, not parallelism speedup.
+    /// Embedded databases are I/O bound - parallel writes don't help.
     /// </summary>
     Auto,
 
     /// <summary>
     /// Thread-local write buffers with background merge.
-    /// Best for high write throughput scenarios.
-    /// Primarily for LSM-Tree, but can be used with BTree.
+    /// Provides thread-safe writes with batching for LSM-Tree.
+    /// Useful when multiple threads produce write data.
     /// </summary>
     Buffered,
 
     /// <summary>
-    /// Page-level latching for fine-grained concurrency.
-    /// Best for mixed read/write workloads.
-    /// Primarily for BTree.
+    /// Reader-writer lock wrapper for thread-safe access.
+    /// Allows multiple concurrent readers, single writer.
+    /// Best for mixed read/write workloads with thread safety.
     /// </summary>
     Latched,
 
     /// <summary>
-    /// Optimistic concurrency with minimal locking.
-    /// Reads proceed without locks, writes use minimal synchronization.
-    /// May require retry on conflict.
+    /// Alias for Latched mode - provides optimistic reads where possible.
     /// </summary>
     Optimistic
 }
@@ -47,7 +49,7 @@ public sealed class ParallelModeOptions
 {
     /// <summary>
     /// Gets or sets the parallel access mode.
-    /// Default: None (single-threaded behavior)
+    /// Default: None (single-threaded, best performance)
     /// </summary>
     public ParallelMode Mode { get; set; } = ParallelMode.None;
 
@@ -64,7 +66,13 @@ public sealed class ParallelModeOptions
     public int BufferSizeThreshold { get; set; } = 64 * 1024;
 
     /// <summary>
-    /// Gets or sets the latch timeout for acquiring page locks.
+    /// Gets or sets the flush interval for buffered writes (in milliseconds).
+    /// Default: 10ms
+    /// </summary>
+    public int FlushIntervalMs { get; set; } = 10;
+
+    /// <summary>
+    /// Gets or sets the latch timeout for acquiring locks.
     /// Default: 30 seconds
     /// </summary>
     public TimeSpan LatchTimeout { get; set; } = TimeSpan.FromSeconds(30);
@@ -82,28 +90,30 @@ public sealed class ParallelModeOptions
     public bool TrackStatistics { get; set; } = false;
 
     /// <summary>
-    /// Creates default options (no parallelism).
+    /// Creates default options (no parallelism, best single-thread performance).
     /// </summary>
     public static ParallelModeOptions Default => new();
 
     /// <summary>
-    /// Creates options optimized for high write throughput.
+    /// Creates options for thread-safe multi-threaded access.
+    /// Does not guarantee performance improvement over single-threaded.
     /// </summary>
-    public static ParallelModeOptions HighWriteThroughput => new()
+    public static ParallelModeOptions ThreadSafe => new()
     {
-        Mode = ParallelMode.Buffered,
-        MaxWriters = Environment.ProcessorCount * 2,
-        BufferSizeThreshold = 128 * 1024,
+        Mode = ParallelMode.Auto,
         TrackStatistics = false
     };
 
     /// <summary>
-    /// Creates options optimized for mixed read/write workloads.
+    /// Creates options for high write throughput with buffering.
+    /// Best when multiple threads produce write data that can be batched.
     /// </summary>
-    public static ParallelModeOptions MixedWorkload => new()
+    public static ParallelModeOptions HighWriteThroughput => new()
     {
-        Mode = ParallelMode.Latched,
-        UseOptimisticReads = true,
+        Mode = ParallelMode.Buffered,
+        MaxWriters = Environment.ProcessorCount,
+        BufferSizeThreshold = 128 * 1024,
+        FlushIntervalMs = 5,
         TrackStatistics = false
     };
 
@@ -113,8 +123,7 @@ public sealed class ParallelModeOptions
     public static ParallelModeOptions Debug => new()
     {
         Mode = ParallelMode.Latched,
-        UseOptimisticReads = false,
-        LatchTimeout = TimeSpan.FromSeconds(5),
-        TrackStatistics = true
+        TrackStatistics = true,
+        LatchTimeout = TimeSpan.FromSeconds(5)
     };
 }

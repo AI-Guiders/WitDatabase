@@ -284,6 +284,9 @@ public sealed class WitDbConnection : DbConnection
         // Configure file locking
         ConfigureFileLocking(builder, providerParams);
 
+        // Configure parallel mode
+        ConfigureParallelMode(builder, options);
+
         return builder.Build();
     }
 
@@ -443,7 +446,27 @@ public sealed class WitDbConnection : DbConnection
         // else use default (with file locking)
     }
 
+    private static void ConfigureParallelMode(WitDatabaseBuilder builder, WitDbConnectionStringBuilder options)
+    {
+        if (options.ParallelMode == WitDbParallelMode.None)
+            return;
 
+        var coreMode = options.ParallelMode switch
+        {
+            WitDbParallelMode.Auto => ParallelMode.Auto,
+            WitDbParallelMode.Buffered => ParallelMode.Buffered,
+            WitDbParallelMode.Latched => ParallelMode.Latched,
+            WitDbParallelMode.Optimistic => ParallelMode.Optimistic,
+            _ => ParallelMode.None
+        };
+
+        builder.WithParallelWrites(coreMode);
+
+        if (options.MaxWriters != Environment.ProcessorCount)
+        {
+            builder.WithMaxWriters(options.MaxWriters);
+        }
+    }
 
     #endregion
 

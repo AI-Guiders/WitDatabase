@@ -31,6 +31,12 @@ public abstract class StatementExecutorTestsBase
             Database = m_database,
             CancellationToken = CancellationToken.None
         };
+        
+        // Default: GetRowById returns null (forces table scan fallback in optimizer)
+        m_database.GetRowById(Arg.Any<string>(), Arg.Any<long>()).Returns((WitSqlRow?)null);
+        
+        // Default: GetTableIndexes returns empty list
+        m_database.GetTableIndexes(Arg.Any<string>()).Returns([]);
     }
 
     #endregion

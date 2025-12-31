@@ -411,6 +411,185 @@ public class WitDbCommandTests
         Assert.Pass();
     }
 
+    [Test]
+    public void IsPreparedReturnsFalseBeforePrepareTest()
+    {
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Test";
+        
+        Assert.That(cmd.IsPrepared, Is.False);
+    }
+
+    [Test]
+    public void IsPreparedReturnsTrueAfterPrepareTest()
+    {
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Test";
+        
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+    }
+
+    [Test]
+    public void IsPreparedReturnsFalseAfterCommandTextChangesTest()
+    {
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Test";
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+        
+        cmd.CommandText = "SELECT Id FROM Test";
+        
+        Assert.That(cmd.IsPrepared, Is.False);
+    }
+
+    [Test]
+    public void UnprepareDisposePreparedStatementTest()
+    {
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Test";
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+        
+        cmd.Unprepare();
+        
+        Assert.That(cmd.IsPrepared, Is.False);
+    }
+
+    [Test]
+    public void PreparedStatementExecutesCorrectlyTest()
+    {
+        // Insert test data
+        using (var insertCmd = m_connection.CreateCommand())
+        {
+            insertCmd.CommandText = "INSERT INTO Test (Id, Name) VALUES (1, 'Alice'), (2, 'Bob')";
+            insertCmd.ExecuteNonQuery();
+        }
+
+        // Create and prepare select command
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT Name FROM Test WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@id", 1);
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+        
+        // Execute prepared statement
+        var result = cmd.ExecuteScalar();
+        Assert.That(result, Is.EqualTo("Alice"));
+        
+        // Change parameter and execute again
+        cmd.Parameters["@id"].Value = 2;
+        result = cmd.ExecuteScalar();
+        Assert.That(result, Is.EqualTo("Bob"));
+    }
+
+    [Test]
+    public void PreparedStatementRemainsValidAfterReprepareSameTextTest()
+    {
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT 1";
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+        
+        // Re-prepare same command text should succeed without re-parsing
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+    }
+
+    [Test]
+    public void PreparedInsertStatementWorksCorrectlyTest()
+    {
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "INSERT INTO Test (Id, Name) VALUES (@id, @name)";
+        cmd.Parameters.AddWithValue("@id", 0);
+        cmd.Parameters.AddWithValue("@name", "");
+        cmd.Prepare();
+
+        // Insert multiple rows using prepared statement
+        for (int i = 1; i <= 5; i++)
+        {
+            cmd.Parameters["@id"].Value = i;
+            cmd.Parameters["@name"].Value = $"User{i}";
+            var result = cmd.ExecuteNonQuery();
+            Assert.That(result, Is.EqualTo(1));
+        }
+
+        // Verify data
+        using var selectCmd = m_connection.CreateCommand();
+        selectCmd.CommandText = "SELECT COUNT(*) FROM Test";
+        var count = selectCmd.ExecuteScalar();
+        Assert.That(count, Is.EqualTo(5L));
+    }
+
+    [Test]
+    public void PreparedUpdateStatementWorksCorrectlyTest()
+    {
+        // Setup
+        using var insertCmd = m_connection.CreateCommand();
+        insertCmd.CommandText = "INSERT INTO Test (Id, Name) VALUES (1, 'Before')";
+        insertCmd.ExecuteNonQuery();
+
+        // Prepare update statement
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "UPDATE Test SET Name = @name WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@id", 1);
+        cmd.Parameters.AddWithValue("@name", "After");
+        cmd.Prepare();
+
+        var result = cmd.ExecuteNonQuery();
+        Assert.That(result, Is.EqualTo(1));
+
+        // Verify
+        using var selectCmd = m_connection.CreateCommand();
+        selectCmd.CommandText = "SELECT Name FROM Test WHERE Id = 1";
+        var name = selectCmd.ExecuteScalar();
+        Assert.That(name, Is.EqualTo("After"));
+    }
+
+    [Test]
+    public void PreparedDeleteStatementWorksCorrectlyTest()
+    {
+        // Setup
+        using var insertCmd = m_connection.CreateCommand();
+        insertCmd.CommandText = "INSERT INTO Test (Id, Name) VALUES (1, 'ToDelete')";
+        insertCmd.ExecuteNonQuery();
+
+        // Prepare delete statement
+        using var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM Test WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@id", 1);
+        cmd.Prepare();
+
+        var result = cmd.ExecuteNonQuery();
+        Assert.That(result, Is.EqualTo(1));
+
+        // Verify
+        using var selectCmd = m_connection.CreateCommand();
+        selectCmd.CommandText = "SELECT COUNT(*) FROM Test WHERE Id = 1";
+        var count = selectCmd.ExecuteScalar();
+        Assert.That(count, Is.EqualTo(0L));
+    }
+
+    [Test]
+    public void DisposeCleansPreparedStatementTest()
+    {
+        var cmd = m_connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Test";
+        cmd.Prepare();
+        
+        Assert.That(cmd.IsPrepared, Is.True);
+        
+        cmd.Dispose();
+        
+        Assert.That(cmd.IsPrepared, Is.False);
+    }
+
     #endregion
 
     #region Cancel Tests

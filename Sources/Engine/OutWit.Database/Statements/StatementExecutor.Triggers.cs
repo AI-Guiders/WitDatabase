@@ -50,15 +50,23 @@ public sealed partial class StatementExecutor
     {
         var triggers = m_context.Database.GetTriggersForTable(tableName, evt, TriggerTime.InsteadOf);
 
+        // If there are any INSTEAD OF triggers, execute them and return true (skip normal operation)
         foreach (var trigger in triggers)
         {
-            if (ExecuteTrigger(trigger, oldRow, ref newRow))
-                return true; // INSTEAD OF executed
+            ExecuteTrigger(trigger, oldRow, ref newRow);
+            return true; // INSTEAD OF was executed, skip normal operation
         }
 
-        return false;
+        return false; // No INSTEAD OF triggers
     }
 
+    /// <summary>
+    /// Executes a single trigger.
+    /// </summary>
+    /// <param name="trigger">The trigger definition.</param>
+    /// <param name="oldRow">The OLD row values (for UPDATE/DELETE).</param>
+    /// <param name="newRow">The NEW row values (for INSERT/UPDATE). Modified by BEFORE triggers.</param>
+    /// <returns>True if operation should continue, false if cancelled by BEFORE trigger.</returns>
     private bool ExecuteTrigger(DefinitionTrigger trigger, WitSqlRow? oldRow, ref WitSqlRow? newRow)
     {
         // Set up trigger context
@@ -100,8 +108,9 @@ public sealed partial class StatementExecutor
                 newRow = m_context.TriggerContext.NewRow;
             }
 
-            // INSTEAD OF trigger was executed
-            return trigger.Time == TriggerTime.InsteadOf;
+            // For INSTEAD OF triggers, return true to indicate they were executed
+            // For BEFORE/AFTER triggers, return true to continue operation
+            return true;
         }
         finally
         {

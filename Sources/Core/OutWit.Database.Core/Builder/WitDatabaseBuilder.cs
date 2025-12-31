@@ -332,7 +332,10 @@ public sealed class WitDatabaseBuilder
         if (!parameters.Has("providerMetadata"))
             parameters.Set("providerMetadata", metadata);
 
-        return ProviderRegistry.Instance.Create<IKeyValueStore>(Options.StoreProviderKey, parameters);
+        var store = ProviderRegistry.Instance.Create<IKeyValueStore>(Options.StoreProviderKey, parameters);
+        
+        // Wrap with parallel store if enabled
+        return WrapWithParallelIfNeeded(store);
     }
 
     private IKeyValueStore BuildLsmStore()
@@ -347,7 +350,53 @@ public sealed class WitDatabaseBuilder
             lsmOptions.Encryptor = new EncryptorBlock(cryptoProvider, salt);
         }
 
-        return new StoreLsm(directory, lsmOptions);
+        var store = new StoreLsm(directory, lsmOptions);
+        
+        // Wrap with parallel store if enabled
+        return WrapWithParallelIfNeeded(store);
+    }
+
+    private IKeyValueStore WrapWithParallelIfNeeded(IKeyValueStore store)
+    {
+        var parallelMode = Options.StoreParameters.Get("parallelMode", ParallelMode.None);
+        
+        if (parallelMode == ParallelMode.None)
+            return store;
+
+        var parallelOptions = Options.StoreParameters.Get<ParallelModeOptions>("parallelOptions");
+        if (parallelOptions == null)
+        {
+            parallelOptions = new ParallelModeOptions { Mode = parallelMode };
+            
+            // Apply maxWriters if set
+            var maxWriters = Options.StoreParameters.Get<int?>("maxWriters");
+            if (maxWriters.HasValue)
+                parallelOptions.MaxWriters = maxWriters.Value;
+        }
+
+        // Use factory to create appropriate parallel store
+        if (store is StoreLsm lsmStore)
+        {
+            var lsmOptions = new LsmParallelStoreOptions
+            {
+                MaxWriters = parallelOptions.MaxWriters,
+                BufferSizeThreshold = parallelOptions.BufferSizeThreshold,
+                TrackStatistics = parallelOptions.TrackStatistics
+            };
+            return new LsmParallelStore(lsmStore, lsmOptions, ownsStore: true);
+        }
+
+        if (store is StoreBTree btreeStore)
+        {
+            var concurrencyOptions = new Tree.BTreeConcurrencyOptions
+            {
+                TrackStatistics = parallelOptions.TrackStatistics
+            };
+            return new Tree.BTreeConcurrentStore(btreeStore, concurrencyOptions, ownsStore: true);
+        }
+
+        // For other stores, return as-is (no parallel wrapper available)
+        return store;
     }
 
     private async ValueTask<IKeyValueStore> BuildStoreInternalAsync(CancellationToken cancellationToken)
@@ -370,8 +419,11 @@ public sealed class WitDatabaseBuilder
             await asyncInitializable.InitializeAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return await StoreBTree.CreateAsync(storage, Options.CacheSize, ownsStorage: true, metadata, cancellationToken)
+        var store = await StoreBTree.CreateAsync(storage, Options.CacheSize, ownsStorage: true, metadata, cancellationToken)
             .ConfigureAwait(false);
+        
+        // Wrap with parallel store if enabled
+        return WrapWithParallelIfNeeded(store);
     }
 
     private IStorage BuildStorage(ICryptoProvider? cryptoProvider = null)

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using OutWit.Database.AdoNet;
 
 namespace OutWit.Database.EntityFramework.Infrastructure;
 
@@ -70,6 +71,44 @@ public sealed class WitDbContextOptionsBuilder
     public WitDbContextOptionsBuilder UseQuerySplittingBehavior(QuerySplittingBehavior querySplittingBehavior)
     {
         var extension = GetOrCreateExtension();
+        ((IDbContextOptionsBuilderInfrastructure)m_optionsBuilder).AddOrUpdateExtension(extension);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables parallel write mode with automatic selection.
+    /// This provides better write throughput for multi-threaded scenarios.
+    /// </summary>
+    /// <returns>The same builder instance for method chaining.</returns>
+    public WitDbContextOptionsBuilder UseParallelWrites()
+    {
+        return UseParallelWrites(WitDbParallelMode.Auto);
+    }
+
+    /// <summary>
+    /// Enables parallel write mode with the specified mode.
+    /// </summary>
+    /// <param name="mode">The parallel mode to use.</param>
+    /// <returns>The same builder instance for method chaining.</returns>
+    public WitDbContextOptionsBuilder UseParallelWrites(WitDbParallelMode mode)
+    {
+        var extension = GetOrCreateExtension().WithParallelMode(mode);
+        ((IDbContextOptionsBuilderInfrastructure)m_optionsBuilder).AddOrUpdateExtension(extension);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the maximum number of parallel writers.
+    /// Only applicable when parallel mode is enabled.
+    /// </summary>
+    /// <param name="maxWriters">The maximum number of parallel writers.</param>
+    /// <returns>The same builder instance for method chaining.</returns>
+    public WitDbContextOptionsBuilder MaxWriters(int maxWriters)
+    {
+        if (maxWriters < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxWriters), "Max writers must be at least 1");
+
+        var extension = GetOrCreateExtension().WithMaxWriters(maxWriters);
         ((IDbContextOptionsBuilderInfrastructure)m_optionsBuilder).AddOrUpdateExtension(extension);
         return this;
     }

@@ -181,12 +181,12 @@ public class WitDatabaseBuilderParallelModeTests : IDisposable
     }
 
     [Test]
-    public void MixedWorkloadPresetHasCorrectValuesTest()
+    public void ThreadSafePresetHasCorrectValuesTest()
     {
-        var options = ParallelModeOptions.MixedWorkload;
+        var options = ParallelModeOptions.ThreadSafe;
 
-        Assert.That(options.Mode, Is.EqualTo(ParallelMode.Latched));
-        Assert.That(options.UseOptimisticReads, Is.True);
+        Assert.That(options.Mode, Is.EqualTo(ParallelMode.Auto));
+        Assert.That(options.TrackStatistics, Is.False);
     }
 
     [Test]
@@ -195,7 +195,6 @@ public class WitDatabaseBuilderParallelModeTests : IDisposable
         var options = ParallelModeOptions.Debug;
 
         Assert.That(options.Mode, Is.EqualTo(ParallelMode.Latched));
-        Assert.That(options.UseOptimisticReads, Is.False);
         Assert.That(options.TrackStatistics, Is.True);
         Assert.That(options.LatchTimeout, Is.LessThan(TimeSpan.FromSeconds(30)));
     }

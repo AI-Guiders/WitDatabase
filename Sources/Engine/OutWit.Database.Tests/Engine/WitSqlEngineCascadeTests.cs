@@ -1,5 +1,6 @@
 using System.Linq;
 using OutWit.Database.Core.Builder;
+using OutWit.Database.Definitions;
 using NUnit.Framework;
 
 namespace OutWit.Database.Tests;
@@ -139,6 +140,43 @@ public class WitSqlEngineCascadeTests : WitSqlEngineTestsBase
     #region ON DELETE SET DEFAULT Tests
 
     [Test]
+    public void OnDeleteSetDefault_ColumnHasDefaultValueStored()
+    {
+        // Diagnostic test: verify that DEFAULT value is properly stored in column definition
+        var engine = CreateEngine();
+        engine.Execute(@"
+            CREATE TABLE Departments (
+                Id INTEGER PRIMARY KEY,
+                Name VARCHAR(100)
+            )");
+        
+        engine.Execute(@"
+            CREATE TABLE Employees (
+                Id INTEGER PRIMARY KEY,
+                Name VARCHAR(100),
+                DepartmentId INTEGER DEFAULT 0 REFERENCES Departments(Id) ON DELETE SET DEFAULT
+            )");
+
+        // Check that column has DefaultValue stored
+        var empTable = engine.GetTable("Employees");
+        Assert.That(empTable, Is.Not.Null);
+        
+        var deptIdCol = empTable!.GetColumn("DepartmentId");
+        Assert.That(deptIdCol, Is.Not.Null, "DepartmentId column should exist");
+        Assert.That(deptIdCol!.DefaultValue, Is.Not.Null, "DepartmentId should have DefaultValue set");
+        Assert.That(deptIdCol.DefaultValue, Is.EqualTo("0"), "DefaultValue should be '0'");
+        Assert.That(deptIdCol.ForeignKey, Is.Not.Null, "DepartmentId should have ForeignKey set");
+        Assert.That(deptIdCol.ForeignKey!.ForeignTable, Is.EqualTo("Departments"), "FK should reference Departments table");
+        Assert.That(deptIdCol.ForeignKey.OnDelete, Is.EqualTo(ReferenceAction.SetDefault), 
+            "FK OnDelete should be SetDefault");
+        
+        // Also verify columns list
+        Assert.That(deptIdCol.ForeignKey.Columns, Is.Not.Null);
+        Assert.That(deptIdCol.ForeignKey.Columns.Count, Is.EqualTo(1));
+        Assert.That(deptIdCol.ForeignKey.Columns[0], Is.EqualTo("DepartmentId"));
+    }
+
+    [Test]
     public void OnDeleteSetDefault_SetsChildFKToDefault()
     {
         // Arrange
@@ -160,15 +198,22 @@ public class WitSqlEngineCascadeTests : WitSqlEngineTestsBase
         engine.Execute("INSERT INTO Departments VALUES (0, 'Unassigned'), (1, 'Engineering')");
         engine.Execute("INSERT INTO Employees VALUES (1, 'Alice', 1), (2, 'Bob', 1)");
 
+        // Verify setup - check employees before delete
+        var employeesBefore = engine.Query("SELECT * FROM Employees ORDER BY Id");
+        Assert.That(employeesBefore.Count, Is.EqualTo(2), "Should have 2 employees before");
+        Assert.That(employeesBefore[0]["DepartmentId"].AsInt64(), Is.EqualTo(1), "Alice should be in dept 1");
+        Assert.That(employeesBefore[1]["DepartmentId"].AsInt64(), Is.EqualTo(1), "Bob should be in dept 1");
+
         // Act
-        engine.Execute("DELETE FROM Departments WHERE Id = 1");
+        var deleteResult = engine.Execute("DELETE FROM Departments WHERE Id = 1");
+        Assert.That(deleteResult.RowsAffected, Is.EqualTo(1), "Should delete 1 department");
 
         // Assert
         var employees = engine.Query("SELECT * FROM Employees ORDER BY Id");
         
-        Assert.That(employees.Count, Is.EqualTo(2));
-        Assert.That(employees[0]["DepartmentId"].AsInt64(), Is.EqualTo(0));
-        Assert.That(employees[1]["DepartmentId"].AsInt64(), Is.EqualTo(0));
+        Assert.That(employees.Count, Is.EqualTo(2), "Should still have 2 employees");
+        Assert.That(employees[0]["DepartmentId"].AsInt64(), Is.EqualTo(0), "Alice's DepartmentId should be 0 (default)");
+        Assert.That(employees[1]["DepartmentId"].AsInt64(), Is.EqualTo(0), "Bob's DepartmentId should be 0 (default)");
     }
 
     #endregion
@@ -354,6 +399,62 @@ public class WitSqlEngineCascadeTests : WitSqlEngineTestsBase
         
         var comments = engine.Query("SELECT COUNT(*) as cnt FROM Comments");
         Assert.That(comments[0]["cnt"].AsInt64(), Is.EqualTo(0));
+    }
+
+    #endregion
+
+    #region Debug Tests
+
+    [Test]
+    public void OnDeleteSetDefault_DebugCascadeChain()
+    {
+        // Test: verify SET DEFAULT cascade chain correctly
+        var engine = CreateEngine();
+        
+        // Create parent table
+        engine.Execute(@"
+            CREATE TABLE Departments (
+                Id INTEGER PRIMARY KEY,
+                Name VARCHAR(100)
+            )");
+        
+        // Create child table with DEFAULT and FK
+        engine.Execute(@"
+            CREATE TABLE Employees (
+                Id INTEGER PRIMARY KEY,
+                Name VARCHAR(100),
+                DepartmentId INTEGER DEFAULT 0 REFERENCES Departments(Id) ON DELETE SET DEFAULT
+            )");
+
+        // Verify table definition
+        var empTable = engine.GetTable("Employees");
+        Assert.That(empTable, Is.Not.Null);
+        
+        var deptIdCol = empTable!.GetColumn("DepartmentId");
+        Assert.That(deptIdCol, Is.Not.Null, "DepartmentId column should exist");
+        Assert.That(deptIdCol!.DefaultValue, Is.EqualTo("0"), $"DefaultValue should be '0', was: '{deptIdCol.DefaultValue}'");
+        Assert.That(deptIdCol.ForeignKey, Is.Not.Null, "FK should be set");
+        Assert.That(deptIdCol.ForeignKey!.OnDelete, Is.EqualTo(ReferenceAction.SetDefault), 
+            $"OnDelete should be SetDefault, was: {deptIdCol.ForeignKey.OnDelete}");
+        Assert.That(deptIdCol.ForeignKey.Columns[0], Is.EqualTo("DepartmentId"),
+            $"FK column should be DepartmentId, was: {deptIdCol.ForeignKey.Columns[0]}");
+
+        // Insert data 
+        engine.Execute("INSERT INTO Departments VALUES (0, 'Unassigned'), (1, 'Engineering')");
+        engine.Execute("INSERT INTO Employees VALUES (1, 'Alice', 1)");
+
+        // Verify value before delete
+        var childBefore = engine.Query("SELECT Id, Name, DepartmentId FROM Employees");
+        Assert.That(childBefore[0]["DepartmentId"].AsInt64(), Is.EqualTo(1), "Should have DeptId=1 before");
+        
+        // Delete department 1 - should SET DEFAULT on child
+        engine.Execute("DELETE FROM Departments WHERE Id = 1");
+        
+        // Verify child has default value
+        var childAfter = engine.Query("SELECT Id, Name, DepartmentId FROM Employees");
+        
+        Assert.That(childAfter[0]["DepartmentId"].AsInt64(), Is.EqualTo(0), 
+            $"Should have DeptId=0 (default) after DELETE, but was: {childAfter[0]["DepartmentId"].AsInt64()}");
     }
 
     #endregion

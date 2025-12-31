@@ -6,7 +6,7 @@ using TextEncoding = System.Text.Encoding;
 namespace OutWit.Database.Core.Tests.Tree;
 
 /// <summary>
-/// Tests for BTreeConcurrentStore concurrent access functionality.
+/// Tests for BTreeConcurrentStore - thread-safe BTree wrapper.
 /// </summary>
 [TestFixture]
 public class BTreeConcurrentStoreTests : IDisposable
@@ -91,41 +91,13 @@ public class BTreeConcurrentStoreTests : IDisposable
 
     #endregion
 
-    #region Concurrent Access Tests (Disabled Mode)
+    #region Concurrent Access Tests
 
     [Test]
-    public void ConcurrentAccessDisabledUsesGlobalLockTest()
+    public void ConcurrentWritesAreThreadSafeTest()
     {
-        var filePath = Path.Combine(m_testDir, "disabled.witdb");
-        var options = new BTreeConcurrencyOptions { EnableConcurrentAccess = false };
-        using var store = new BTreeConcurrentStore(filePath, options);
-
-        const int threads = 4;
-        const int entriesPerThread = 100;
-
-        var tasks = Enumerable.Range(0, threads).Select(threadId => Task.Run(() =>
-        {
-            for (int i = 0; i < entriesPerThread; i++)
-            {
-                store.Put(ToBytes($"t{threadId}_key_{i:D5}"), ToBytes($"value_{i}"));
-            }
-        })).ToArray();
-
-        Task.WaitAll(tasks);
-
-        Assert.That(store.Count(), Is.EqualTo(threads * entriesPerThread));
-    }
-
-    #endregion
-
-    #region Concurrent Access Tests (Enabled Mode)
-
-    [Test]
-    public void ConcurrentAccessEnabledWorksTest()
-    {
-        var filePath = Path.Combine(m_testDir, "enabled.witdb");
-        var options = BTreeConcurrencyOptions.HighConcurrency;
-        using var store = new BTreeConcurrentStore(filePath, options);
+        var filePath = Path.Combine(m_testDir, "concurrent.witdb");
+        using var store = new BTreeConcurrentStore(filePath);
 
         const int threads = 4;
         const int entriesPerThread = 100;
@@ -147,8 +119,7 @@ public class BTreeConcurrentStoreTests : IDisposable
     public void ConcurrentReadsAndWritesTest()
     {
         var filePath = Path.Combine(m_testDir, "mixed.witdb");
-        var options = BTreeConcurrencyOptions.HighConcurrency;
-        using var store = new BTreeConcurrentStore(filePath, options);
+        using var store = new BTreeConcurrentStore(filePath);
 
         // Prepopulate
         for (int i = 0; i < 100; i++)
@@ -192,7 +163,7 @@ public class BTreeConcurrentStoreTests : IDisposable
     }
 
     [Test]
-    public void HighContentionTest()
+    public void HighContentionNoExceptionsTest()
     {
         var filePath = Path.Combine(m_testDir, "contention.witdb");
         var options = BTreeConcurrencyOptions.Debug; // Track statistics
@@ -233,43 +204,6 @@ public class BTreeConcurrentStoreTests : IDisposable
         
         TestContext.WriteLine($"Read count: {store.ReadCount}");
         TestContext.WriteLine($"Write count: {store.WriteCount}");
-        TestContext.WriteLine($"Latch contention: {store.LatchManager.ContentionCount}");
-        TestContext.WriteLine($"Contention ratio: {store.LatchManager.ContentionRatio:P2}");
-    }
-
-    #endregion
-
-    #region Optimistic Read Tests
-
-    [Test]
-    public void OptimisticReadsEnabledTest()
-    {
-        var filePath = Path.Combine(m_testDir, "optimistic.witdb");
-        var options = new BTreeConcurrencyOptions 
-        { 
-            EnableConcurrentAccess = true,
-            UseOptimisticReads = true,
-            TrackStatistics = true  // Enable statistics for this test
-        };
-        using var store = new BTreeConcurrentStore(filePath, options);
-
-        // Prepopulate
-        for (int i = 0; i < 100; i++)
-        {
-            store.Put(ToBytes($"key_{i:D5}"), ToBytes($"value_{i}"));
-        }
-
-        // Do reads
-        for (int i = 0; i < 100; i++)
-        {
-            store.Get(ToBytes($"key_{i:D5}"));
-        }
-
-        Assert.That(store.ReadCount, Is.EqualTo(100));
-        // Most reads should be optimistic hits (no latch contention)
-        TestContext.WriteLine($"Optimistic hits: {store.OptimisticReadHits}");
-        TestContext.WriteLine($"Optimistic misses: {store.OptimisticReadMisses}");
-        TestContext.WriteLine($"Hit ratio: {store.OptimisticReadHitRatio:P2}");
     }
 
     #endregion
@@ -297,65 +231,18 @@ public class BTreeConcurrentStoreTests : IDisposable
         Assert.That(store.WriteCount, Is.EqualTo(2));
     }
 
-    #endregion
-
-    #region Performance Comparison Tests
-
     [Test]
-    [Category("Performance")]
-    public void CompareDisabledVsEnabledConcurrencyTest()
+    public void StatisticsDisabledByDefaultTest()
     {
-        const int threads = 4;
-        const int entriesPerThread = 250;
-        const int totalEntries = threads * entriesPerThread;
+        var filePath = Path.Combine(m_testDir, "no_stats.witdb");
+        using var store = new BTreeConcurrentStore(filePath);
 
-        // Disabled mode
-        var disabledFile = Path.Combine(m_testDir, "perf_disabled.witdb");
-        long disabledMs;
-        using (var store = new BTreeConcurrentStore(disabledFile, 
-            new BTreeConcurrencyOptions { EnableConcurrentAccess = false }))
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+        store.Put(ToBytes("key1"), ToBytes("value1"));
+        store.Get(ToBytes("key1"));
 
-            var tasks = Enumerable.Range(0, threads).Select(threadId => Task.Run(() =>
-            {
-                for (int i = 0; i < entriesPerThread; i++)
-                {
-                    store.Put(ToBytes($"t{threadId}_key_{i:D5}"), ToBytes($"value_{i}"));
-                }
-            })).ToArray();
-
-            Task.WaitAll(tasks);
-            sw.Stop();
-            disabledMs = sw.ElapsedMilliseconds;
-        }
-
-        // Enabled mode
-        var enabledFile = Path.Combine(m_testDir, "perf_enabled.witdb");
-        long enabledMs;
-        using (var store = new BTreeConcurrentStore(enabledFile, BTreeConcurrencyOptions.HighConcurrency))
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-
-            var tasks = Enumerable.Range(0, threads).Select(threadId => Task.Run(() =>
-            {
-                for (int i = 0; i < entriesPerThread; i++)
-                {
-                    store.Put(ToBytes($"t{threadId}_key_{i:D5}"), ToBytes($"value_{i}"));
-                }
-            })).ToArray();
-
-            Task.WaitAll(tasks);
-            sw.Stop();
-            enabledMs = sw.ElapsedMilliseconds;
-        }
-
-        TestContext.WriteLine("=== Concurrency Mode Comparison ===");
-        TestContext.WriteLine($"Total entries: {totalEntries}, Threads: {threads}");
-        TestContext.WriteLine($"Disabled (global lock): {disabledMs}ms ({totalEntries * 1000.0 / disabledMs:F0} ops/sec)");
-        TestContext.WriteLine($"Enabled (page latches): {enabledMs}ms ({totalEntries * 1000.0 / enabledMs:F0} ops/sec)");
-
-        Assert.Pass("Performance comparison completed");
+        // With default options (TrackStatistics = false), counts stay 0
+        Assert.That(store.ReadCount, Is.EqualTo(0));
+        Assert.That(store.WriteCount, Is.EqualTo(0));
     }
 
     #endregion

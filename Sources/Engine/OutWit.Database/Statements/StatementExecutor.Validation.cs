@@ -82,8 +82,11 @@ public sealed partial class StatementExecutor
         if (pkValues.All(v => v.IsNull))
             return;
 
+        // Materialize the table list to avoid enumeration issues when modifying database
+        var allTableNames = GetAllTableNames().ToList();
+
         // Find all tables that have foreign keys referencing this table
-        foreach (var childTableName in GetAllTableNames())
+        foreach (var childTableName in allTableNames)
         {
             if (childTableName.Equals(tableName, StringComparison.OrdinalIgnoreCase))
                 continue; // Skip self-reference for now
@@ -224,8 +227,6 @@ public sealed partial class StatementExecutor
         List<string> parentPkColumns,
         WitSqlValue[] parentPkValues)
     {
-        var foreignColumns = fk.ForeignColumns?.ToList() ?? parentPkColumns;
-        
         var iterator = m_context.Database.CreateTableScan(childTableName);
         iterator.Open();
         
@@ -233,7 +234,7 @@ public sealed partial class StatementExecutor
         {
             while (iterator.MoveNext())
             {
-                if (RowReferencesParent(iterator.Current, fk.Columns, foreignColumns, parentPkValues))
+                if (RowReferencesParent(iterator.Current, fk.Columns, parentPkValues))
                     return true;
             }
         }
@@ -255,7 +256,6 @@ public sealed partial class StatementExecutor
         WitSqlValue[] parentPkValues)
     {
         var result = new List<(long RowId, WitSqlRow Row)>();
-        var foreignColumns = fk.ForeignColumns?.ToList() ?? parentPkColumns;
         
         var iterator = m_context.Database.CreateTableScan(childTableName);
         iterator.Open();
@@ -264,7 +264,7 @@ public sealed partial class StatementExecutor
         {
             while (iterator.MoveNext())
             {
-                if (RowReferencesParent(iterator.Current, fk.Columns, foreignColumns, parentPkValues))
+                if (RowReferencesParent(iterator.Current, fk.Columns, parentPkValues))
                 {
                     var rowId = iterator.Current["_rowid"].AsInt64();
                     result.Add((rowId, iterator.Current));
@@ -285,7 +285,6 @@ public sealed partial class StatementExecutor
     private static bool RowReferencesParent(
         WitSqlRow childRow,
         IReadOnlyList<string> fkColumns,
-        List<string> parentPkColumns,
         WitSqlValue[] parentPkValues)
     {
         for (int i = 0; i < fkColumns.Count && i < parentPkValues.Length; i++)
@@ -370,8 +369,9 @@ public sealed partial class StatementExecutor
             
             if (columnsToDefault.Any(c => c.Equals(colName, StringComparison.OrdinalIgnoreCase)))
             {
-                // Get the default value for this column
+                // Get the default value for this column from table definition
                 var col = table.GetColumn(colName);
+                
                 if (col?.DefaultValue != null)
                 {
                     var defaultExpr = WitSql.ParseExpression(col.DefaultValue);
@@ -380,6 +380,8 @@ public sealed partial class StatementExecutor
                 }
                 else
                 {
+                    // Column found but no default value - this is an error for SET DEFAULT
+                    // Fall back to NULL (SQL standard behavior when no default defined)
                     newValues[i] = WitSqlValue.Null;
                 }
             }

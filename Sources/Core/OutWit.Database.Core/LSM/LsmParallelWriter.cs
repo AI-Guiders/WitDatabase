@@ -10,14 +10,14 @@ namespace OutWit.Database.Core.LSM;
 /// 
 /// Key features:
 /// - Thread-local write buffers to reduce contention
-/// - Background buffer merge thread
+/// - Background buffer merge thread with batch writes
 /// - Configurable buffer size and flush thresholds
 /// - Statistics tracking
 /// </summary>
 /// <remarks>
 /// This class enables higher write throughput by:
 /// 1. Allowing writers to batch their writes in thread-local buffers
-/// 2. Merging buffers asynchronously to reduce lock contention
+/// 2. Merging buffers asynchronously using batch operations to reduce lock contention
 /// 3. Supporting both fire-and-forget and awaitable write modes
 /// </remarks>
 public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
@@ -243,7 +243,9 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
     private LsmWriteBuffer GetOrCreateBuffer()
     {
         var buffer = m_threadLocalBuffer.Value;
-        if (buffer == null)
+        
+        // Create new buffer if null or disposed (after FlushAllAsync)
+        if (buffer == null || buffer.IsDisposed)
         {
             buffer = new LsmWriteBuffer(sizeThreshold: m_bufferSizeThreshold);
             m_threadLocalBuffer.Value = buffer;
@@ -268,19 +270,36 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
                 {
                     if (await reader.WaitToReadAsync(timeoutCts.Token))
                     {
-                        // Process all available buffers
+                        // Collect multiple buffers for batch processing
+                        var buffersToMerge = new List<(LsmWriteBuffer Buffer, TaskCompletionSource<bool>? Completion)>();
+                        
                         while (reader.TryRead(out var item))
                         {
-                            MergeBuffer(item.Buffer, item.Completion);
+                            buffersToMerge.Add(item);
+                            
+                            // Limit batch size to avoid holding too many buffers
+                            if (buffersToMerge.Count >= 16)
+                                break;
+                        }
+                        
+                        if (buffersToMerge.Count > 0)
+                        {
+                            MergeBuffersBatch(buffersToMerge);
                         }
                     }
                 }
                 catch (OperationCanceledException) when (!token.IsCancellationRequested)
                 {
                     // Timeout - check for any remaining buffers
+                    var buffersToMerge = new List<(LsmWriteBuffer Buffer, TaskCompletionSource<bool>? Completion)>();
                     while (reader.TryRead(out var item))
                     {
-                        MergeBuffer(item.Buffer, item.Completion);
+                        buffersToMerge.Add(item);
+                    }
+                    
+                    if (buffersToMerge.Count > 0)
+                    {
+                        MergeBuffersBatch(buffersToMerge);
                     }
                 }
             }
@@ -288,9 +307,15 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             // Normal shutdown - drain remaining buffers
+            var buffersToMerge = new List<(LsmWriteBuffer Buffer, TaskCompletionSource<bool>? Completion)>();
             while (reader.TryRead(out var item))
             {
-                MergeBuffer(item.Buffer, item.Completion);
+                buffersToMerge.Add(item);
+            }
+            
+            if (buffersToMerge.Count > 0)
+            {
+                MergeBuffersBatch(buffersToMerge);
             }
         }
         catch (ChannelClosedException)
@@ -299,38 +324,72 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
         }
     }
 
-    private void MergeBuffer(LsmWriteBuffer buffer, TaskCompletionSource<bool>? completion)
+    /// <summary>
+    /// Merges multiple buffers in a single batch for better performance.
+    /// </summary>
+    private void MergeBuffersBatch(List<(LsmWriteBuffer Buffer, TaskCompletionSource<bool>? Completion)> buffers)
     {
+        var allEntries = new List<(byte[] Key, byte[]? Value, bool IsDelete)>();
+        var completions = new List<TaskCompletionSource<bool>>();
+        
+        // Collect all entries from all buffers
+        foreach (var (buffer, completion) in buffers)
+        {
+            try
+            {
+                var entries = buffer.Drain();
+                allEntries.AddRange(entries);
+                buffer.Dispose();
+                
+                if (completion != null)
+                {
+                    completions.Add(completion);
+                }
+            }
+            catch (Exception ex)
+            {
+                completion?.TrySetException(ex);
+            }
+        }
+        
+        // Single batch write to store
         try
         {
-            var entries = buffer.Drain();
-            var entryCount = entries.Count;
-
-            foreach (var (key, value, isDelete) in entries)
+            // Group by operation type for better locality
+            var puts = allEntries.Where(e => !e.IsDelete).ToList();
+            var deletes = allEntries.Where(e => e.IsDelete).ToList();
+            
+            // Batch puts
+            foreach (var (key, value, _) in puts)
             {
-                if (isDelete)
-                {
-                    m_store.Delete(key);
-                }
-                else
-                {
-                    m_store.Put(key, value!);
-                }
+                m_store.Put(key, value!);
             }
-
-            buffer.Dispose();
-
+            
+            // Batch deletes
+            foreach (var (key, _, _) in deletes)
+            {
+                m_store.Delete(key);
+            }
+            
+            // Update stats
             lock (m_statsLock)
             {
-                m_entriesMerged += entryCount;
+                m_entriesMerged += allEntries.Count;
                 m_mergeOperations++;
             }
-
-            completion?.TrySetResult(true);
+            
+            // Signal all completions
+            foreach (var completion in completions)
+            {
+                completion.TrySetResult(true);
+            }
         }
         catch (Exception ex)
         {
-            completion?.TrySetException(ex);
+            foreach (var completion in completions)
+            {
+                completion.TrySetException(ex);
+            }
         }
     }
 

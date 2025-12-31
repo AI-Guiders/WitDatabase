@@ -42,6 +42,16 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
+        
+        // Set up GetRowById for row 2 (the one being updated)
+        var row2 = CreateRow(
+            ("_rowid", WitSqlValue.FromInt(2)),
+            ("Id", WitSqlValue.FromInt(2)),
+            ("Name", WitSqlValue.FromText("Bob")),
+            ("Email", WitSqlValue.FromText("bob@test.com"))
+        );
+        m_database.GetRowById("Users", 2).Returns(row2);
+        
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateRow(
                 ("_rowid", WitSqlValue.FromInt(1)),
@@ -49,12 +59,7 @@ public class StatementExecutorConstraintTests : StatementExecutorTestsBase
                 ("Name", WitSqlValue.FromText("Alice")),
                 ("Email", WitSqlValue.FromText("alice@test.com"))
             ),
-            CreateRow(
-                ("_rowid", WitSqlValue.FromInt(2)),
-                ("Id", WitSqlValue.FromInt(2)),
-                ("Name", WitSqlValue.FromText("Bob")),
-                ("Email", WitSqlValue.FromText("bob@test.com"))
-            )
+            row2
         ));
 
         var executor = new StatementExecutor(m_context);

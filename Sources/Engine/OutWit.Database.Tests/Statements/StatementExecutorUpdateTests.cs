@@ -41,6 +41,12 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
+        
+        // For PK-based WHERE clause, we need to set up GetRowById
+        var row = CreateUserRow(2, "Bob", "bob@test.com");
+        m_database.GetRowById("Users", 2).Returns(row);
+        
+        // Also set up scan for fallback path
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateUserRow(1, "Alice", "alice@test.com"),
             CreateUserRow(2, "Bob", "bob@test.com"),
@@ -62,6 +68,11 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
+        
+        // Set up GetRowById for PK lookup
+        var row = CreateUserRow(1, "Alice", "alice@test.com");
+        m_database.GetRowById("Users", 1).Returns(row);
+        
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateUserRow(1, "Alice", "alice@test.com")
         ));
@@ -82,6 +93,10 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTable();
         m_database.GetTable("Users").Returns(table);
+        
+        // GetRowById returns null for non-existent row - this is correct behavior
+        m_database.GetRowById("Users", 999).Returns((WitSqlRow?)null);
+        
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateUserRow(1, "Alice", "alice@test.com"),
             CreateUserRow(2, "Bob", "bob@test.com")
@@ -162,15 +177,17 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTableWithConstraints();
         m_database.GetTable("Users").Returns(table);
-        m_database.CreateTableScan("Users").Returns(CreateMockIterator(
-            CreateRow(
-                ("_rowid", WitSqlValue.FromInt(1)),
-                ("Id", WitSqlValue.FromInt(1)),
-                ("Name", WitSqlValue.FromText("Alice")),
-                ("Email", WitSqlValue.FromText("alice@test.com")),
-                ("Age", WitSqlValue.FromInt(25))
-            )
-        ));
+        
+        var row = CreateRow(
+            ("_rowid", WitSqlValue.FromInt(1)),
+            ("Id", WitSqlValue.FromInt(1)),
+            ("Name", WitSqlValue.FromText("Alice")),
+            ("Email", WitSqlValue.FromText("alice@test.com")),
+            ("Age", WitSqlValue.FromInt(25))
+        );
+        m_database.GetRowById("Users", 1).Returns(row);
+        
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(row));
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("UPDATE Users SET Name = NULL WHERE Id = 1");
@@ -184,6 +201,16 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTableWithConstraints();
         m_database.GetTable("Users").Returns(table);
+        
+        var row2 = CreateRow(
+            ("_rowid", WitSqlValue.FromInt(2)),
+            ("Id", WitSqlValue.FromInt(2)),
+            ("Name", WitSqlValue.FromText("Bob")),
+            ("Email", WitSqlValue.FromText("bob@test.com")),
+            ("Age", WitSqlValue.FromInt(30))
+        );
+        m_database.GetRowById("Users", 2).Returns(row2);
+        
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateRow(
                 ("_rowid", WitSqlValue.FromInt(1)),
@@ -192,13 +219,7 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
                 ("Email", WitSqlValue.FromText("alice@test.com")),
                 ("Age", WitSqlValue.FromInt(25))
             ),
-            CreateRow(
-                ("_rowid", WitSqlValue.FromInt(2)),
-                ("Id", WitSqlValue.FromInt(2)),
-                ("Name", WitSqlValue.FromText("Bob")),
-                ("Email", WitSqlValue.FromText("bob@test.com")),
-                ("Age", WitSqlValue.FromInt(30))
-            )
+            row2
         ));
 
         var executor = new StatementExecutor(m_context);
@@ -214,15 +235,17 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTableWithConstraints();
         m_database.GetTable("Users").Returns(table);
-        m_database.CreateTableScan("Users").Returns(CreateMockIterator(
-            CreateRow(
-                ("_rowid", WitSqlValue.FromInt(1)),
-                ("Id", WitSqlValue.FromInt(1)),
-                ("Name", WitSqlValue.FromText("Alice")),
-                ("Email", WitSqlValue.FromText("alice@test.com")),
-                ("Age", WitSqlValue.FromInt(25))
-            )
-        ));
+        
+        var row = CreateRow(
+            ("_rowid", WitSqlValue.FromInt(1)),
+            ("Id", WitSqlValue.FromInt(1)),
+            ("Name", WitSqlValue.FromText("Alice")),
+            ("Email", WitSqlValue.FromText("alice@test.com")),
+            ("Age", WitSqlValue.FromInt(25))
+        );
+        m_database.GetRowById("Users", 1).Returns(row);
+        
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(row));
 
         var executor = new StatementExecutor(m_context);
         // Update to same value should work
@@ -237,15 +260,17 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
     {
         var table = CreateUsersTableWithConstraints();
         m_database.GetTable("Users").Returns(table);
-        m_database.CreateTableScan("Users").Returns(CreateMockIterator(
-            CreateRow(
-                ("_rowid", WitSqlValue.FromInt(1)),
-                ("Id", WitSqlValue.FromInt(1)),
-                ("Name", WitSqlValue.FromText("Alice")),
-                ("Email", WitSqlValue.FromText("alice@test.com")),
-                ("Age", WitSqlValue.FromInt(25))
-            )
-        ));
+        
+        var row = CreateRow(
+            ("_rowid", WitSqlValue.FromInt(1)),
+            ("Id", WitSqlValue.FromInt(1)),
+            ("Name", WitSqlValue.FromText("Alice")),
+            ("Email", WitSqlValue.FromText("alice@test.com")),
+            ("Age", WitSqlValue.FromInt(25))
+        );
+        m_database.GetRowById("Users", 1).Returns(row);
+        
+        m_database.CreateTableScan("Users").Returns(CreateMockIterator(row));
 
         var executor = new StatementExecutor(m_context);
         var stmt = WitSql.ParseStatement("UPDATE Users SET Age = 200 WHERE Id = 1");
@@ -262,14 +287,16 @@ public class StatementExecutorUpdateTests : StatementExecutorTestsBase
 
         m_database.GetTable("Users").Returns(usersTable);
         m_database.GetTable("Orders").Returns(ordersTable);
-        m_database.CreateTableScan("Orders").Returns(CreateMockIterator(
-            CreateRow(
-                ("_rowid", WitSqlValue.FromInt(1)),
-                ("Id", WitSqlValue.FromInt(1)),
-                ("UserId", WitSqlValue.FromInt(1)),
-                ("Total", WitSqlValue.FromDecimal(100.0m))
-            )
-        ));
+        
+        var orderRow = CreateRow(
+            ("_rowid", WitSqlValue.FromInt(1)),
+            ("Id", WitSqlValue.FromInt(1)),
+            ("UserId", WitSqlValue.FromInt(1)),
+            ("Total", WitSqlValue.FromDecimal(100.0m))
+        );
+        m_database.GetRowById("Orders", 1).Returns(orderRow);
+        
+        m_database.CreateTableScan("Orders").Returns(CreateMockIterator(orderRow));
         m_database.CreateTableScan("Users").Returns(CreateMockIterator(
             CreateUserRow(1, "Alice", "alice@test.com")
         ));

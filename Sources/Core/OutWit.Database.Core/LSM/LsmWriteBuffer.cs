@@ -124,6 +124,11 @@ public sealed class LsmWriteBuffer : IDisposable
     /// </summary>
     public bool IsEmpty => m_entries.Count == 0;
 
+    /// <summary>
+    /// Gets whether the buffer has been disposed.
+    /// </summary>
+    public bool IsDisposed => m_disposed;
+
     #endregion
 
     #region Tools
