@@ -17,9 +17,8 @@ public class CrudBenchmarks : IDisposable
 {
     #region Fields
 
-    private string m_witPath = null!;
-    private string m_sqlitePath = null!;
-    private string m_liteDbPath = null!;
+    private string m_dbPath = null!;
+    private string? m_liteDbPath;
 
     #endregion
 
@@ -38,9 +37,10 @@ public class CrudBenchmarks : IDisposable
     [GlobalSetup]
     public void GlobalSetup()
     {
-        m_witPath = BenchmarkPathHelper.GenerateUniquePath("wit_efcrud", ".witdb");
-        m_sqlitePath = BenchmarkPathHelper.GenerateUniquePath("sql_efcrud", ".db");
-        m_liteDbPath = BenchmarkPathHelper.GenerateUniquePath("lite_efcrud", ".db");
+        var providerSuffix = Provider.ToString().ToLowerInvariant();
+        m_dbPath = BenchmarkPathHelper.GenerateUniquePath($"efcrud_{providerSuffix}", 
+            Provider == EfProviderType.WitDb ? ".witdb" : ".db");
+        m_liteDbPath = Provider == EfProviderType.LiteDB ? m_dbPath : null;
     }
 
     [IterationSetup]
@@ -51,7 +51,7 @@ public class CrudBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // Recreate LiteDB
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             var users = new List<LiteUser>();
             for (int i = 0; i < 100; i++)
@@ -93,10 +93,9 @@ public class CrudBenchmarks : IDisposable
 
     private void CleanupPaths()
     {
-        BenchmarkPathHelper.SafeCleanup(m_witPath);
-        BenchmarkPathHelper.SafeCleanup(m_witPath + "_indexes");
-        BenchmarkPathHelper.SafeCleanup(m_sqlitePath);
-        BenchmarkPathHelper.SafeCleanup(m_liteDbPath);
+        BenchmarkPathHelper.SafeCleanup(m_dbPath);
+        if (Provider == EfProviderType.WitDb)
+            BenchmarkPathHelper.SafeCleanup(m_dbPath + "_indexes");
     }
 
     [IterationCleanup]
@@ -114,9 +113,8 @@ public class CrudBenchmarks : IDisposable
     private DbContext CreateContext()
     {
         if (Provider == EfProviderType.WitDb)
-            return new WitDbBenchmarkContext($"Data Source={m_witPath}");
-        else
-            return new SqliteBenchmarkContext($"Data Source={m_sqlitePath}");
+            return WitDbBenchmarkContext.Create($"Data Source={m_dbPath}");
+        return SqliteBenchmarkContext.Create($"Data Source={m_dbPath}");
     }
 
     #endregion
@@ -128,7 +126,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             col.Insert(new LiteUser
             {
@@ -158,7 +156,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             var users = Enumerable.Range(0, BatchSize).Select(i => new LiteUser
             {
@@ -190,7 +188,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             db.BeginTrans();
             for (int i = 0; i < BatchSize; i++)
@@ -232,7 +230,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             var user = col.FindById(1);
             if (user != null)
@@ -256,7 +254,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             var users = col.FindAll().Take(BatchSize).ToList();
             foreach (var user in users)
@@ -285,7 +283,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             col.Delete(1);
             return 1;
@@ -302,7 +300,7 @@ public class CrudBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            using var db = new LiteDatabase(m_liteDbPath);
+            using var db = new LiteDatabase(m_liteDbPath!);
             var col = db.GetCollection<LiteUser>("users");
             var ids = col.FindAll().Take(BatchSize).Select(u => u.Id).ToList();
             foreach (var id in ids)

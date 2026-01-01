@@ -653,7 +653,8 @@ public sealed class WitDatabaseBuilder
         return new SecondaryIndexFactoryKeyValueStore(
             indexName =>
             {
-                var indexPath = Path.Combine(baseDirectory, indexName);
+                var safeIndexName = SanitizeIndexName(indexName);
+                var indexPath = Path.Combine(baseDirectory, safeIndexName);
                 
                 // Ensure index directory exists - don't throw if already exists
                 if (!Directory.Exists(indexPath))
@@ -686,7 +687,8 @@ public sealed class WitDatabaseBuilder
                 if (!Directory.Exists(baseDirectory) && !File.Exists(baseDirectory))
                     Directory.CreateDirectory(baseDirectory);
                 
-                var indexPath = Path.Combine(baseDirectory, $"{indexName}.idx");
+                var safeIndexName = SanitizeIndexName(indexName);
+                var indexPath = Path.Combine(baseDirectory, $"{safeIndexName}.idx");
 
                 IStorage storage;
                 int storagePageSize = pageSize;
@@ -706,6 +708,26 @@ public sealed class WitDatabaseBuilder
                 return new StoreBTree(storage, cacheSize / 4, ownsStorage: true);
             },
             StoreBTree.PROVIDER_KEY);
+    }
+
+    /// <summary>
+    /// Sanitizes an index name by removing characters that are invalid for file system paths.
+    /// </summary>
+    /// <param name="indexName">The original index name.</param>
+    /// <returns>A sanitized index name safe for use in file paths.</returns>
+    private static string SanitizeIndexName(string indexName)
+    {
+        // Remove quotes (EF Core often generates names like "IX_Table_Column")
+        var sanitized = indexName.Trim('"', '\'', '[', ']', '`');
+        
+        // Replace any remaining invalid path characters
+        var invalidChars = Path.GetInvalidFileNameChars();
+        foreach (var c in invalidChars)
+        {
+            sanitized = sanitized.Replace(c, '_');
+        }
+        
+        return sanitized;
     }
 
     #endregion

@@ -17,15 +17,11 @@ public class QueryBenchmarks : IDisposable
 {
     #region Fields
 
-    private WitDbBenchmarkContext m_witContext = null!;
-    private SqliteBenchmarkContext m_sqliteContext = null!;
-    private LiteDatabase m_liteDb = null!;
-    private ILiteCollection<LiteUser> m_userCollection = null!;
-    private ILiteCollection<LiteOrder> m_orderCollection = null!;
-    private ILiteCollection<LiteProduct> m_productCollection = null!;
-    private string m_witPath = null!;
-    private string m_sqlitePath = null!;
-    private string m_liteDbPath = null!;
+    private LiteDatabase? m_liteDb;
+    private ILiteCollection<LiteUser>? m_userCollection;
+    private ILiteCollection<LiteOrder>? m_orderCollection;
+    private ILiteCollection<LiteProduct>? m_productCollection;
+    private string m_dbPath = null!;
 
     #endregion
 
@@ -44,39 +40,39 @@ public class QueryBenchmarks : IDisposable
     [GlobalSetup]
     public void GlobalSetup()
     {
-        m_witPath = BenchmarkPathHelper.GenerateUniquePath("wit_efquery", ".witdb");
-        m_sqlitePath = BenchmarkPathHelper.GenerateUniquePath("sql_efquery", ".db");
-        m_liteDbPath = BenchmarkPathHelper.GenerateUniquePath("lite_efquery", ".db");
+        // Generate unique path for this parameter combination
+        var providerSuffix = Provider.ToString().ToLowerInvariant();
+        m_dbPath = BenchmarkPathHelper.GenerateUniquePath($"efquery_{providerSuffix}", 
+            Provider == EfProviderType.WitDb ? ".witdb" : ".db");
 
         CleanupPaths();
 
-        // Setup WitDb
-        m_witContext = new WitDbBenchmarkContext($"Data Source={m_witPath}");
-        m_witContext.Database.EnsureCreated();
-        SeedData(m_witContext, UserCount);
-
-        // Setup SQLite
-        m_sqliteContext = new SqliteBenchmarkContext($"Data Source={m_sqlitePath}");
-        m_sqliteContext.Database.EnsureCreated();
-        SeedData(m_sqliteContext, UserCount);
-
-        // Setup LiteDB
-        m_liteDb = new LiteDatabase(m_liteDbPath);
-        m_userCollection = m_liteDb.GetCollection<LiteUser>("users");
-        m_orderCollection = m_liteDb.GetCollection<LiteOrder>("orders");
-        m_productCollection = m_liteDb.GetCollection<LiteProduct>("products");
-        SeedLiteDbData(UserCount);
+        if (Provider == EfProviderType.LiteDB)
+        {
+            m_liteDb = new LiteDatabase(m_dbPath);
+            m_userCollection = m_liteDb.GetCollection<LiteUser>("users");
+            m_orderCollection = m_liteDb.GetCollection<LiteOrder>("orders");
+            m_productCollection = m_liteDb.GetCollection<LiteProduct>("products");
+            SeedLiteDbData(UserCount);
+        }
+        else
+        {
+            // For EF providers, use EnsureCreated - it will work correctly
+            // because each parameter combination runs in a fresh process
+            using var ctx = CreateContext();
+            ctx.Database.EnsureCreated();
+            SeedDataViaEf(ctx, UserCount);
+        }
     }
 
     private void CleanupPaths()
     {
-        BenchmarkPathHelper.SafeCleanup(m_witPath);
-        BenchmarkPathHelper.SafeCleanup(m_witPath + "_indexes");
-        BenchmarkPathHelper.SafeCleanup(m_sqlitePath);
-        BenchmarkPathHelper.SafeCleanup(m_liteDbPath);
+        BenchmarkPathHelper.SafeCleanup(m_dbPath);
+        if (Provider == EfProviderType.WitDb)
+            BenchmarkPathHelper.SafeCleanup(m_dbPath + "_indexes");
     }
 
-    private void SeedData(DbContext context, int userCount)
+    private void SeedDataViaEf(DbContext context, int userCount)
     {
         var rnd = new Random(42);
         var baseDate = new DateTime(2024, 1, 1);
@@ -160,7 +156,7 @@ public class QueryBenchmarks : IDisposable
                 Category = new[] { "Electronics", "Clothing", "Food", "Books", "Sports" }[i % 5]
             });
         }
-        m_productCollection.InsertBulk(products);
+        m_productCollection!.InsertBulk(products);
         m_productCollection.EnsureIndex(x => x.Category);
 
         // Users
@@ -200,27 +196,26 @@ public class QueryBenchmarks : IDisposable
             users.Add(user);
         }
 
-        m_userCollection.InsertBulk(users);
+        m_userCollection!.InsertBulk(users);
         m_userCollection.EnsureIndex(x => x.Email);
         m_userCollection.EnsureIndex(x => x.Age);
-        m_orderCollection.InsertBulk(orders);
+        m_orderCollection!.InsertBulk(orders);
         m_orderCollection.EnsureIndex(x => x.UserId);
     }
 
     [GlobalCleanup]
     public void GlobalCleanup()
     {
-        m_witContext?.Dispose();
-        m_sqliteContext?.Dispose();
         m_liteDb?.Dispose();
+        m_liteDb = null;
         CleanupPaths();
     }
 
-    private DbContext GetContext()
+    private DbContext CreateContext()
     {
         if (Provider == EfProviderType.WitDb)
-            return m_witContext;
-        return m_sqliteContext;
+            return WitDbBenchmarkContext.Create($"Data Source={m_dbPath}");
+        return SqliteBenchmarkContext.Create($"Data Source={m_dbPath}");
     }
 
     #endregion
@@ -232,11 +227,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindAll().ToList().Count;
+            return m_userCollection!.FindAll().ToList().Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>().ToList().Count;
     }
 
@@ -245,10 +239,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindAll().ToList().Count;
+            return m_userCollection!.FindAll().ToList().Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>().AsNoTracking().ToList().Count;
     }
 
@@ -261,11 +255,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.Find(x => x.Age > 30).ToList().Count;
+            return m_userCollection!.Find(x => x.Age > 30).ToList().Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>().Where(u => u.Age > 30).ToList().Count;
     }
 
@@ -274,10 +267,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.Find(x => x.IsActive).ToList().Count;
+            return m_userCollection!.Find(x => x.IsActive).ToList().Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>().AsNoTracking().Where(u => u.IsActive).ToList().Count;
     }
 
@@ -286,11 +279,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindById(50);
+            return m_userCollection!.FindById(50);
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>().FirstOrDefault(u => u.Id == 50);
     }
 
@@ -299,11 +291,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindById(50);
+            return m_userCollection!.FindById(50);
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>().Find(50L);
     }
 
@@ -317,16 +308,15 @@ public class QueryBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB: manual join
-            var users = m_userCollection.FindAll().ToList();
+            var users = m_userCollection!.FindAll().ToList();
             foreach (var user in users)
             {
-                var orders = m_orderCollection.Find(o => o.UserId == user.Id).ToList();
+                var orders = m_orderCollection!.Find(o => o.UserId == user.Id).ToList();
             }
             return users.Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>()
             .Include(u => u.Orders)
             .ToList().Count;
@@ -338,15 +328,15 @@ public class QueryBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB: same as Include
-            var users = m_userCollection.FindAll().ToList();
+            var users = m_userCollection!.FindAll().ToList();
             foreach (var user in users)
             {
-                var orders = m_orderCollection.Find(o => o.UserId == user.Id).ToList();
+                var orders = m_orderCollection!.Find(o => o.UserId == user.Id).ToList();
             }
             return users.Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>()
             .AsNoTracking()
             .Include(u => u.Orders)
@@ -362,12 +352,12 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindAll()
+            return m_userCollection!.FindAll()
                 .Select(u => new { u.Id, u.Name, u.Email })
                 .ToList().Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>()
             .Select(u => new { u.Id, u.Name, u.Email })
             .ToList().Count;
@@ -378,19 +368,19 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            var result = m_userCollection.FindAll()
+            var result = m_userCollection!.FindAll()
                 .Select(u => new
                 {
                     u.Id,
                     u.Name,
-                    OrderCount = m_orderCollection.Count(o => o.UserId == u.Id),
+                    OrderCount = m_orderCollection!.Count(o => o.UserId == u.Id),
                     TotalAmount = m_orderCollection.Find(o => o.UserId == u.Id).Sum(o => o.Amount)
                 })
                 .ToList();
             return result.Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>()
             .Select(u => new
             {
@@ -411,11 +401,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindAll().OrderBy(u => u.Name).ToList().Count;
+            return m_userCollection!.FindAll().OrderBy(u => u.Name).ToList().Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>().OrderBy(u => u.Name).ToList().Count;
     }
 
@@ -424,11 +413,10 @@ public class QueryBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_userCollection.FindAll().OrderByDescending(u => u.CreatedAt).Take(10).ToList().Count;
+            return m_userCollection!.FindAll().OrderByDescending(u => u.CreatedAt).Take(10).ToList().Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>()
             .OrderByDescending(u => u.CreatedAt)
             .Take(10)

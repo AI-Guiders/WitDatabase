@@ -5,14 +5,12 @@ namespace OutWit.Database.EntityFramework.Benchmarks;
 
 /// <summary>
 /// DbContext for WitDb benchmarks.
+/// Uses DbContextOptions to ensure unique model cache per connection string.
 /// </summary>
 public class WitDbBenchmarkContext : DbContext
 {
-    private readonly string m_connectionString;
-
-    public WitDbBenchmarkContext(string connectionString)
+    public WitDbBenchmarkContext(DbContextOptions<WitDbBenchmarkContext> options) : base(options)
     {
-        m_connectionString = connectionString;
     }
 
     public DbSet<User> Users => Set<User>();
@@ -20,14 +18,16 @@ public class WitDbBenchmarkContext : DbContext
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Product> Products => Set<Product>();
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.UseWitDb(m_connectionString);
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigureEntities(modelBuilder);
+    }
+
+    public static WitDbBenchmarkContext Create(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<WitDbBenchmarkContext>();
+        optionsBuilder.UseWitDb(connectionString);
+        return new WitDbBenchmarkContext(optionsBuilder.Options);
     }
 
     public static void ConfigureEntities(ModelBuilder modelBuilder)
@@ -73,14 +73,12 @@ public class WitDbBenchmarkContext : DbContext
 
 /// <summary>
 /// DbContext for SQLite benchmarks.
+/// Uses DbContextOptions to ensure unique model cache per connection string.
 /// </summary>
 public class SqliteBenchmarkContext : DbContext
 {
-    private readonly string m_connectionString;
-
-    public SqliteBenchmarkContext(string connectionString)
+    public SqliteBenchmarkContext(DbContextOptions<SqliteBenchmarkContext> options) : base(options)
     {
-        m_connectionString = connectionString;
     }
 
     public DbSet<User> Users => Set<User>();
@@ -88,13 +86,15 @@ public class SqliteBenchmarkContext : DbContext
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Product> Products => Set<Product>();
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.UseSqlite(m_connectionString);
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         WitDbBenchmarkContext.ConfigureEntities(modelBuilder);
+    }
+
+    public static SqliteBenchmarkContext Create(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<SqliteBenchmarkContext>();
+        optionsBuilder.UseSqlite(connectionString);
+        return new SqliteBenchmarkContext(optionsBuilder.Options);
     }
 }

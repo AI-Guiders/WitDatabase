@@ -17,13 +17,9 @@ public class TrackingBenchmarks : IDisposable
 {
     #region Fields
 
-    private WitDbBenchmarkContext m_witContext = null!;
-    private SqliteBenchmarkContext m_sqliteContext = null!;
-    private LiteDatabase m_liteDb = null!;
-    private ILiteCollection<LiteUser> m_liteCollection = null!;
-    private string m_witPath = null!;
-    private string m_sqlitePath = null!;
-    private string m_liteDbPath = null!;
+    private LiteDatabase? m_liteDb;
+    private ILiteCollection<LiteUser>? m_liteCollection;
+    private string m_dbPath = null!;
 
     #endregion
 
@@ -42,34 +38,32 @@ public class TrackingBenchmarks : IDisposable
     [GlobalSetup]
     public void GlobalSetup()
     {
-        m_witPath = BenchmarkPathHelper.GenerateUniquePath("wit_eftrack", ".witdb");
-        m_sqlitePath = BenchmarkPathHelper.GenerateUniquePath("sql_eftrack", ".db");
-        m_liteDbPath = BenchmarkPathHelper.GenerateUniquePath("lite_eftrack", ".db");
+        // Generate unique path for this parameter combination
+        var providerSuffix = Provider.ToString().ToLowerInvariant();
+        m_dbPath = BenchmarkPathHelper.GenerateUniquePath($"eftrack_{providerSuffix}", 
+            Provider == EfProviderType.WitDb ? ".witdb" : ".db");
 
         CleanupPaths();
 
-        // Setup WitDb
-        m_witContext = new WitDbBenchmarkContext($"Data Source={m_witPath}");
-        m_witContext.Database.EnsureCreated();
-        SeedData(m_witContext, EntityCount);
-
-        // Setup SQLite
-        m_sqliteContext = new SqliteBenchmarkContext($"Data Source={m_sqlitePath}");
-        m_sqliteContext.Database.EnsureCreated();
-        SeedData(m_sqliteContext, EntityCount);
-
-        // Setup LiteDB
-        m_liteDb = new LiteDatabase(m_liteDbPath);
-        m_liteCollection = m_liteDb.GetCollection<LiteUser>("users");
-        SeedLiteDbData(EntityCount);
+        if (Provider == EfProviderType.LiteDB)
+        {
+            m_liteDb = new LiteDatabase(m_dbPath);
+            m_liteCollection = m_liteDb.GetCollection<LiteUser>("users");
+            SeedLiteDbData(EntityCount);
+        }
+        else
+        {
+            using var ctx = CreateContext();
+            ctx.Database.EnsureCreated();
+            SeedData(ctx, EntityCount);
+        }
     }
 
     private void CleanupPaths()
     {
-        BenchmarkPathHelper.SafeCleanup(m_witPath);
-        BenchmarkPathHelper.SafeCleanup(m_witPath + "_indexes");
-        BenchmarkPathHelper.SafeCleanup(m_sqlitePath);
-        BenchmarkPathHelper.SafeCleanup(m_liteDbPath);
+        BenchmarkPathHelper.SafeCleanup(m_dbPath);
+        if (Provider == EfProviderType.WitDb)
+            BenchmarkPathHelper.SafeCleanup(m_dbPath + "_indexes");
     }
 
     private void SeedData(DbContext context, int count)
@@ -104,23 +98,22 @@ public class TrackingBenchmarks : IDisposable
                 IsActive = i % 2 == 0
             });
         }
-        m_liteCollection.InsertBulk(users);
+        m_liteCollection!.InsertBulk(users);
     }
 
     [GlobalCleanup]
     public void GlobalCleanup()
     {
-        m_witContext?.Dispose();
-        m_sqliteContext?.Dispose();
         m_liteDb?.Dispose();
+        m_liteDb = null;
         CleanupPaths();
     }
 
-    private DbContext GetContext()
+    private DbContext CreateContext()
     {
         if (Provider == EfProviderType.WitDb)
-            return m_witContext;
-        return m_sqliteContext;
+            return WitDbBenchmarkContext.Create($"Data Source={m_dbPath}");
+        return SqliteBenchmarkContext.Create($"Data Source={m_dbPath}");
     }
 
     #endregion
@@ -133,11 +126,10 @@ public class TrackingBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB doesn't have tracking - just return all
-            return m_liteCollection.FindAll().ToList().Count;
+            return m_liteCollection!.FindAll().ToList().Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         return ctx.Set<User>().ToList().Count;
     }
 
@@ -146,10 +138,10 @@ public class TrackingBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_liteCollection.FindAll().ToList().Count;
+            return m_liteCollection!.FindAll().ToList().Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>().AsNoTracking().ToList().Count;
     }
 
@@ -158,10 +150,10 @@ public class TrackingBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            return m_liteCollection.FindAll().ToList().Count;
+            return m_liteCollection!.FindAll().ToList().Count;
         }
 
-        var ctx = GetContext();
+        using var ctx = CreateContext();
         return ctx.Set<User>().AsNoTrackingWithIdentityResolution().ToList().Count;
     }
 
@@ -174,7 +166,7 @@ public class TrackingBenchmarks : IDisposable
     {
         if (Provider == EfProviderType.LiteDB)
         {
-            var users = m_liteCollection.FindAll().Take(50).ToList();
+            var users = m_liteCollection!.FindAll().Take(50).ToList();
             foreach (var user in users)
             {
                 user.Age++;
@@ -183,8 +175,7 @@ public class TrackingBenchmarks : IDisposable
             return users.Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         var efUsers = ctx.Set<User>().Take(50).ToList();
         foreach (var user in efUsers)
         {
@@ -199,7 +190,7 @@ public class TrackingBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB doesn't have auto-detect - same as normal
-            var users = m_liteCollection.FindAll().Take(50).ToList();
+            var users = m_liteCollection!.FindAll().Take(50).ToList();
             foreach (var user in users)
             {
                 user.Age++;
@@ -208,8 +199,7 @@ public class TrackingBenchmarks : IDisposable
             return users.Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         ctx.ChangeTracker.AutoDetectChangesEnabled = false;
         try
         {
@@ -237,12 +227,11 @@ public class TrackingBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB doesn't have change tracker
-            _ = m_liteCollection.FindAll().Take(100).ToList();
+            _ = m_liteCollection!.FindAll().Take(100).ToList();
             return false;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         _ = ctx.Set<User>().Take(100).ToList();
         return ctx.ChangeTracker.HasChanges();
     }
@@ -253,13 +242,12 @@ public class TrackingBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB doesn't have change tracker
-            var users = m_liteCollection.FindAll().Take(100).ToList();
+            var users = m_liteCollection!.FindAll().Take(100).ToList();
             users[0].Name = "Modified";
             return true; // Always "has changes" conceptually
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         var efUsers = ctx.Set<User>().Take(100).ToList();
         efUsers[0].Name = "Modified";
         return ctx.ChangeTracker.HasChanges();
@@ -271,11 +259,10 @@ public class TrackingBenchmarks : IDisposable
         if (Provider == EfProviderType.LiteDB)
         {
             // LiteDB doesn't have entries concept - return list count
-            return m_liteCollection.FindAll().Take(100).ToList().Count;
+            return m_liteCollection!.FindAll().Take(100).ToList().Count;
         }
 
-        var ctx = GetContext();
-        ctx.ChangeTracker.Clear();
+        using var ctx = CreateContext();
         _ = ctx.Set<User>().Take(100).ToList();
         return ctx.ChangeTracker.Entries().Count();
     }
