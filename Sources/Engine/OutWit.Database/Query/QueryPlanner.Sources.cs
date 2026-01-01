@@ -226,6 +226,31 @@ public sealed partial class QueryPlanner
         var left = CreateTableSourceIterator(join.Left);
         var right = CreateTableSourceIterator(join.Right);
 
+        // Analyze join condition for hash join eligibility
+        var analysis = OptimizerJoinCondition.Analyze(join.OnCondition);
+
+        // Try hash join for INNER and LEFT joins with equi-join conditions
+        if (analysis.HasEquiJoinKeys && 
+            join.JoinType is JoinType.Inner or JoinType.Left)
+        {
+            var leftRowCount = left.EstimatedRowCount;
+            var rightRowCount = right.EstimatedRowCount;
+
+            if (OptimizerJoinCondition.ShouldUseHashJoin(leftRowCount, rightRowCount, analysis))
+            {
+                var buildLeft = OptimizerJoinCondition.ShouldBuildLeft(leftRowCount, rightRowCount);
+                return new IteratorHashJoin(
+                    left, 
+                    right, 
+                    join.JoinType, 
+                    analysis.EquiJoinKeys, 
+                    analysis.ResidualCondition,
+                    m_context,
+                    buildLeft);
+            }
+        }
+
+        // Fall back to nested loop join
         // Optimize join side order for INNER and CROSS joins
         var joinOptimizer = new OptimizerJoinOrder(m_context.Database);
         if (joinOptimizer.ShouldSwapJoinSides(join))

@@ -393,6 +393,11 @@ internal sealed partial class WitSqlVisitor
                 Expression = VisitExpression(expr.expression()),
                 Descending = expr.DESC() != null
             },
+            WitSqlParser.IndexFunctionElementContext func => new ClauseIndexElement
+            {
+                Expression = VisitFunctionCall(func.functionCall()),
+                Descending = func.DESC() != null
+            },
             _ => throw new InvalidOperationException($"Unknown index element type: {context.GetType()}")
         };
     }

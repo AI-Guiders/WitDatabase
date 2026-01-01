@@ -5,6 +5,7 @@ using OutWit.Database.Interfaces;
 using OutWit.Database.Sql;
 using OutWit.Database.Types;
 using OutWit.Database.Values;
+using OutWit.Database.Types; // Add this line
 
 namespace OutWit.Database.Tests.Statements;
 
@@ -32,11 +33,15 @@ public abstract class StatementExecutorTestsBase
             CancellationToken = CancellationToken.None
         };
         
-        // Default: GetRowById returns null (forces table scan fallback in optimizer)
-        m_database.GetRowById(Arg.Any<string>(), Arg.Any<long>()).Returns((WitSqlRow?)null);
+        // Note: GetRowById default is the C# default for nullable struct (null)
+        // Tests that need GetRowById to return specific rows must configure it explicitly
         
         // Default: GetTableIndexes returns empty list
         m_database.GetTableIndexes(Arg.Any<string>()).Returns([]);
+        
+        // Default: No triggers
+        m_database.GetTriggersForTable(Arg.Any<string>(), Arg.Any<TriggerEvent?>(), Arg.Any<TriggerTime?>())
+            .Returns([]);
     }
 
     #endregion

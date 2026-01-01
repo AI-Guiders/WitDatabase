@@ -57,10 +57,6 @@ transactionStatement
     | setTransactionStatement
     ;
 
-// ============================================================================
-// Transaction Statements
-// ============================================================================
-
 beginTransaction
     : BEGIN TRANSACTION?
     ;
@@ -273,10 +269,6 @@ mergeInsertClause
       VALUES LPAREN expression (COMMA expression)* RPAREN
     ;
 
-// ============================================================================
-// CREATE TABLE Statement
-// ============================================================================
-
 createTableStatement
     : CREATE TABLE (IF NOT EXISTS)? tableName
       LPAREN tableElement (COMMA tableElement)* RPAREN
@@ -399,6 +391,7 @@ createIndexStatement
 indexElement
     : columnName (ASC | DESC)?                      # indexColumnElement
     | LPAREN expression RPAREN (ASC | DESC)?        # indexExpressionElement
+    | functionCall (ASC | DESC)?                    # indexFunctionElement
     ;
 
 includeClause
