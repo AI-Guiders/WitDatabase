@@ -24,6 +24,7 @@ public sealed partial class SchemaCatalog
                 {
                     m_tables[table.Name] = table;
                     LoadTableRowId(table.Name);
+                    LoadTableRowCount(table.Name);
                 }
             }
         }

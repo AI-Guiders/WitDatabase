@@ -17,6 +17,14 @@ public interface IDatabase
     DefinitionTable? GetTable(string tableName);
 
     /// <summary>
+    /// Gets the row count for a table using cached metadata.
+    /// This is an O(1) operation.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <returns>The row count, or -1 if the table doesn't exist or count is unknown.</returns>
+    long GetTableRowCount(string tableName);
+
+    /// <summary>
     /// Get iterator for full table scan.
     /// </summary>
     IResultIterator CreateTableScan(string tableName);

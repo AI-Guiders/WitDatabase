@@ -1,4 +1,5 @@
 using OutWit.Database.Context;
+using OutWit.Database.Core.Interfaces;
 using OutWit.Database.Definitions;
 using OutWit.Database.Expressions;
 using OutWit.Database.Parser;
@@ -122,6 +123,19 @@ public sealed partial class WitSqlEngine
     public IEnumerable<DefinitionIndex> GetTableIndexes(string tableName)
     {
         return m_schema.GetTableIndexes(tableName);
+    }
+
+    /// <summary>
+    /// Gets the physical secondary index by name.
+    /// Used for direct index operations like MIN/MAX optimization.
+    /// </summary>
+    /// <param name="indexName">The index name.</param>
+    /// <returns>The physical secondary index, or null if not found.</returns>
+    public ISecondaryIndex? GetPhysicalIndex(string indexName)
+    {
+        if (!m_database.SupportsIndexes)
+            return null;
+        return m_database.GetIndex(indexName);
     }
 
     /// <summary>

@@ -87,6 +87,11 @@ namespace OutWit.Database.Values
         public override string ToString() =>
             IsNull ? NULL_STRING : $"{m_type}:{AsString()}";
 
+        /// <summary>
+        /// Gets the WitSqlType of this value.
+        /// </summary>
+        public WitSqlType GetSqlType() => m_type;
+
         #endregion
 
         #region Properties

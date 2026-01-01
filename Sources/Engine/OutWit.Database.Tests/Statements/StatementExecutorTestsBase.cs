@@ -42,6 +42,10 @@ public abstract class StatementExecutorTestsBase
         // Default: No triggers
         m_database.GetTriggersForTable(Arg.Any<string>(), Arg.Any<TriggerEvent?>(), Arg.Any<TriggerTime?>())
             .Returns([]);
+        
+        // Default: GetTableRowCount returns -1 (unknown) to disable COUNT(*) optimization
+        // This ensures mock tests use the streaming path for aggregates
+        m_database.GetTableRowCount(Arg.Any<string>()).Returns(-1L);
     }
 
     #endregion

@@ -24,6 +24,20 @@ namespace OutWit.Database.Core.Interfaces
         IEnumerable<(byte[] IndexKey, byte[] PrimaryKey)> FindRange(byte[]? startKey, byte[]? endKey);
 
         /// <summary>
+        /// Gets the first (minimum) entry in the index.
+        /// Used for MIN() optimization when index exists on the column.
+        /// </summary>
+        /// <returns>The first (indexKey, primaryKey) pair, or null if index is empty.</returns>
+        (byte[] IndexKey, byte[] PrimaryKey)? GetFirstEntry();
+
+        /// <summary>
+        /// Gets the last (maximum) entry in the index.
+        /// Used for MAX() optimization when index exists on the column.
+        /// </summary>
+        /// <returns>The last (indexKey, primaryKey) pair, or null if index is empty.</returns>
+        (byte[] IndexKey, byte[] PrimaryKey)? GetLastEntry();
+
+        /// <summary>
         /// Checks if the specified index key exists in the index.
         /// </summary>
         /// <param name="indexKey">The index key to check.</param>

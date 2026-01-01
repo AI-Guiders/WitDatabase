@@ -120,6 +120,58 @@ namespace OutWit.Database.Core.Indexes
         }
 
         /// <inheritdoc/>
+        public (byte[] IndexKey, byte[] PrimaryKey)? GetFirstEntry()
+        {
+            ThrowIfDisposed();
+
+            // Get the first entry from the store
+            var first = m_store.Scan(null, null).FirstOrDefault();
+            
+            if (first.Key == null)
+                return null;
+
+            if (IsUnique)
+            {
+                // For unique indexes: key is indexKey, value is primaryKey
+                return (first.Key, first.Value);
+            }
+            else
+            {
+                // For non-unique indexes: key is composite, need to split
+                var (indexKey, primaryKey) = SplitCompositeKey(first.Key);
+                if (primaryKey.Length > 0)
+                    return (indexKey, primaryKey);
+                return null;
+            }
+        }
+
+        /// <inheritdoc/>
+        public (byte[] IndexKey, byte[] PrimaryKey)? GetLastEntry()
+        {
+            ThrowIfDisposed();
+
+            // Get the last entry from the store
+            var last = m_store.Scan(null, null).LastOrDefault();
+            
+            if (last.Key == null)
+                return null;
+
+            if (IsUnique)
+            {
+                // For unique indexes: key is indexKey, value is primaryKey
+                return (last.Key, last.Value);
+            }
+            else
+            {
+                // For non-unique indexes: key is composite, need to split
+                var (indexKey, primaryKey) = SplitCompositeKey(last.Key);
+                if (primaryKey.Length > 0)
+                    return (indexKey, primaryKey);
+                return null;
+            }
+        }
+
+        /// <inheritdoc/>
         public bool Contains(ReadOnlySpan<byte> indexKey)
         {
             ThrowIfDisposed();

@@ -94,6 +94,9 @@ public sealed partial class WitSqlEngine
 
         // Update all secondary indexes for this table
         UpdateIndexesOnInsert(tableName, table, rowId, row);
+        
+        // Update row count
+        m_schema.IncrementRowCount(tableName, 1, m_currentTransaction);
     }
 
     #endregion
@@ -141,6 +144,8 @@ public sealed partial class WitSqlEngine
         // Update indexes (remove old keys, add new keys)
         // Pass modified columns for optimization
         UpdateIndexesOnUpdate(tableName, table, rowId, oldRow, newRow, modifiedColumns);
+        
+        // Note: UPDATE does not change row count
     }
 
     #endregion
@@ -177,6 +182,9 @@ public sealed partial class WitSqlEngine
         {
             UpdateIndexesOnDelete(tableName, table, rowId, oldRow.Value);
         }
+        
+        // Update row count
+        m_schema.DecrementRowCount(tableName, 1, m_currentTransaction);
     }
 
     #endregion
@@ -222,6 +230,9 @@ public sealed partial class WitSqlEngine
 
         // Reset auto-increment counter to 0
         m_schema.ResetRowId(tableName, 0, m_currentTransaction);
+        
+        // Reset row count to 0
+        m_schema.ResetRowCount(tableName, 0, m_currentTransaction);
     }
 
     #endregion

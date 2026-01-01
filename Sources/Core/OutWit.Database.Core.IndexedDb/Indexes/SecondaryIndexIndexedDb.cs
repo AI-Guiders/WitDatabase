@@ -126,6 +126,70 @@ public sealed class SecondaryIndexIndexedDb : ISecondaryIndex
     }
 
     /// <inheritdoc/>
+    public (byte[] IndexKey, byte[] PrimaryKey)? GetFirstEntry()
+    {
+        ThrowIfDisposed();
+        return GetFirstEntryAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    private async ValueTask<(byte[] IndexKey, byte[] PrimaryKey)?> GetFirstEntryAsync()
+    {
+        // Get the first entry from the store
+        await foreach (var (key, value) in m_interop.ScanAsync(null, null))
+        {
+            if (IsUnique)
+            {
+                // For unique indexes: key is indexKey, value is primaryKey
+                return (key, value);
+            }
+            else
+            {
+                // For non-unique indexes: key is composite, need to split
+                var (indexKey, primaryKey) = SplitCompositeKey(key);
+                if (primaryKey.Length > 0)
+                    return (indexKey, primaryKey);
+            }
+            break; // Only need first entry
+        }
+        return null;
+    }
+
+    /// <inheritdoc/>
+    public (byte[] IndexKey, byte[] PrimaryKey)? GetLastEntry()
+    {
+        ThrowIfDisposed();
+        return GetLastEntryAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    private async ValueTask<(byte[] IndexKey, byte[] PrimaryKey)?> GetLastEntryAsync()
+    {
+        // Get the last entry from the store by iterating (IndexedDB doesn't have efficient reverse scan)
+        (byte[] Key, byte[] Value)? lastEntry = null;
+        
+        await foreach (var entry in m_interop.ScanAsync(null, null))
+        {
+            lastEntry = entry;
+        }
+
+        if (lastEntry == null)
+            return null;
+
+        if (IsUnique)
+        {
+            // For unique indexes: key is indexKey, value is primaryKey
+            return (lastEntry.Value.Key, lastEntry.Value.Value);
+        }
+        else
+        {
+            // For non-unique indexes: key is composite, need to split
+            var (indexKey, primaryKey) = SplitCompositeKey(lastEntry.Value.Key);
+            if (primaryKey.Length > 0)
+                return (indexKey, primaryKey);
+            return null;
+        }
+    }
+
+    /// <inheritdoc/>
     public bool Contains(ReadOnlySpan<byte> indexKey)
     {
         ThrowIfDisposed();

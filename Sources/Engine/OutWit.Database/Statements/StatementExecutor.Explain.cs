@@ -142,6 +142,7 @@ public sealed partial class StatementExecutor
             yield return source;
         }
         
+        // Standard left/right fields (IteratorJoin)
         var leftField = type.GetField("m_left", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         if (leftField?.GetValue(iterator) is IResultIterator left)
         {
@@ -152,6 +153,19 @@ public sealed partial class StatementExecutor
         if (rightField?.GetValue(iterator) is IResultIterator right)
         {
             yield return right;
+        }
+        
+        // Hash join uses build/probe sides
+        var buildSideField = type.GetField("m_buildSide", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (buildSideField?.GetValue(iterator) is IResultIterator buildSide)
+        {
+            yield return buildSide;
+        }
+        
+        var probeSideField = type.GetField("m_probeSide", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (probeSideField?.GetValue(iterator) is IResultIterator probeSide)
+        {
+            yield return probeSide;
         }
     }
 

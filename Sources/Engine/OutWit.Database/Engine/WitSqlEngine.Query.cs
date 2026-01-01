@@ -139,6 +139,17 @@ public sealed partial class WitSqlEngine
     }
 
     /// <summary>
+    /// Gets the row count for a table using cached metadata.
+    /// This is an O(1) operation - does not scan the table.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <returns>The row count, or -1 if the table doesn't exist or count is unknown.</returns>
+    public long GetTableRowCount(string tableName)
+    {
+        return m_schema.GetRowCount(tableName);
+    }
+
+    /// <summary>
     /// Create a table scan iterator.
     /// </summary>
     /// <param name="tableName">The table name.</param>

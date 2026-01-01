@@ -39,6 +39,7 @@ public sealed partial class SchemaCatalog
                 throw new InvalidOperationException($"Table '{table.Name}' already exists");
 
             m_tables[table.Name] = table;
+            m_tableRowCounts[table.Name] = 0; // Initialize row count to 0
             SaveSchema();
         }
         finally
@@ -74,6 +75,9 @@ public sealed partial class SchemaCatalog
 
             // Remove row ID counter
             DeleteTableRowId(name);
+            
+            // Remove row count
+            DeleteTableRowCount(name);
 
             SaveSchema();
             SaveTriggers();
@@ -110,6 +114,13 @@ public sealed partial class SchemaCatalog
             foreach (var index in tableIndexes)
             {
                 m_indexes[index.Name] = index.With(x => x.TableName, newName);
+            }
+
+            // Move row count to new name
+            if (m_tableRowCounts.TryGetValue(oldName, out var count))
+            {
+                m_tableRowCounts.Remove(oldName);
+                m_tableRowCounts[newName] = count;
             }
 
             SaveSchema();

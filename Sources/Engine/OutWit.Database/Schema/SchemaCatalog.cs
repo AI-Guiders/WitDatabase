@@ -21,6 +21,7 @@ public sealed partial class SchemaCatalog : IDisposable
     private const string SEQUENCES_KEY = "$schema:_sequences";
     private const string ROWID_PREFIX = "$schema:_rowid:";
     private const string ROWVERSION_KEY = "$schema:_rowversion";
+    private const string ROWCOUNT_PREFIX = "$schema:_rowcount:";
 
     public const string INFORMATION_SCHEMA_NAME = "INFORMATION_SCHEMA";
 
@@ -32,6 +33,7 @@ public sealed partial class SchemaCatalog : IDisposable
     private static readonly byte[] SEQUENCES_KEY_BYTES = Encoding.UTF8.GetBytes(SEQUENCES_KEY);
     private static readonly byte[] ROWID_PREFIX_BYTES = Encoding.UTF8.GetBytes(ROWID_PREFIX);
     private static readonly byte[] ROWVERSION_KEY_BYTES = Encoding.UTF8.GetBytes(ROWVERSION_KEY);
+    private static readonly byte[] ROWCOUNT_PREFIX_BYTES = Encoding.UTF8.GetBytes(ROWCOUNT_PREFIX);
 
     #endregion
 
@@ -45,6 +47,7 @@ public sealed partial class SchemaCatalog : IDisposable
     private readonly Dictionary<string, DefinitionTrigger> m_triggers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DefinitionSequence> m_sequences = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> m_tableRowIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, long> m_tableRowCounts = new(StringComparer.OrdinalIgnoreCase);
     private ulong m_globalRowVersion;
     private bool m_disposed;
 
@@ -398,6 +401,156 @@ public sealed partial class SchemaCatalog : IDisposable
         {
             m_globalRowVersion = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(data);
         }
+    }
+
+    #endregion
+
+    #region Row Count Management
+
+    /// <summary>
+    /// Gets the current row count for a table.
+    /// This is an O(1) operation using cached metadata.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <returns>The row count, or -1 if the table doesn't exist or count is unknown.</returns>
+    public long GetRowCount(string tableName)
+    {
+        m_lock.EnterReadLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                return -1;
+
+            return m_tableRowCounts.TryGetValue(tableName, out var count) ? count : 0;
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Increments the row count for a table by the specified amount.
+    /// Called after INSERT operations.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="delta">Amount to add (usually 1).</param>
+    /// <param name="transaction">The active transaction (if any).</param>
+    public void IncrementRowCount(string tableName, long delta = 1, ITransaction? transaction = null)
+    {
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                return;
+
+            if (!m_tableRowCounts.TryGetValue(tableName, out var count))
+                count = 0;
+
+            var newCount = count + delta;
+            m_tableRowCounts[tableName] = newCount;
+            SaveTableRowCount(tableName, newCount, transaction);
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Decrements the row count for a table by the specified amount.
+    /// Called after DELETE operations.
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="delta">Amount to subtract (usually 1).</param>
+    /// <param name="transaction">The active transaction (if any).</param>
+    public void DecrementRowCount(string tableName, long delta = 1, ITransaction? transaction = null)
+    {
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                return;
+
+            if (!m_tableRowCounts.TryGetValue(tableName, out var count))
+                count = 0;
+
+            var newCount = Math.Max(0, count - delta);
+            m_tableRowCounts[tableName] = newCount;
+            SaveTableRowCount(tableName, newCount, transaction);
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Resets the row count for a table (e.g., after TRUNCATE).
+    /// </summary>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="count">The new count (default 0).</param>
+    /// <param name="transaction">The active transaction (if any).</param>
+    public void ResetRowCount(string tableName, long count = 0, ITransaction? transaction = null)
+    {
+        m_lock.EnterWriteLock();
+        try
+        {
+            if (!m_tables.ContainsKey(tableName))
+                return;
+
+            m_tableRowCounts[tableName] = count;
+            SaveTableRowCount(tableName, count, transaction);
+        }
+        finally
+        {
+            m_lock.ExitWriteLock();
+        }
+    }
+
+    private void SaveTableRowCount(string tableName, long count, ITransaction? transaction)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWCOUNT_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWCOUNT_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWCOUNT_PREFIX_BYTES.Length);
+
+        Span<byte> countBytes = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(countBytes, count);
+        
+        if (transaction != null)
+        {
+            transaction.Put(keyBytes.AsSpan(), countBytes);
+        }
+        else
+        {
+            m_store.Put(keyBytes.AsSpan(), countBytes);
+        }
+    }
+
+    private void LoadTableRowCount(string tableName)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWCOUNT_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWCOUNT_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWCOUNT_PREFIX_BYTES.Length);
+
+        var countData = m_store.Get(keyBytes.AsSpan());
+        if (countData != null && countData.Length == 8)
+        {
+            m_tableRowCounts[tableName] = System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(countData);
+        }
+    }
+
+    private void DeleteTableRowCount(string tableName)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWCOUNT_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWCOUNT_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWCOUNT_PREFIX_BYTES.Length);
+
+        m_store.Delete(keyBytes.AsSpan());
+        m_tableRowCounts.Remove(tableName);
     }
 
     #endregion
