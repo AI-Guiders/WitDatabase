@@ -21,6 +21,12 @@ namespace OutWit.Database.Core.Stores
 
         private const int VERSION_SUFFIX_SIZE = 8;
         private const string PROVIDER_KEY_PREFIX = "mvcc:";
+        
+        /// <summary>
+        /// Key for storing the maximum timestamp used in the MVCC store.
+        /// This enables O(1) timestamp recovery on database reopen.
+        /// </summary>
+        private static readonly byte[] MAX_TIMESTAMP_KEY = "$mvcc:max_timestamp"u8.ToArray();
 
         #endregion
 
@@ -30,6 +36,9 @@ namespace OutWit.Database.Core.Stores
         private readonly ITransactionTimestampManager m_timestampManager;
         private readonly bool m_ownsStore;
         private readonly ByteArrayComparer m_comparer;
+        private readonly object m_maxTimestampLock = new();
+        private long m_cachedMaxTimestamp;
+        private bool m_maxTimestampDirty;
         private bool m_disposed;
 
         #endregion
@@ -51,6 +60,176 @@ namespace OutWit.Database.Core.Stores
             m_timestampManager = timestampManager ?? throw new ArgumentNullException(nameof(timestampManager));
             m_ownsStore = ownsStore;
             m_comparer = ByteArrayComparer.Default;
+            
+            // Load cached max timestamp from store
+            m_cachedMaxTimestamp = ReadCachedMaxTimestamp(innerStore);
+        }
+
+        #endregion
+
+        #region Static Factory Methods
+
+        /// <summary>
+        /// Reads the cached maximum timestamp from the store.
+        /// This is the preferred method for initializing timestamp manager on database reopen.
+        /// Returns 0 if no cached value exists.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store.</param>
+        /// <returns>The cached max timestamp, or 0 if not found.</returns>
+        public static long ReadCachedMaxTimestamp(IKeyValueStore innerStore)
+        {
+            if (innerStore == null)
+                throw new ArgumentNullException(nameof(innerStore));
+
+            var data = innerStore.Get(MAX_TIMESTAMP_KEY);
+            if (data == null || data.Length != 8)
+                return 0;
+
+            return BinaryPrimitives.ReadInt64LittleEndian(data);
+        }
+
+        /// <summary>
+        /// Reads the cached maximum timestamp from the store asynchronously.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The cached max timestamp, or 0 if not found.</returns>
+        public static async ValueTask<long> ReadCachedMaxTimestampAsync(
+            IKeyValueStore innerStore,
+            CancellationToken cancellationToken = default)
+        {
+            if (innerStore == null)
+                throw new ArgumentNullException(nameof(innerStore));
+
+            var data = await innerStore.GetAsync(MAX_TIMESTAMP_KEY, cancellationToken).ConfigureAwait(false);
+            if (data == null || data.Length != 8)
+                return 0;
+
+            return BinaryPrimitives.ReadInt64LittleEndian(data);
+        }
+
+        /// <summary>
+        /// Scans an inner store to find the maximum timestamp among existing MVCC records.
+        /// This is a fallback method when cached value is not available.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store containing MVCC records.</param>
+        /// <returns>The maximum timestamp found, or 0 if no records exist.</returns>
+        /// <remarks>
+        /// This method performs a full scan of the store, which may be slow for large databases.
+        /// Prefer using <see cref="ReadCachedMaxTimestamp"/> when possible.
+        /// </remarks>
+        public static long FindMaxTimestamp(IKeyValueStore innerStore)
+        {
+            if (innerStore == null)
+                throw new ArgumentNullException(nameof(innerStore));
+
+            long maxTimestamp = 0;
+            var comparer = ByteArrayComparer.Default;
+
+            foreach (var (key, data) in innerStore.Scan(null, null))
+            {
+                // Skip the max_timestamp metadata key itself
+                if (comparer.Compare(key, MAX_TIMESTAMP_KEY) == 0)
+                    continue;
+                    
+                if (!MvccRecord.TryDeserialize(data, out var record))
+                    continue;
+
+                // Check CreateTimestamp
+                if (record.CreateTimestamp > maxTimestamp)
+                    maxTimestamp = record.CreateTimestamp;
+
+                // Check CommitTimestamp (if it's a valid timestamp)
+                if (record.CommitTimestamp > 0 && record.CommitTimestamp < long.MaxValue && 
+                    record.CommitTimestamp > maxTimestamp)
+                    maxTimestamp = record.CommitTimestamp;
+
+                // Check DeleteTimestamp (if not NOT_DELETED)
+                if (record.DeleteTimestamp != MvccRecord.NOT_DELETED && 
+                    record.DeleteTimestamp > maxTimestamp)
+                    maxTimestamp = record.DeleteTimestamp;
+            }
+
+            return maxTimestamp;
+        }
+        
+        /// <summary>
+        /// Scans an inner store asynchronously to find the maximum timestamp among existing MVCC records.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store containing MVCC records.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The maximum timestamp found, or 0 if no records exist.</returns>
+        /// <remarks>
+        /// This method performs a full scan of the store, which may be slow for large databases.
+        /// Prefer using <see cref="ReadCachedMaxTimestampAsync"/> when possible.
+        /// </remarks>
+        public static async ValueTask<long> FindMaxTimestampAsync(
+            IKeyValueStore innerStore, 
+            CancellationToken cancellationToken = default)
+        {
+            if (innerStore == null)
+                throw new ArgumentNullException(nameof(innerStore));
+
+            long maxTimestamp = 0;
+            var comparer = ByteArrayComparer.Default;
+
+            await foreach (var (key, data) in innerStore.ScanAsync(null, null, cancellationToken).ConfigureAwait(false))
+            {
+                // Skip the max_timestamp metadata key itself
+                if (comparer.Compare(key, MAX_TIMESTAMP_KEY) == 0)
+                    continue;
+                    
+                if (!MvccRecord.TryDeserialize(data, out var record))
+                    continue;
+
+                if (record.CreateTimestamp > maxTimestamp)
+                    maxTimestamp = record.CreateTimestamp;
+
+                if (record.CommitTimestamp > 0 && record.CommitTimestamp < long.MaxValue && 
+                    record.CommitTimestamp > maxTimestamp)
+                    maxTimestamp = record.CommitTimestamp;
+
+                if (record.DeleteTimestamp != MvccRecord.NOT_DELETED && 
+                    record.DeleteTimestamp > maxTimestamp)
+                    maxTimestamp = record.DeleteTimestamp;
+            }
+
+            return maxTimestamp;
+        }
+
+        /// <summary>
+        /// Recovers the maximum timestamp, preferring cached value over full scan.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store.</param>
+        /// <returns>The maximum timestamp found.</returns>
+        public static long RecoverMaxTimestamp(IKeyValueStore innerStore)
+        {
+            // First try to read cached value (O(1))
+            var cached = ReadCachedMaxTimestamp(innerStore);
+            if (cached > 0)
+                return cached;
+
+            // Fallback to full scan (O(n)) for databases created before caching was added
+            return FindMaxTimestamp(innerStore);
+        }
+
+        /// <summary>
+        /// Recovers the maximum timestamp asynchronously, preferring cached value over full scan.
+        /// </summary>
+        /// <param name="innerStore">The underlying key-value store.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The maximum timestamp found.</returns>
+        public static async ValueTask<long> RecoverMaxTimestampAsync(
+            IKeyValueStore innerStore,
+            CancellationToken cancellationToken = default)
+        {
+            // First try to read cached value (O(1))
+            var cached = await ReadCachedMaxTimestampAsync(innerStore, cancellationToken).ConfigureAwait(false);
+            if (cached > 0)
+                return cached;
+
+            // Fallback to full scan (O(n)) for databases created before caching was added
+            return await FindMaxTimestampAsync(innerStore, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
@@ -157,6 +336,9 @@ namespace OutWit.Database.Core.Stores
             var versionedKey = CreateVersionedKey(keyArray, timestamp);
 
             m_innerStore.Put(versionedKey, record.Serialize());
+            
+            // Update cached max timestamp
+            UpdateCachedMaxTimestamp(timestamp);
         }
 
         #endregion
@@ -191,7 +373,15 @@ namespace OutWit.Database.Core.Stores
                 return false;
 
             // Mark the current version as deleted
-            return MarkPreviousVersionDeleted(keyArray, timestamp, transactionId);
+            var result = MarkPreviousVersionDeleted(keyArray, timestamp, transactionId);
+            
+            if (result)
+            {
+                // Update cached max timestamp (delete timestamp is used)
+                UpdateCachedMaxTimestamp(timestamp);
+            }
+            
+            return result;
         }
 
         #endregion
@@ -209,6 +399,10 @@ namespace OutWit.Database.Core.Stores
             // Scan all records and commit those belonging to this transaction
             foreach (var (key, data) in m_innerStore.Scan(null, null))
             {
+                // Skip metadata keys
+                if (IsMetadataKey(key))
+                    continue;
+                    
                 if (!MvccRecord.TryDeserialize(data, out var record))
                     continue;
 
@@ -221,6 +415,9 @@ namespace OutWit.Database.Core.Stores
             }
 
             m_timestampManager.MarkCommitted(transactionId, commitTimestamp);
+            
+            // Update cached max timestamp
+            UpdateCachedMaxTimestamp(commitTimestamp);
         }
 
         /// <inheritdoc/>
@@ -236,6 +433,10 @@ namespace OutWit.Database.Core.Stores
 
             foreach (var (key, data) in m_innerStore.Scan(null, null))
             {
+                // Skip metadata keys
+                if (IsMetadataKey(key))
+                    continue;
+                    
                 if (!MvccRecord.TryDeserialize(data, out var record))
                     continue;
 
@@ -290,7 +491,6 @@ namespace OutWit.Database.Core.Stores
             ThrowIfDisposed();
 
             var seenKeys = new HashSet<byte[]>(m_comparer);
-            byte[]? currentKey = null;
 
             // Create versioned scan range
             var versionedStartKey = startKey != null 
@@ -353,6 +553,10 @@ namespace OutWit.Database.Core.Stores
             // Group versions by original key
             foreach (var (versionedKey, data) in m_innerStore.Scan(null, null))
             {
+                // Skip metadata keys
+                if (IsMetadataKey(versionedKey))
+                    continue;
+                    
                 var originalKey = ExtractOriginalKey(versionedKey);
                 
                 if (!MvccRecord.TryDeserialize(data, out var record))
@@ -475,6 +679,7 @@ namespace OutWit.Database.Core.Stores
         public void Flush()
         {
             ThrowIfDisposed();
+            PersistMaxTimestampIfNeeded();
             m_innerStore.Flush();
         }
 
@@ -482,6 +687,7 @@ namespace OutWit.Database.Core.Stores
         public ValueTask FlushAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
+            PersistMaxTimestampIfNeeded();
             return m_innerStore.FlushAsync(cancellationToken);
         }
 
@@ -517,6 +723,52 @@ namespace OutWit.Database.Core.Stores
             }
 
             return false;
+        }
+        
+        /// <summary>
+        /// Updates the cached max timestamp if the new timestamp is greater.
+        /// Uses in-memory cache to avoid I/O on every write.
+        /// Persists to store on Flush or periodic intervals.
+        /// </summary>
+        private void UpdateCachedMaxTimestamp(long timestamp)
+        {
+            lock (m_maxTimestampLock)
+            {
+                if (timestamp > m_cachedMaxTimestamp)
+                {
+                    m_cachedMaxTimestamp = timestamp;
+                    m_maxTimestampDirty = true;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Persists the cached max timestamp to the store if dirty.
+        /// Called on Flush and Dispose.
+        /// </summary>
+        private void PersistMaxTimestampIfNeeded()
+        {
+            long timestampToWrite;
+            lock (m_maxTimestampLock)
+            {
+                if (!m_maxTimestampDirty)
+                    return;
+                    
+                timestampToWrite = m_cachedMaxTimestamp;
+                m_maxTimestampDirty = false;
+            }
+            
+            Span<byte> data = stackalloc byte[8];
+            BinaryPrimitives.WriteInt64LittleEndian(data, timestampToWrite);
+            m_innerStore.Put(MAX_TIMESTAMP_KEY, data);
+        }
+        
+        /// <summary>
+        /// Checks if a key is a metadata key (starts with $).
+        /// </summary>
+        private static bool IsMetadataKey(byte[] key)
+        {
+            return key.Length > 0 && key[0] == (byte)'$';
         }
 
         /// <summary>
@@ -570,6 +822,16 @@ namespace OutWit.Database.Core.Stores
         {
             if (m_disposed) return;
             m_disposed = true;
+
+            // Persist max timestamp before disposing
+            try
+            {
+                PersistMaxTimestampIfNeeded();
+            }
+            catch
+            {
+                // Ignore errors during dispose - store might already be disposed
+            }
 
             if (m_ownsStore)
             {

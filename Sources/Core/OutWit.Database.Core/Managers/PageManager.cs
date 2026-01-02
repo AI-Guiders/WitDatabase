@@ -622,6 +622,9 @@ public sealed class PageManager : IDisposable
             }
             
             m_cache.FlushAll();
+            
+            // Ensure all data is written to persistent storage
+            m_storage.Flush();
         }
     }
 
@@ -652,6 +655,9 @@ public sealed class PageManager : IDisposable
         }
         
         await m_cache.FlushAllAsync(cancellationToken).ConfigureAwait(false);
+        
+        // Ensure all data is written to persistent storage
+        await m_storage.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

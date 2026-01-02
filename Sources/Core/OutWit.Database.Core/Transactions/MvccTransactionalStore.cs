@@ -107,7 +107,11 @@ namespace OutWit.Database.Core.Transactions
             if (innerStore == null)
                 throw new ArgumentNullException(nameof(innerStore));
 
-            m_timestampManager = new TransactionTimestampManager();
+            // Recover maximum timestamp from existing data.
+            // This uses cached value (O(1)) when available, falling back to full scan (O(n)) only for legacy databases.
+            var maxTimestamp = MvccKeyValueStore.RecoverMaxTimestamp(innerStore);
+            
+            m_timestampManager = new TransactionTimestampManager(maxTimestamp);
             m_mvccStore = new MvccKeyValueStore(innerStore, m_timestampManager, ownsStore);
             m_lockManager = lockManager;
             m_rowLockManager = new RowLockManager();

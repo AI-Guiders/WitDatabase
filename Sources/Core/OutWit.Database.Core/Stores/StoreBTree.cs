@@ -321,6 +321,15 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
     public void Flush()
     {
         ThrowIfDisposed();
+        
+        // Update schema root page if it changed (due to tree splits/merges)
+        var currentRoot = m_tree.RootPageNumber;
+        var header = m_pageManager.GetHeader();
+        if (header.SchemaRootPage != currentRoot)
+        {
+            m_pageManager.SetSchemaRootPage(currentRoot);
+        }
+        
         m_pageManager.Flush();
     }
 
@@ -328,6 +337,15 @@ public sealed class StoreBTree : IKeyValueStore, IKeyValueStoreStatistics, IAsyn
     public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        
+        // Update schema root page if it changed (due to tree splits/merges)
+        var currentRoot = m_tree.RootPageNumber;
+        var header = m_pageManager.GetHeader();
+        if (header.SchemaRootPage != currentRoot)
+        {
+            m_pageManager.SetSchemaRootPage(currentRoot);
+        }
+        
         await m_pageManager.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 

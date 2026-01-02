@@ -431,6 +431,134 @@ namespace OutWit.Database.Core.Tests.Stores
 
         #endregion
 
+        #region Max Timestamp Caching Tests
+
+        [Test]
+        public void PutUpdatesCachedMaxTimestampTest()
+        {
+            var key = ToBytes("key1");
+            m_store.Put(key, ToBytes("value1"));
+            
+            // Flush to persist the cached max timestamp
+            m_store.Flush();
+
+            // Read cached max timestamp directly
+            var cachedMax = MvccKeyValueStore.ReadCachedMaxTimestamp(m_innerStore);
+
+            Assert.That(cachedMax, Is.GreaterThan(0));
+            Assert.That(cachedMax, Is.EqualTo(m_timestampManager.CurrentTimestamp));
+        }
+
+        [Test]
+        public void CommitUpdatesCachedMaxTimestampTest()
+        {
+            var key = ToBytes("key1");
+
+            m_timestampManager.RegisterTransaction(1, snapshotTimestamp: 100);
+            m_store.PutVersion(key, ToBytes("v1"), timestamp: 101, transactionId: 1);
+            m_store.Flush();
+
+            var beforeCommit = MvccKeyValueStore.ReadCachedMaxTimestamp(m_innerStore);
+            Assert.That(beforeCommit, Is.EqualTo(101));
+
+            m_store.CommitTransaction(1, commitTimestamp: 200);
+            m_store.Flush();
+
+            var afterCommit = MvccKeyValueStore.ReadCachedMaxTimestamp(m_innerStore);
+            Assert.That(afterCommit, Is.EqualTo(200));
+        }
+
+        [Test]
+        public void RecoverMaxTimestampUsesCachedValueTest()
+        {
+            var key = ToBytes("key1");
+
+            // Create some data
+            m_store.PutVersion(key, ToBytes("v1"), timestamp: 100);
+            m_store.PutVersion(key, ToBytes("v2"), timestamp: 200);
+            m_store.PutVersion(key, ToBytes("v3"), timestamp: 300);
+            m_store.Flush();
+
+            // Recover max timestamp - should use cached value (O(1))
+            var recovered = MvccKeyValueStore.RecoverMaxTimestamp(m_innerStore);
+
+            Assert.That(recovered, Is.EqualTo(300));
+        }
+
+        [Test]
+        public void RecoverMaxTimestampFallsBackToScanTest()
+        {
+            // Manually create MVCC records without updating cache
+            // This simulates a database created before caching was added
+            var record1 = new OutWit.Database.Core.Mvcc.MvccRecord(ToBytes("v1"), createTimestamp: 100, transactionId: 0);
+            var record2 = new OutWit.Database.Core.Mvcc.MvccRecord(ToBytes("v2"), createTimestamp: 200, transactionId: 0);
+            
+            // Write directly to inner store (bypassing cache update)
+            m_innerStore.Put(ToBytes("key1\x7f\xff\xff\xff\xff\xff\xff\x9b"), record1.Serialize()); // inverted 100
+            m_innerStore.Put(ToBytes("key1\x7f\xff\xff\xff\xff\xff\xff\x37"), record2.Serialize()); // inverted 200
+
+            // RecoverMaxTimestamp should find max via scan since cache is empty
+            var recovered = MvccKeyValueStore.RecoverMaxTimestamp(m_innerStore);
+
+            Assert.That(recovered, Is.EqualTo(200));
+        }
+
+        [Test]
+        public void ReopenDatabaseWithCachedTimestampTest()
+        {
+            var key = ToBytes("key1");
+
+            // Create data
+            m_store.Put(key, ToBytes("value1"));
+            m_store.Put(key, ToBytes("value2"));
+            var originalMax = m_timestampManager.CurrentTimestamp;
+
+            // Dispose current store (this also persists max timestamp)
+            m_store.Dispose();
+
+            // Create new timestamp manager and store (simulates reopen)
+            var recoveredMax = MvccKeyValueStore.RecoverMaxTimestamp(m_innerStore);
+            var newTimestampManager = new TransactionTimestampManager(recoveredMax);
+            var newStore = new MvccKeyValueStore(m_innerStore, newTimestampManager, ownsStore: false);
+
+            try
+            {
+                // New writes should have timestamps greater than recovered max
+                newStore.Put(key, ToBytes("value3"));
+                
+                var result = newStore.Get(key);
+                Assert.That(result, Is.Not.Null);
+                Assert.That(FromBytes(result!), Is.EqualTo("value3"));
+
+                // New timestamp should be greater than original
+                Assert.That(newTimestampManager.CurrentTimestamp, Is.GreaterThan(originalMax));
+            }
+            finally
+            {
+                newStore.Dispose();
+            }
+        }
+
+        [Test]
+        public void DeleteUpdatesCachedMaxTimestampTest()
+        {
+            var key = ToBytes("key1");
+            m_store.Put(key, ToBytes("value1"));
+            m_store.Flush();
+            
+            var afterPut = MvccKeyValueStore.ReadCachedMaxTimestamp(m_innerStore);
+            
+            m_store.Delete(key);
+            m_store.Flush();
+
+            var afterDelete = MvccKeyValueStore.ReadCachedMaxTimestamp(m_innerStore);
+
+            // Delete should have used a newer timestamp
+            Assert.That(afterDelete, Is.GreaterThan(afterPut));
+        }
+
+        #endregion
+
         #region ProviderKey Tests
 
         [Test]

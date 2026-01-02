@@ -266,6 +266,27 @@ public sealed partial class WitSqlEngine : IDatabase, IDisposable, ITransactionM
 
     #endregion
 
+    #region Flush
+
+    /// <summary>
+    /// Flushes any pending writes to durable storage.
+    /// Call this to ensure all data is persisted.
+    /// </summary>
+    public void Flush()
+    {
+        m_database.Flush();
+    }
+
+    /// <summary>
+    /// Flushes any pending writes asynchronously.
+    /// </summary>
+    public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
+    {
+        await m_database.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    #endregion
+
     #region IDisposable
 
     /// <summary>

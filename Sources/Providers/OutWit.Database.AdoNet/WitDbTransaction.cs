@@ -43,7 +43,8 @@ public sealed class WitDbTransaction : DbTransaction
 
         try
         {
-            m_connection!.Engine!.Commit();
+            // Use SQL COMMIT to match the BEGIN TRANSACTION that was executed via SQL
+            m_connection!.Engine!.Execute("COMMIT");
             m_completed = true;
         }
         finally
@@ -71,7 +72,8 @@ public sealed class WitDbTransaction : DbTransaction
         {
             if (m_connection?.Engine != null)
             {
-                m_connection.Engine.Rollback();
+                // Use SQL ROLLBACK to match the BEGIN TRANSACTION that was executed via SQL
+                m_connection.Engine.Execute("ROLLBACK");
             }
             m_completed = true;
         }
@@ -107,7 +109,7 @@ public sealed class WitDbTransaction : DbTransaction
         if (string.IsNullOrEmpty(savepointName))
             throw new ArgumentException("Savepoint name cannot be null or empty.", nameof(savepointName));
 
-        m_connection!.Engine!.CreateSavepoint(savepointName);
+        m_connection!.Engine!.Execute($"SAVEPOINT {savepointName}");
     }
 
     /// <summary>
@@ -133,7 +135,7 @@ public sealed class WitDbTransaction : DbTransaction
         if (string.IsNullOrEmpty(savepointName))
             throw new ArgumentException("Savepoint name cannot be null or empty.", nameof(savepointName));
 
-        m_connection!.Engine!.RollbackToSavepoint(savepointName);
+        m_connection!.Engine!.Execute($"ROLLBACK TO SAVEPOINT {savepointName}");
     }
 
     /// <summary>
@@ -159,7 +161,7 @@ public sealed class WitDbTransaction : DbTransaction
         if (string.IsNullOrEmpty(savepointName))
             throw new ArgumentException("Savepoint name cannot be null or empty.", nameof(savepointName));
 
-        m_connection!.Engine!.ReleaseSavepoint(savepointName);
+        m_connection!.Engine!.Execute($"RELEASE SAVEPOINT {savepointName}");
     }
 
     /// <summary>

@@ -1,8 +1,8 @@
 # WitDatabase - Benchmarks and Samples Plan
 
 **Date:** 2025-02-06  
-**Version:** 1.1  
-**Last Updated:** 2025-02-07
+**Version:** 1.4  
+**Last Updated:** 2025-02-11
 
 ---
 
@@ -25,25 +25,25 @@
 | Encryption | AES-GCM | Done |
 | Encryption | Encrypted Storage | Done |
 
-### 1.2 Planned Benchmarks
+### 1.2 Production Benchmarks
 
-#### 1.2.1 OutWit.Database.Benchmarks (SQL Engine) - ? DONE
+#### 1.2.1 OutWit.Database.Benchmarks (SQL Engine) - DONE
 
-New project for SQL layer benchmarks.
+Main benchmark project for SQL layer performance testing.
 
 ```
 Benchmarks/
   OutWit.Database.Benchmarks/
-    QueryBenchmarks.cs       ?
-    InsertBenchmarks.cs      ?
-    UpdateBenchmarks.cs      ?
-    JoinBenchmarks.cs        ?
-    AggregateBenchmarks.cs   ?
-    IndexBenchmarks.cs       ?
-    TransactionBenchmarks.cs ?
-    BenchmarkConfig.cs       ?
-    Program.cs               ?
-    README.md                ?
+    QueryBenchmarks.cs       [x]
+    InsertBenchmarks.cs      [x]
+    UpdateBenchmarks.cs      [x]
+    JoinBenchmarks.cs        [x]
+    AggregateBenchmarks.cs   [x]
+    IndexBenchmarks.cs       [x]
+    TransactionBenchmarks.cs [x]
+    BenchmarkConfig.cs       [x]
+    Program.cs               [x]
+    README.md                [x]
 ```
 
 **Engine Modes Tested:**
@@ -52,7 +52,7 @@ Benchmarks/
 - BTreeParallelAuto (with parallel writes)
 - LsmParallelAuto (with parallel writes)
 
-**Initial Results (InsertBenchmarks):**
+**Performance Results (InsertBenchmarks):**
 
 | Scenario | Best WitDb Mode | vs SQLite |
 |----------|-----------------|-----------|
@@ -62,117 +62,87 @@ Benchmarks/
 | INSERT RETURNING (500 ops) | BTree | ~same for 5000 rows |
 | Without transaction (100 rows) | LsmParallelAuto | **4-11x faster** |
 
-| Benchmark | Description | Priority | Status |
-|----------|----------|-----------|--------|
-| **QueryBenchmarks** | | | |
-| SimpleSelect | `SELECT * FROM Users` | P0 | ? Done |
-| SelectWithWhere | `SELECT * FROM Users WHERE Age > 18` | P0 | ? Done |
-| SelectWithOrderBy | `SELECT * FROM Users ORDER BY Name` | P0 | ? Done |
-| SelectWithLimit | `SELECT * FROM Users LIMIT 100` | P0 | ? Done |
-| SelectProjection | `SELECT Id, Name FROM Users` | P1 | ? Done |
-| **InsertBenchmarks** | | | |
-| SingleInsert | Single row INSERT | P0 | ? Done |
-| BulkInsert | Multi-row INSERT (100/1000 rows) | P0 | ? Done |
-| InsertReturning | INSERT...RETURNING | P1 | ? Done |
-| **UpdateBenchmarks** | | | |
-| UpdateByPK | UPDATE by primary key | P0 | ? Done |
-| UpdateByIndex | UPDATE with indexed WHERE | P0 | ? Done |
-| BulkUpdate | UPDATE all rows | P1 | ? Done |
-| UpdateReturning | UPDATE...RETURNING | P1 | ? Done |
-| **JoinBenchmarks** | | | |
-| InnerJoin | 2-table INNER JOIN | P0 | ? Done |
-| LeftJoin | 2-table LEFT JOIN | P0 | ? Done |
-| MultipleJoins | 3+ table JOINs | P1 | ? Done |
-| JoinWithGroupBy | JOIN + GROUP BY | P1 | ? Done |
-| **AggregateBenchmarks** | | | |
-| CountAll | COUNT(*) | P0 | ? Done |
-| GroupBySimple | GROUP BY single column | P0 | ? Done |
-| GroupByMultiple | GROUP BY multiple columns | P1 | ? Done |
-| AggregateWithHaving | GROUP BY...HAVING | P1 | ? Done |
-| **IndexBenchmarks** | | | |
-| IndexSeek | Equality lookup on index | P0 | ? Done |
-| IndexRangeScan | Range query on index | P0 | ? Done |
-| CompositeIndex | Query using composite index | P1 | ? Done |
-| **TransactionBenchmarks** | | | |
-| SingleTransaction | One transaction with N ops | P0 | ? Done |
-| MixedWorkload | INSERT + UPDATE + SELECT in tx | P1 | ? Done |
-| Savepoint | Transaction with savepoint | P1 | ? Done |
+| Benchmark | Description | Status |
+|----------|----------|--------|
+| **QueryBenchmarks** | | |
+| SimpleSelect | `SELECT * FROM Users` | Done |
+| SelectWithWhere | `SELECT * FROM Users WHERE Age > 18` | Done |
+| SelectWithOrderBy | `SELECT * FROM Users ORDER BY Name` | Done |
+| SelectWithLimit | `SELECT * FROM Users LIMIT 100` | Done |
+| SelectProjection | `SELECT Id, Name FROM Users` | Done |
+| **InsertBenchmarks** | | |
+| SingleInsert | Single row INSERT | Done |
+| BulkInsert | Multi-row INSERT (100/1000 rows) | Done |
+| InsertReturning | INSERT...RETURNING | Done |
+| **UpdateBenchmarks** | | |
+| UpdateByPK | UPDATE by primary key | Done |
+| UpdateByIndex | UPDATE with indexed WHERE | Done |
+| BulkUpdate | UPDATE all rows | Done |
+| UpdateReturning | UPDATE...RETURNING | Done |
+| **JoinBenchmarks** | | |
+| InnerJoin | 2-table INNER JOIN | Done |
+| LeftJoin | 2-table LEFT JOIN | Done |
+| MultipleJoins | 3+ table JOINs | Done |
+| JoinWithGroupBy | JOIN + GROUP BY | Done |
+| **AggregateBenchmarks** | | |
+| CountAll | COUNT(*) | Done |
+| GroupBySimple | GROUP BY single column | Done |
+| GroupByMultiple | GROUP BY multiple columns | Done |
+| AggregateWithHaving | GROUP BY...HAVING | Done |
+| **IndexBenchmarks** | | |
+| IndexSeek | Equality lookup on index | Done |
+| IndexRangeScan | Range query on index | Done |
+| CompositeIndex | Query using composite index | Done |
+| **TransactionBenchmarks** | | |
+| SingleTransaction | One transaction with N ops | Done |
+| MixedWorkload | INSERT + UPDATE + SELECT in tx | Done |
+| Savepoint | Transaction with savepoint | Done |
 
-#### 1.2.2 OutWit.Database.AdoNet.Benchmarks - ? DONE
+#### 1.2.2 OutWit.Database.AdoNet.Benchmarks - DONE
+
+ADO.NET provider performance benchmarks.
 
 ```
 Benchmarks/
   OutWit.Database.AdoNet.Benchmarks/
-    ConnectionBenchmarks.cs       ?
-    CommandBenchmarks.cs          ?
-    DataReaderBenchmarks.cs       ?
-    PreparedStatementBenchmarks.cs ?
-    BenchmarkConfig.cs            ?
-    Program.cs                    ?
-    README.md                     ?
+    ConnectionBenchmarks.cs       [x]
+    CommandBenchmarks.cs          [x]
+    DataReaderBenchmarks.cs       [x]
+    PreparedStatementBenchmarks.cs [x]
+    BenchmarkConfig.cs            [x]
+    Program.cs                    [x]
+    README.md                     [x]
 ```
 
-| Benchmark | Description | Priority | Status |
-|----------|----------|-----------|--------|
-| **ConnectionBenchmarks** | | | |
-| OpenClose | Connection open/close cycle | P0 | ? Done |
-| OpenQueryClose | Open + query + close | P0 | ? Done |
-| SingleConnection100Queries | Reuse connection | P1 | ? Done |
-| **CommandBenchmarks** | | | |
-| ExecuteNonQuery | INSERT/UPDATE/DELETE | P0 | ? Done |
-| ExecuteScalar | Scalar result | P0 | ? Done |
-| ExecuteReader | Full result set | P0 | ? Done |
-| **DataReaderBenchmarks** | | | |
-| ReadAllRows | Iterate all rows | P0 | ? Done |
-| GetTypedValues | GetInt32, GetString, etc. | P1 | ? Done |
-| ReadByColumnName | Access by column name | P1 | ? Done |
-| **PreparedStatementBenchmarks** | | | |
-| ReuseCommand | Prepared vs non-prepared | P1 | ? Done |
-| BatchInsert | Batch in transaction | P1 | ? Done |
+| Benchmark | Description | Status |
+|----------|----------|--------|
+| **ConnectionBenchmarks** | | |
+| OpenClose | Connection open/close cycle | Done |
+| OpenQueryClose | Open + query + close | Done |
+| SingleConnection100Queries | Reuse connection | Done |
+| **CommandBenchmarks** | | |
+| ExecuteNonQuery | INSERT/UPDATE/DELETE | Done |
+| ExecuteScalar | Scalar result | Done |
+| ExecuteReader | Full result set | Done |
+| **DataReaderBenchmarks** | | |
+| ReadAllRows | Iterate all rows | Done |
+| GetTypedValues | GetInt32, GetString, etc. | Done |
+| ReadByColumnName | Access by column name | Done |
+| **PreparedStatementBenchmarks** | | |
+| ReuseCommand | Prepared vs non-prepared | Done |
+| BatchInsert | Batch in transaction | Done |
 
-#### 1.2.3 OutWit.Database.EntityFramework.Benchmarks - ? DONE
-
-```
-Benchmarks/
-  OutWit.Database.EntityFramework.Benchmarks/
-    QueryBenchmarks.cs     ?
-    CrudBenchmarks.cs      ?
-    TrackingBenchmarks.cs  ?
-    Entities.cs            ?
-    BenchmarkContexts.cs   ?
-    BenchmarkConfig.cs     ?
-    Program.cs             ?
-    README.md              ?
-```
-
-| Benchmark | Description | Priority | Status |
-|----------|----------|-----------|--------|
-| **QueryBenchmarks** | | | |
-| SimpleQuery | `context.Users.ToList()` | P0 | ? Done |
-| FilteredQuery | `.Where(u => u.Age > 18)` | P0 | ? Done |
-| IncludeNavigation | `.Include(u => u.Orders)` | P0 | ? Done |
-| NoTracking | `AsNoTracking()` | P1 | ? Done |
-| SelectProjection | `.Select(u => new {...})` | P1 | ? Done |
-| **CrudBenchmarks** | | | |
-| AddSingle | `Add()` + `SaveChanges()` | P0 | ? Done |
-| AddRange | `AddRange()` + `SaveChanges()` | P0 | ? Done |
-| UpdateSingle | Update + `SaveChanges()` | P0 | ? Done |
-| RemoveSingle | `Remove()` + `SaveChanges()` | P0 | ? Done |
-| **TrackingBenchmarks** | | | |
-| TrackingVsNoTracking | Compare performance | P1 | ? Done |
-| ChangeDetection | DetectChanges overhead | P1 | ? Done |
-
-#### 1.2.4 Comparison Benchmarks (vs SQLite) - Existing
+#### 1.2.3 Comparison Benchmarks (vs SQLite) - Existing
 
 Already implemented in `OutWit.Database.Comparison.Benchmarks`:
 
 | Benchmark | Description | Status |
 |----------|----------|--------|
-| InsertPerformance | 10K/100K inserts | ? Done |
-| SelectPerformance | Point/Range queries | ? Done |
-| TransactionOverhead | Transaction throughput | ? Done |
-| ConcurrentReads | Parallel readers | ? Done |
-| BTreeVsLsm | Storage engine comparison | ? Done |
+| InsertPerformance | 10K/100K inserts | Done |
+| SelectPerformance | Point/Range queries | Done |
+| TransactionOverhead | Transaction throughput | Done |
+| ConcurrentReads | Parallel readers | Done |
+| BTreeVsLsm | Storage engine comparison | Done |
 
 ---
 
@@ -186,95 +156,97 @@ Already implemented in `OutWit.Database.Comparison.Benchmarks`:
 
 ### 2.2 Planned Samples
 
-#### 2.2.1 OutWit.Database.Samples.ConsoleApp
+#### 2.2.1 OutWit.Database.Samples.ConsoleApp - DONE
 
 **Simple console application demonstrating WitDatabase basics.**
 
 ```
 Samples/
   OutWit.Database.Samples.ConsoleApp/
-    Program.cs
+    Program.cs                    [x]
     Examples/
-      BasicCrudExample.cs
-      TransactionExample.cs
-      EncryptionExample.cs
-      LsmTreeExample.cs
-      BulkOperationsExample.cs
-    OutWit.Database.Samples.ConsoleApp.csproj
+      BasicCrudExample.cs         [x]
+      TransactionExample.cs       [x]
+      EncryptionExample.cs        [x]
+      LsmTreeExample.cs           [x]
+      BulkOperationsExample.cs    [x]
+    README.md                     [x]
+    OutWit.Database.Samples.ConsoleApp.csproj [x]
 ```
 
 **Features:**
-- Create/open database
-- CRUD operations
-- Transactions
-- Encryption
-- Storage engine selection (BTree vs LSM)
-- Bulk operations
-- Range scans
+- [x] Create/open database
+- [x] CRUD operations
+- [x] Transactions with savepoints
+- [x] AES-GCM Encryption
+- [x] Storage engine selection (BTree vs LSM)
+- [x] Bulk operations
+- [x] Interactive menu
 
-#### 2.2.2 OutWit.Database.Samples.WebApi
+#### 2.2.2 OutWit.Database.Samples.WebApi - DONE
 
 **ASP.NET Core Web API using ADO.NET provider.**
 
 ```
 Samples/
   OutWit.Database.Samples.WebApi/
-    Program.cs
+    Program.cs                    [x]
     Controllers/
-      UsersController.cs
-      ProductsController.cs
+      UsersController.cs          [x]
+      ProductsController.cs       [x]
     Services/
-      UserService.cs
-      ProductService.cs
+      DatabaseInitializer.cs      [x]
+      UserService.cs              [x]
+      ProductService.cs           [x]
     Models/
-      User.cs
-      Product.cs
-    appsettings.json
-    OutWit.Database.Samples.WebApi.csproj
+      User.cs                     [x]
+      Product.cs                  [x]
+    appsettings.json              [x]
+    README.md                     [x]
+    OutWit.Database.Samples.WebApi.csproj [x]
 ```
 
 **Features:**
-- REST API for CRUD operations
-- Direct WitDbConnection usage
-- Connection pooling
-- Swagger documentation
-- Health checks
-- Schema migration example
+- [x] REST API for CRUD operations
+- [x] Direct WitDbConnection usage
+- [x] Parameterized queries with WitDbParameter
+- [x] Transaction management
+- [x] Bulk operations with transactions
+- [x] Swagger documentation
+- [x] Search, pagination, filtering
+- [x] Statistics endpoints
 
-#### 2.2.3 OutWit.Database.Samples.WebApiEF
+#### 2.2.3 OutWit.Database.Samples.WebApiEF - DONE
 
 **ASP.NET Core Web API using Entity Framework Core.**
 
 ```
 Samples/
   OutWit.Database.Samples.WebApiEF/
-    Program.cs
+    Program.cs                    [x]
     Data/
-      AppDbContext.cs
-      Migrations/
+      AppDbContext.cs             [x]
     Controllers/
-      UsersController.cs
-      OrdersController.cs
-      ProductsController.cs
-    Models/
-      User.cs
-      Order.cs
-      OrderItem.cs
-      Product.cs
+      UsersController.cs          [x]
+      OrdersController.cs         [x]
+      ProductsController.cs       [x]
     Services/
-      OrderService.cs
-    appsettings.json
-    OutWit.Database.Samples.WebApiEF.csproj
+      UserService.cs              [x]
+      OrderService.cs             [x]
+    appsettings.json              [x]
+    README.md                     [x]
+    OutWit.Database.Samples.WebApiEF.csproj [x]
 ```
 
 **Features:**
-- Entity Framework Core integration
-- Code-First migrations
-- Relationships (one-to-many, many-to-many)
-- LINQ queries
-- Optimistic concurrency (RowVersion)
-- Computed columns
-- JSON columns
+- [x] Entity Framework Core integration
+- [x] DbContext with relationships (one-to-many)
+- [x] LINQ queries with Include
+- [x] Pagination support
+- [x] CRUD endpoints for Users, Products, Orders
+- [x] Statistics endpoints
+- [x] Swagger/OpenAPI documentation
+- [x] Automatic database seeding
 
 #### 2.2.4 OutWit.Database.Samples.BlazorServer
 
@@ -367,42 +339,37 @@ Samples/
 
 ## Part 3: Implementation Priorities
 
-### Phase 1: Core Samples (Week 1-2)
+### Phase 1: Core Samples (Week 1-2) - COMPLETE
 
-1. **OutWit.Database.Samples.ConsoleApp** - P0
+1. **OutWit.Database.Samples.ConsoleApp** - DONE
    - Basic demonstration of all features
    - Easy to run and understand
 
-2. **OutWit.Database.Samples.WebApiEF** - P0
+2. **OutWit.Database.Samples.WebApiEF** - DONE
    - Main use case scenario
    - Demonstrates EF Core integration
+   - Real-world performance testing
 
-### Phase 2: Extended Samples (Week 3-4)
+### Phase 2: Extended Samples (Week 3-4) - IN PROGRESS
 
-3. **OutWit.Database.Samples.WebApi** - P1
+3. **OutWit.Database.Samples.WebApi** - DONE
    - ADO.NET demonstration
-   - Connection pooling
+   - Direct SQL control
+   - Transaction management
 
-4. **OutWit.Database.Samples.BlazorWasm** (update) - P1
+4. **OutWit.Database.Samples.BlazorWasm** (update) - P1 (TODO)
    - SQL queries in browser
    - Encryption demo
 
 ### Phase 3: Advanced Samples (Week 5-6)
 
-5. **OutWit.Database.Samples.BlazorServer** - P2
+5. **OutWit.Database.Samples.BlazorServer** - P2 (TODO)
    - Server-side Blazor
    - Real-time features
 
-6. **OutWit.Database.Samples.WorkerService** - P2
+6. **OutWit.Database.Samples.WorkerService** - P2 (TODO)
    - Background processing
    - Batch operations
-
-### Phase 4: Benchmarks (Parallel)
-
-7. **OutWit.Database.Benchmarks** - P0
-8. **OutWit.Database.AdoNet.Benchmarks** - P1
-9. **OutWit.Database.EntityFramework.Benchmarks** - P1
-10. **OutWit.Database.Comparison.Benchmarks** - P0
 
 ---
 
@@ -411,20 +378,19 @@ Samples/
 ```
 WitDatabase/
   Benchmarks/
-    OutWit.Database.Core.Tests.Benchmarks/     # Exists
-    OutWit.Database.Benchmarks/                # NEW - SQL Engine
-    OutWit.Database.AdoNet.Benchmarks/         # NEW - ADO.NET
-    OutWit.Database.EntityFramework.Benchmarks/# NEW - EF Core
-    OutWit.Database.Comparison.Benchmarks/     # NEW - vs SQLite
+    OutWit.Database.Core.Tests.Benchmarks/     # Exists - Core layer
+    OutWit.Database.Benchmarks/                # Done - SQL Engine
+    OutWit.Database.AdoNet.Benchmarks/         # Done - ADO.NET
+    OutWit.Database.Comparison.Benchmarks/     # Exists - vs SQLite
 
   Samples/
-    OutWit.Database.Samples.BlazorWasm/        # Exists (update)
-    OutWit.Database.Samples.ConsoleApp/        # NEW
-    OutWit.Database.Samples.WebApi/            # NEW
-    OutWit.Database.Samples.WebApiEF/          # NEW
-    OutWit.Database.Samples.BlazorServer/      # NEW
-    OutWit.Database.Samples.WorkerService/     # NEW
-    OutWit.Database.Samples.Maui/              # NEW (optional)
+    OutWit.Database.Samples.BlazorWasm/        # Exists (update pending)
+    OutWit.Database.Samples.ConsoleApp/        # DONE
+    OutWit.Database.Samples.WebApi/            # DONE
+    OutWit.Database.Samples.WebApiEF/          # DONE
+    OutWit.Database.Samples.BlazorServer/      # TODO
+    OutWit.Database.Samples.WorkerService/     # TODO
+    OutWit.Database.Samples.Maui/              # TODO (optional)
 
   Sources/
     ... (unchanged)
@@ -553,3 +519,17 @@ public class AppDbContext : DbContext
 // In Program.cs:
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseWitDb(builder.Configuration.GetConnectionString("Default")));
+```
+
+---
+
+## Part 7: Benchmark Summary
+
+| Project | Layer | Status | Purpose |
+|---------|-------|--------|---------|
+| OutWit.Database.Core.Tests.Benchmarks | Core | Done | Low-level storage performance |
+| OutWit.Database.Benchmarks | SQL Engine | Done | SQL query performance |
+| OutWit.Database.AdoNet.Benchmarks | ADO.NET | Done | Provider performance |
+| OutWit.Database.Comparison.Benchmarks | All | Done | vs SQLite comparison |
+
+> **Note:** Entity Framework Core benchmarks were removed due to EF Core's internal model caching making benchmark isolation unreliable. Real-world EF Core performance will be tested through sample applications (WebApiEF, BlazorServer).
