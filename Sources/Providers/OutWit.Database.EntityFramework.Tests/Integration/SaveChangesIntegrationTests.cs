@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.Extensions.DependencyInjection;
 using OutWit.Database.EntityFramework.Extensions;
 
 namespace OutWit.Database.EntityFramework.Tests.Integration;
@@ -49,7 +50,6 @@ public class SaveChangesIntegrationTests
         var model = context.Model;
         var relationalModel = model.GetRelationalModel();
         
-        // RelationalModel should reference the same model as context.Model (RuntimeModel)
         Assert.That(ReferenceEquals(relationalModel.Model, model), Is.True, 
             "RelationalModel.Model should be the same as context.Model (RuntimeModel)");
     }
@@ -157,66 +157,99 @@ public class SaveChangesIntegrationTests
 
     #endregion
 
-    #region Raw SQL Tests
+    #region DI Simulation Tests
 
     [Test]
-    public void CanExecuteRawSqlTest()
+    public void SaveChangesWithServiceProviderTest()
     {
-        var optionsBuilder = new DbContextOptionsBuilder<SaveChangesTestContext>();
-        optionsBuilder.UseWitDb($"Data Source={m_testDbPath}");
+        // Simulate how web applications create DbContext via DI
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        
+        services.AddDbContext<SaveChangesTestContext>(options =>
+            options.UseWitDb($"Data Source={m_testDbPath}"));
 
-        using var context = new SaveChangesTestContext(optionsBuilder.Options);
+        var serviceProvider = services.BuildServiceProvider();
+
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SaveChangesTestContext>();
         
+        // Create table manually
         context.Database.OpenConnection();
-        
         var connection = context.Database.GetDbConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT 1";
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS ""TestItem"" (
+                    ""Id"" INT PRIMARY KEY AUTOINCREMENT,
+                    ""Name"" TEXT NOT NULL
+                )";
+            cmd.ExecuteNonQuery();
+        }
         
-        var result = command.ExecuteScalar();
+        // Add and save entity
+        var item = new TestItem { Name = "DI Test Item" };
+        context.Items.Add(item);
         
-        Assert.That(result, Is.Not.Null);
+        var result = context.SaveChanges();
+        
+        Assert.That(result, Is.EqualTo(1), "SaveChanges should return 1 for one inserted entity");
         
         context.Database.CloseConnection();
     }
 
-    [Test]
-    public void CanCreateAndQueryTableViaRawSqlTest()
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<SaveChangesTestContext>();
-        optionsBuilder.UseWitDb($"Data Source={m_testDbPath}");
+    #endregion
 
-        using var context = new SaveChangesTestContext(optionsBuilder.Options);
+    #region WebApiEF Simulation Tests
+
+    [Test]
+    public void SaveChangesWithWebApiEFStyleContextTest()
+    {
+        var services = new ServiceCollection();
         
+        services.AddDbContext<FourEntityEFContext>(options =>
+            options.UseWitDb($"Data Source={m_testDbPath}"));
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<FourEntityEFContext>();
+        
+        // Create tables manually
         context.Database.OpenConnection();
         var connection = context.Database.GetDbConnection();
-        
-        // Create table
-        using (var createCmd = connection.CreateCommand())
+        using (var cmd = connection.CreateCommand())
         {
-            createCmd.CommandText = @"
-                CREATE TABLE IF NOT EXISTS RawSqlTestTable (
-                    Id INT PRIMARY KEY AUTOINCREMENT,
-                    Name TEXT NOT NULL
-                )";
-            createCmd.ExecuteNonQuery();
+            cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS ""FourUser"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS ""FourProduct"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT NOT NULL, ""Price"" DECIMAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS ""FourOrder"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""UserId"" INT NOT NULL, ""TotalAmount"" DECIMAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS ""FourOrderItem"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""OrderId"" INT NOT NULL, ""ProductId"" INT NOT NULL, ""Quantity"" INT NOT NULL, ""UnitPrice"" DECIMAL NOT NULL)";
+            cmd.ExecuteNonQuery();
         }
         
-        // Insert data
-        using (var insertCmd = connection.CreateCommand())
-        {
-            insertCmd.CommandText = "INSERT INTO RawSqlTestTable (Name) VALUES ('Test')";
-            var rowsAffected = insertCmd.ExecuteNonQuery();
-            Assert.That(rowsAffected, Is.EqualTo(1));
-        }
+        // Add user
+        var user = new FourUser { Name = "Alice" };
+        context.Users.Add(user);
+        var result1 = context.SaveChanges();
+        Assert.That(result1, Is.EqualTo(1));
         
-        // Query data
-        using (var selectCmd = connection.CreateCommand())
-        {
-            selectCmd.CommandText = "SELECT Name FROM RawSqlTestTable WHERE Id = 1";
-            var name = selectCmd.ExecuteScalar();
-            Assert.That(name, Is.EqualTo("Test"));
-        }
+        // Add product
+        var product = new FourProduct { Name = "Laptop", Price = 1299.99m };
+        context.Products.Add(product);
+        var result2 = context.SaveChanges();
+        Assert.That(result2, Is.EqualTo(1));
+        
+        // Add order
+        var order = new FourOrder { UserId = user.Id, TotalAmount = product.Price };
+        context.Orders.Add(order);
+        var result3 = context.SaveChanges();
+        Assert.That(result3, Is.EqualTo(1));
+        
+        // Add order item
+        var orderItem = new FourOrderItem { OrderId = order.Id, ProductId = product.Id, Quantity = 1, UnitPrice = product.Price };
+        context.OrderItems.Add(orderItem);
+        var result4 = context.SaveChanges();
+        Assert.That(result4, Is.EqualTo(1));
         
         context.Database.CloseConnection();
     }
@@ -240,3 +273,76 @@ public class SaveChangesIntegrationTests
 
     #endregion
 }
+
+#region Four Entity Models (outside test class)
+
+public class FourUser
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+}
+
+public class FourProduct
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public decimal Price { get; set; }
+}
+
+public class FourOrder
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public decimal TotalAmount { get; set; }
+}
+
+public class FourOrderItem
+{
+    public int Id { get; set; }
+    public int OrderId { get; set; }
+    public int ProductId { get; set; }
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
+public class FourEntityEFContext : DbContext
+{
+    public FourEntityEFContext(DbContextOptions<FourEntityEFContext> options) : base(options) { }
+
+    public DbSet<FourUser> Users => Set<FourUser>();
+    public DbSet<FourProduct> Products => Set<FourProduct>();
+    public DbSet<FourOrder> Orders => Set<FourOrder>();
+    public DbSet<FourOrderItem> OrderItems => Set<FourOrderItem>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<FourUser>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<FourProduct>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Price).HasColumnType("DECIMAL(10, 2)");
+        });
+
+        modelBuilder.Entity<FourOrder>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TotalAmount).HasColumnType("DECIMAL(15, 2)");
+        });
+
+        modelBuilder.Entity<FourOrderItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.UnitPrice).HasColumnType("DECIMAL(10, 2)");
+        });
+    }
+}
+
+#endregion

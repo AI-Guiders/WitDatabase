@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using OutWit.Database.Samples.WebApiEF.Data;
+using OutWit.Database.Samples.WebApiEF.Models;
 
 namespace OutWit.Database.Samples.WebApiEF.Services;
 
 /// <summary>
 /// Service for user operations.
 /// </summary>
-public class UserService
+public sealed class UserService
 {
     #region Fields
 
@@ -38,11 +39,9 @@ public class UserService
     /// <summary>
     /// Gets a user by ID.
     /// </summary>
-    public async Task<User?> GetByIdAsync(long id)
+    public async Task<User?> GetByIdAsync(int id)
     {
-        return await m_context.Users
-            .Include(u => u.Orders)
-            .FirstOrDefaultAsync(u => u.Id == id);
+        return await m_context.Users.FindAsync(id);
     }
 
     /// <summary>
@@ -50,8 +49,7 @@ public class UserService
     /// </summary>
     public async Task<User?> GetByEmailAsync(string email)
     {
-        return await m_context.Users
-            .FirstOrDefaultAsync(u => u.Email == email);
+        return await m_context.Users.FirstOrDefaultAsync(u => u.Email == email);
     }
 
     /// <summary>
@@ -62,19 +60,19 @@ public class UserService
         var user = new User
         {
             Name = name,
-            Email = email
+            Email = email,
+            CreatedAt = DateTime.UtcNow
         };
 
         m_context.Users.Add(user);
         await m_context.SaveChangesAsync();
-
         return user;
     }
 
     /// <summary>
-    /// Updates an existing user.
+    /// Updates a user.
     /// </summary>
-    public async Task<User?> UpdateAsync(long id, string name, string email)
+    public async Task<User?> UpdateAsync(int id, string name, string email)
     {
         var user = await m_context.Users.FindAsync(id);
         if (user == null)
@@ -90,7 +88,7 @@ public class UserService
     /// <summary>
     /// Deletes a user.
     /// </summary>
-    public async Task<bool> DeleteAsync(long id)
+    public async Task<bool> DeleteAsync(int id)
     {
         var user = await m_context.Users.FindAsync(id);
         if (user == null)
@@ -103,6 +101,37 @@ public class UserService
 
     #endregion
 
+    #region Query Operations
+
+    /// <summary>
+    /// Searches users by name.
+    /// </summary>
+    public async Task<List<User>> SearchByNameAsync(string searchTerm)
+    {
+        return await m_context.Users
+            .Where(u => u.Name.Contains(searchTerm))
+            .OrderBy(u => u.Name)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets paginated users.
+    /// </summary>
+    public async Task<(List<User> Users, int TotalCount)> GetPagedAsync(int page, int pageSize)
+    {
+        var totalCount = await m_context.Users.CountAsync();
+
+        var users = await m_context.Users
+            .OrderBy(u => u.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (users, totalCount);
+    }
+
+    #endregion
+
     #region Statistics
 
     /// <summary>
@@ -110,39 +139,15 @@ public class UserService
     /// </summary>
     public async Task<UserStatistics> GetStatisticsAsync()
     {
-        var totalUsers = await m_context.Users.CountAsync();
-        var usersWithOrders = await m_context.Users
-            .Where(u => u.Orders.Any())
-            .CountAsync();
-
-        var topSpender = await m_context.Users
-            .Select(u => new 
-            { 
-                User = u, 
-                TotalSpent = u.Orders.Sum(o => o.TotalAmount) 
-            })
-            .OrderByDescending(x => x.TotalSpent)
-            .FirstOrDefaultAsync();
+        var users = await m_context.Users.ToListAsync();
 
         return new UserStatistics
         {
-            TotalUsers = totalUsers,
-            UsersWithOrders = usersWithOrders,
-            TopSpenderName = topSpender?.User.Name,
-            TopSpenderAmount = topSpender?.TotalSpent ?? 0
+            TotalUsers = users.Count,
+            NewestUser = users.MaxBy(u => u.CreatedAt)?.CreatedAt,
+            OldestUser = users.MinBy(u => u.CreatedAt)?.CreatedAt
         };
     }
 
     #endregion
-}
-
-/// <summary>
-/// User statistics DTO.
-/// </summary>
-public class UserStatistics
-{
-    public int TotalUsers { get; set; }
-    public int UsersWithOrders { get; set; }
-    public string? TopSpenderName { get; set; }
-    public decimal TopSpenderAmount { get; set; }
 }

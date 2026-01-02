@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using OutWit.Database.Samples.WebApiEF.Data;
+using OutWit.Database.Samples.WebApiEF.Models;
 using OutWit.Database.Samples.WebApiEF.Services;
 
 namespace OutWit.Database.Samples.WebApiEF.Controllers;
@@ -26,7 +26,7 @@ public class UsersController : ControllerBase
 
     #endregion
 
-    #region Endpoints
+    #region CRUD Endpoints
 
     /// <summary>
     /// Gets all users.
@@ -42,7 +42,7 @@ public class UsersController : ControllerBase
     /// Gets a user by ID.
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<UserDto>> GetById(long id)
+    public async Task<ActionResult<UserDto>> GetById(int id)
     {
         var user = await m_userService.GetByIdAsync(id);
         if (user == null)
@@ -57,7 +57,6 @@ public class UsersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserRequest request)
     {
-        // Check if email already exists
         var existing = await m_userService.GetByEmailAsync(request.Email);
         if (existing != null)
             return BadRequest("Email already in use");
@@ -70,7 +69,7 @@ public class UsersController : ControllerBase
     /// Updates a user.
     /// </summary>
     [HttpPut("{id}")]
-    public async Task<ActionResult<UserDto>> Update(long id, [FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<UserDto>> Update(int id, [FromBody] UpdateUserRequest request)
     {
         var user = await m_userService.UpdateAsync(id, request.Name, request.Email);
         if (user == null)
@@ -83,7 +82,7 @@ public class UsersController : ControllerBase
     /// Deletes a user.
     /// </summary>
     [HttpDelete("{id}")]
-    public async Task<ActionResult> Delete(long id)
+    public async Task<ActionResult> Delete(int id)
     {
         var deleted = await m_userService.DeleteAsync(id);
         if (!deleted)
@@ -91,6 +90,50 @@ public class UsersController : ControllerBase
 
         return NoContent();
     }
+
+    #endregion
+
+    #region Query Endpoints
+
+    /// <summary>
+    /// Searches users by name.
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<ActionResult<List<UserDto>>> Search([FromQuery] string q)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+            return BadRequest("Search term is required");
+
+        var users = await m_userService.SearchByNameAsync(q);
+        return users.Select(u => new UserDto(u)).ToList();
+    }
+
+    /// <summary>
+    /// Gets paginated users.
+    /// </summary>
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResult<UserDto>>> GetPaged(
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 10)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 10;
+
+        var (users, totalCount) = await m_userService.GetPagedAsync(page, pageSize);
+
+        return new PagedResult<UserDto>
+        {
+            Items = users.Select(u => new UserDto(u)).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+
+    #endregion
+
+    #region Statistics Endpoints
 
     /// <summary>
     /// Gets user statistics.
@@ -103,48 +146,3 @@ public class UsersController : ControllerBase
 
     #endregion
 }
-
-#region DTOs
-
-/// <summary>
-/// User data transfer object.
-/// </summary>
-public class UserDto
-{
-    public long Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public int OrderCount { get; set; }
-
-    public UserDto() { }
-
-    public UserDto(User user)
-    {
-        Id = user.Id;
-        Name = user.Name;
-        Email = user.Email;
-        CreatedAt = user.CreatedAt;
-        OrderCount = user.Orders?.Count ?? 0;
-    }
-}
-
-/// <summary>
-/// Create user request.
-/// </summary>
-public class CreateUserRequest
-{
-    public string Name { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Update user request.
-/// </summary>
-public class UpdateUserRequest
-{
-    public string Name { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-}
-
-#endregion

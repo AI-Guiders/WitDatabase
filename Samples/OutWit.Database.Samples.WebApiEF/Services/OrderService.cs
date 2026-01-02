@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using OutWit.Database.Samples.WebApiEF.Data;
+using OutWit.Database.Samples.WebApiEF.Models;
 
 namespace OutWit.Database.Samples.WebApiEF.Services;
 
 /// <summary>
 /// Service for order operations.
 /// </summary>
-public class OrderService
+public sealed class OrderService
 {
     #region Fields
 
@@ -26,34 +27,11 @@ public class OrderService
     #region CRUD Operations
 
     /// <summary>
-    /// Gets all orders with pagination.
+    /// Gets all orders.
     /// </summary>
-    public async Task<(List<Order> Orders, int TotalCount)> GetAllAsync(int page = 1, int pageSize = 10)
-    {
-        var query = m_context.Orders
-            .Include(o => o.User)
-            .Include(o => o.Items)
-                .ThenInclude(i => i.Product)
-            .OrderByDescending(o => o.OrderDate);
-
-        var totalCount = await query.CountAsync();
-        var orders = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        return (orders, totalCount);
-    }
-
-    /// <summary>
-    /// Gets orders for a specific user.
-    /// </summary>
-    public async Task<List<Order>> GetByUserIdAsync(long userId)
+    public async Task<List<Order>> GetAllAsync()
     {
         return await m_context.Orders
-            .Include(o => o.Items)
-                .ThenInclude(i => i.Product)
-            .Where(o => o.UserId == userId)
             .OrderByDescending(o => o.OrderDate)
             .ToListAsync();
     }
@@ -61,61 +39,78 @@ public class OrderService
     /// <summary>
     /// Gets an order by ID.
     /// </summary>
-    public async Task<Order?> GetByIdAsync(long id)
+    public async Task<Order?> GetByIdAsync(int id)
     {
-        return await m_context.Orders
-            .Include(o => o.User)
-            .Include(o => o.Items)
-                .ThenInclude(i => i.Product)
-            .FirstOrDefaultAsync(o => o.Id == id);
+        return await m_context.Orders.FindAsync(id);
+    }
+
+    /// <summary>
+    /// Gets order items for an order.
+    /// </summary>
+    public async Task<List<OrderItem>> GetOrderItemsAsync(int orderId)
+    {
+        return await m_context.OrderItems
+            .Where(i => i.OrderId == orderId)
+            .ToListAsync();
     }
 
     /// <summary>
     /// Creates a new order.
     /// </summary>
-    public async Task<Order?> CreateAsync(long userId, List<OrderItemRequest> items)
+    public async Task<Order?> CreateAsync(int userId, List<(int ProductId, int Quantity)> items)
     {
-        // Validate user exists
+        // Verify user exists
         var user = await m_context.Users.FindAsync(userId);
         if (user == null)
             return null;
 
-        // Validate products and create order items
-        var orderItems = new List<OrderItem>();
-        decimal totalAmount = 0;
+        // Verify all products exist and have sufficient stock
+        var productIds = items.Select(i => i.ProductId).ToList();
+        var products = await m_context.Products
+            .Where(p => productIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id);
 
-        foreach (var item in items)
+        if (products.Count != productIds.Count)
+            return null;
+
+        foreach (var (productId, quantity) in items)
         {
-            var product = await m_context.Products.FindAsync(item.ProductId);
-            if (product == null)
-                throw new InvalidOperationException($"Product {item.ProductId} not found");
-
-            if (product.Stock < item.Quantity)
-                throw new InvalidOperationException($"Insufficient stock for product {product.Name}");
-
-            var orderItem = new OrderItem
-            {
-                ProductId = product.Id,
-                Quantity = item.Quantity,
-                UnitPrice = product.Price
-            };
-
-            orderItems.Add(orderItem);
-            totalAmount += orderItem.Quantity * orderItem.UnitPrice;
-
-            // Update stock
-            product.Stock -= item.Quantity;
+            if (products[productId].Stock < quantity)
+                return null;
         }
 
+        // Create order
         var order = new Order
         {
             UserId = userId,
-            TotalAmount = totalAmount,
+            OrderDate = DateTime.UtcNow,
             Status = OrderStatus.Pending,
-            Items = orderItems
+            TotalAmount = 0
         };
 
         m_context.Orders.Add(order);
+        await m_context.SaveChangesAsync();
+
+        // Create order items and calculate total
+        decimal totalAmount = 0;
+        foreach (var (productId, quantity) in items)
+        {
+            var product = products[productId];
+            var orderItem = new OrderItem
+            {
+                OrderId = order.Id,
+                ProductId = productId,
+                Quantity = quantity,
+                UnitPrice = product.Price
+            };
+
+            totalAmount += product.Price * quantity;
+            product.Stock -= quantity;
+
+            m_context.OrderItems.Add(orderItem);
+        }
+
+        order.TotalAmount = totalAmount;
         await m_context.SaveChangesAsync();
 
         return order;
@@ -124,7 +119,7 @@ public class OrderService
     /// <summary>
     /// Updates order status.
     /// </summary>
-    public async Task<Order?> UpdateStatusAsync(long id, OrderStatus status)
+    public async Task<Order?> UpdateStatusAsync(int id, OrderStatus status)
     {
         var order = await m_context.Orders.FindAsync(id);
         if (order == null)
@@ -137,34 +132,74 @@ public class OrderService
     }
 
     /// <summary>
-    /// Cancels an order and restores stock.
+    /// Deletes an order.
     /// </summary>
-    public async Task<bool> CancelAsync(long id)
+    public async Task<bool> DeleteAsync(int id)
     {
-        var order = await m_context.Orders
-            .Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.Id == id);
-
+        var order = await m_context.Orders.FindAsync(id);
         if (order == null)
             return false;
 
-        if (order.Status == OrderStatus.Completed || order.Status == OrderStatus.Cancelled)
-            return false;
+        // Get order items and restore product stock
+        var orderItems = await m_context.OrderItems
+            .Where(i => i.OrderId == id)
+            .ToListAsync();
 
-        // Restore stock
-        foreach (var item in order.Items)
+        foreach (var item in orderItems)
         {
             var product = await m_context.Products.FindAsync(item.ProductId);
             if (product != null)
             {
                 product.Stock += item.Quantity;
             }
+            m_context.OrderItems.Remove(item);
         }
 
-        order.Status = OrderStatus.Cancelled;
+        m_context.Orders.Remove(order);
         await m_context.SaveChangesAsync();
-
         return true;
+    }
+
+    #endregion
+
+    #region Query Operations
+
+    /// <summary>
+    /// Gets orders by user ID.
+    /// </summary>
+    public async Task<List<Order>> GetByUserIdAsync(int userId)
+    {
+        return await m_context.Orders
+            .Where(o => o.UserId == userId)
+            .OrderByDescending(o => o.OrderDate)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets orders by status.
+    /// </summary>
+    public async Task<List<Order>> GetByStatusAsync(OrderStatus status)
+    {
+        return await m_context.Orders
+            .Where(o => o.Status == status)
+            .OrderByDescending(o => o.OrderDate)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets paginated orders.
+    /// </summary>
+    public async Task<(List<Order> Orders, int TotalCount)> GetPagedAsync(int page, int pageSize)
+    {
+        var totalCount = await m_context.Orders.CountAsync();
+
+        var orders = await m_context.Orders
+            .OrderByDescending(o => o.OrderDate)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (orders, totalCount);
     }
 
     #endregion
@@ -176,78 +211,22 @@ public class OrderService
     /// </summary>
     public async Task<OrderStatistics> GetStatisticsAsync()
     {
-        var totalOrders = await m_context.Orders.CountAsync();
-        var totalRevenue = await m_context.Orders
-            .Where(o => o.Status == OrderStatus.Completed)
-            .SumAsync(o => o.TotalAmount);
+        var orders = await m_context.Orders.ToListAsync();
 
-        var ordersByStatus = await m_context.Orders
-            .GroupBy(o => o.Status)
-            .Select(g => new { Status = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Status.ToString(), x => x.Count);
-
-        var averageOrderValue = totalOrders > 0 
-            ? await m_context.Orders.AverageAsync(o => o.TotalAmount) 
-            : 0;
-
-        return new OrderStatistics
+        var stats = new OrderStatistics
         {
-            TotalOrders = totalOrders,
-            TotalRevenue = totalRevenue,
-            AverageOrderValue = averageOrderValue,
-            OrdersByStatus = ordersByStatus
+            TotalOrders = orders.Count,
+            TotalRevenue = orders.Sum(o => o.TotalAmount),
+            AverageOrderValue = orders.Count > 0 ? orders.Average(o => o.TotalAmount) : 0
         };
-    }
 
-    /// <summary>
-    /// Gets top selling products.
-    /// </summary>
-    public async Task<List<ProductSales>> GetTopProductsAsync(int count = 5)
-    {
-        return await m_context.OrderItems
-            .GroupBy(i => new { i.ProductId, i.Product.Name })
-            .Select(g => new ProductSales
-            {
-                ProductId = g.Key.ProductId,
-                ProductName = g.Key.Name,
-                TotalQuantity = g.Sum(i => i.Quantity),
-                TotalRevenue = g.Sum(i => i.Quantity * i.UnitPrice)
-            })
-            .OrderByDescending(p => p.TotalRevenue)
-            .Take(count)
-            .ToListAsync();
+        foreach (var status in Enum.GetValues<OrderStatus>())
+        {
+            stats.OrdersByStatus[status] = orders.Count(o => o.Status == status);
+        }
+
+        return stats;
     }
 
     #endregion
-}
-
-/// <summary>
-/// Order item request DTO.
-/// </summary>
-public class OrderItemRequest
-{
-    public long ProductId { get; set; }
-    public int Quantity { get; set; }
-}
-
-/// <summary>
-/// Order statistics DTO.
-/// </summary>
-public class OrderStatistics
-{
-    public int TotalOrders { get; set; }
-    public decimal TotalRevenue { get; set; }
-    public decimal AverageOrderValue { get; set; }
-    public Dictionary<string, int> OrdersByStatus { get; set; } = new();
-}
-
-/// <summary>
-/// Product sales DTO.
-/// </summary>
-public class ProductSales
-{
-    public long ProductId { get; set; }
-    public string ProductName { get; set; } = string.Empty;
-    public int TotalQuantity { get; set; }
-    public decimal TotalRevenue { get; set; }
 }
