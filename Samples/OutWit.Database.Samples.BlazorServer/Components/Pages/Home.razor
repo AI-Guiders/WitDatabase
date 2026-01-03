@@ -1,0 +1,121 @@
+@page "/"
+@inject UserService UserService
+@attribute [Authorize]
+
+<PageTitle>Dashboard - WitDatabase Identity</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+
+<AuthorizeView>
+    <Authorized>
+        <MudAlert Severity="Severity.Success" Class="mb-4">
+            Welcome, <strong>@context.User.Identity?.Name</strong>! You are logged in.
+        </MudAlert>
+    </Authorized>
+</AuthorizeView>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Large" Color="Color.Primary" />
+                        <MudText Typo="Typo.h4">@_totalUsers</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Total Users</MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+                        <MudText Typo="Typo.h4">@_activeUsers</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Active Users</MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Large" Color="Color.Info" />
+                        <MudText Typo="Typo.h4">@_totalRoles</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Roles</MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Large" Color="Color.Warning" />
+                        <MudText Typo="Typo.h4">WitDB</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Storage Engine</MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <MudCard Class="mt-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                    System Information
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudSimpleTable Dense="true" Hover="true">
+                <tbody>
+                    <tr>
+                        <td><strong>Database</strong></td>
+                        <td>WitDatabase with Entity Framework Core</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Identity Provider</strong></td>
+                        <td>ASP.NET Core Identity</td>
+                    </tr>
+                    <tr>
+                        <td><strong>OAuth/OIDC Server</strong></td>
+                        <td>OpenIddict</td>
+                    </tr>
+                    <tr>
+                        <td><strong>UI Framework</strong></td>
+                        <td>Blazor Server + MudBlazor</td>
+                    </tr>
+                </tbody>
+            </MudSimpleTable>
+        </MudCardContent>
+    </MudCard>
+}
+
+@code {
+    private bool _isLoading = true;
+    private int _totalUsers;
+    private int _activeUsers;
+    private int _totalRoles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        
+        _totalUsers = await UserService.GetUserCountAsync();
+        _activeUsers = await UserService.GetActiveUserCountAsync();
+        var roles = await UserService.GetAllRolesAsync();
+        _totalRoles = roles.Count;
+        
+        _isLoading = false;
+    }
+}

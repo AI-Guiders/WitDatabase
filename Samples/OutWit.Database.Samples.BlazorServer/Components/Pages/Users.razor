@@ -1,0 +1,298 @@
+@page "/users"
+@inject UserService UserService
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Users - WitDatabase Identity</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Users</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="@OpenCreateDialog">
+        Add User
+    </MudButton>
+</MudStack>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+        @_errorMessage
+    </MudAlert>
+}
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="@_users" Hover="true" Striped="true" Dense="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>User</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Roles</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Last Login</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudAvatar Size="Size.Small" Color="@(context.IsActive ? Color.Primary : Color.Default)">
+                        @context.DisplayName.FirstOrDefault()
+                    </MudAvatar>
+                    <MudText>@context.DisplayName</MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd>@context.Email</MudTd>
+            <MudTd>
+                @if (_userRoles.TryGetValue(context.Id, out var roles))
+                {
+                    @foreach (var role in roles)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="@(role == "Administrator" ? Color.Primary : Color.Default)">
+                            @role
+                        </MudChip>
+                    }
+                }
+            </MudTd>
+            <MudTd>
+                @if (context.IsActive)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error">Inactive</MudChip>
+                }
+            </MudTd>
+            <MudTd>@context.CreatedAt.ToString("g")</MudTd>
+            <MudTd>@(context.LastLoginAt?.ToString("g") ?? "Never")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" 
+                               OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => ConfirmDelete(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No users found</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+<!-- Create/Edit Dialog -->
+<MudDialog Visible="@_dialogOpen" VisibleChanged="@((bool v) => { if (!v) CloseDialog(); })"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditing ? "Edit User" : "Create User")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="string" @bind-Value="_editModel.FirstName" Label="First Name" 
+                              Required="true" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="string" @bind-Value="_editModel.LastName" Label="Last Name" 
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField T="string" @bind-Value="_editModel.Email" Label="Email" 
+                              Required="true" InputType="InputType.Email" Variant="Variant.Outlined"
+                              Disabled="@_isEditing" />
+            </MudItem>
+            @if (!_isEditing)
+            {
+                <MudItem xs="12">
+                    <MudTextField T="string" @bind-Value="_editModel.Password" Label="Password" 
+                                  Required="true" InputType="InputType.Password" Variant="Variant.Outlined" />
+                </MudItem>
+            }
+            <MudItem xs="12">
+                <MudSelect T="string" @bind-Value="_editModel.Role" Label="Role" Variant="Variant.Outlined">
+                    @foreach (var role in _availableRoles)
+                    {
+                        <MudSelectItem T="string" Value="@role.Name">@role.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudCheckBox T="bool" @bind-Value="_editModel.IsActive" Label="Active" Color="Color.Primary" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@CloseDialog">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveUser"
+                   Disabled="@(string.IsNullOrWhiteSpace(_editModel.Email) || string.IsNullOrWhiteSpace(_editModel.FirstName))">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Delete Confirmation Dialog -->
+<MudDialog Visible="@_deleteDialogOpen" VisibleChanged="@((bool v) => _deleteDialogOpen = v)"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Confirm Delete</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText>Are you sure you want to delete user <strong>@_userToDelete?.DisplayName</strong>?</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _deleteDialogOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@DeleteUser">Delete</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<ApplicationUser> _users = [];
+    private Dictionary<int, List<string>> _userRoles = [];
+    private List<ApplicationRole> _availableRoles = [];
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    
+    private bool _dialogOpen;
+    private bool _isEditing;
+    private UserEditModel _editModel = new();
+    private ApplicationUser? _editingUser;
+    
+    private bool _deleteDialogOpen;
+    private ApplicationUser? _userToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        
+        _users = await UserService.GetAllUsersAsync();
+        _availableRoles = await UserService.GetAllRolesAsync();
+        
+        _userRoles.Clear();
+        foreach (var user in _users)
+        {
+            var roles = await UserService.GetUserRolesAsync(user);
+            _userRoles[user.Id] = roles;
+        }
+        
+        _isLoading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editModel = new UserEditModel { IsActive = true };
+        _isEditing = false;
+        _editingUser = null;
+        _dialogOpen = true;
+    }
+
+    private void OpenEditDialog(ApplicationUser user)
+    {
+        _editingUser = user;
+        _editModel = new UserEditModel
+        {
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Email = user.Email ?? string.Empty,
+            IsActive = user.IsActive,
+            Role = _userRoles.TryGetValue(user.Id, out var roles) ? roles.FirstOrDefault() : null
+        };
+        _isEditing = true;
+        _dialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _dialogOpen = false;
+        _editModel = new();
+        _editingUser = null;
+    }
+
+    private async Task SaveUser()
+    {
+        _errorMessage = null;
+
+        if (_isEditing && _editingUser != null)
+        {
+            _editingUser.FirstName = _editModel.FirstName;
+            _editingUser.LastName = _editModel.LastName ?? string.Empty;
+            _editingUser.IsActive = _editModel.IsActive;
+
+            var (success, errors) = await UserService.UpdateUserAsync(_editingUser);
+            if (!success)
+            {
+                _errorMessage = string.Join(", ", errors);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(_editModel.Role))
+            {
+                await UserService.SetUserRolesAsync(_editingUser, [_editModel.Role]);
+            }
+
+            Snackbar.Add("User updated successfully", Severity.Success);
+        }
+        else
+        {
+            var (success, errors) = await UserService.CreateUserAsync(
+                _editModel.Email,
+                _editModel.Password ?? string.Empty,
+                _editModel.FirstName,
+                _editModel.LastName,
+                _editModel.Role);
+
+            if (!success)
+            {
+                _errorMessage = string.Join(", ", errors);
+                return;
+            }
+
+            Snackbar.Add("User created successfully", Severity.Success);
+        }
+
+        CloseDialog();
+        await LoadDataAsync();
+    }
+
+    private void ConfirmDelete(ApplicationUser user)
+    {
+        _userToDelete = user;
+        _deleteDialogOpen = true;
+    }
+
+    private async Task DeleteUser()
+    {
+        if (_userToDelete == null) return;
+
+        var (success, errors) = await UserService.DeleteUserAsync(_userToDelete.Id);
+        
+        if (!success)
+        {
+            _errorMessage = string.Join(", ", errors);
+        }
+        else
+        {
+            Snackbar.Add("User deleted successfully", Severity.Success);
+        }
+
+        _deleteDialogOpen = false;
+        _userToDelete = null;
+        await LoadDataAsync();
+    }
+
+    private class UserEditModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string? LastName { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string? Password { get; set; }
+        public string? Role { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}
