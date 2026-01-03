@@ -50,8 +50,7 @@ public sealed class WitModelRuntimeInitializer : RelationalModelRuntimeInitializ
         var existingFactory = ((IAnnotatable)model).FindRuntimeAnnotation(RelationalAnnotationNames.RelationalModelFactory);
         if (existingFactory != null)
         {
-            // Factory already exists, just call base
-            base.InitializeModel(model, designTime, prevalidation);
+            // Factory already exists, don't call base (which might try to add it again)
             return;
         }
 
@@ -72,16 +71,29 @@ public sealed class WitModelRuntimeInitializer : RelationalModelRuntimeInitializ
         var designTimeModel = model;
         var typeMappingSource = m_typeMappingSource;
         var annotationProvider = m_annotationProvider;
+        IRelationalModel? cachedRelationalModel = null;
+        object cacheLock = new();
 
         ((IAnnotatable)model).AddRuntimeAnnotation(
             RelationalAnnotationNames.RelationalModelFactory,
             () =>
             {
-                // At invocation time, ReadOnlyModel should point to the RuntimeModel
-                var runtimeModel = ((IAnnotatable)designTimeModel).FindRuntimeAnnotation("ReadOnlyModel")?.Value as IModel;
-                var modelToUse = runtimeModel ?? designTimeModel;
+                // Use double-check locking to ensure we only create the RelationalModel once
+                if (cachedRelationalModel != null)
+                    return cachedRelationalModel;
 
-                return RelationalModel.Create(modelToUse, annotationProvider, typeMappingSource, designTime: false);
+                lock (cacheLock)
+                {
+                    if (cachedRelationalModel != null)
+                        return cachedRelationalModel;
+
+                    // At invocation time, ReadOnlyModel should point to the RuntimeModel
+                    var runtimeModel = ((IAnnotatable)designTimeModel).FindRuntimeAnnotation("ReadOnlyModel")?.Value as IModel;
+                    var modelToUse = runtimeModel ?? designTimeModel;
+
+                    cachedRelationalModel = RelationalModel.Create(modelToUse, annotationProvider, typeMappingSource, designTime: false);
+                    return cachedRelationalModel;
+                }
             });
     }
 }

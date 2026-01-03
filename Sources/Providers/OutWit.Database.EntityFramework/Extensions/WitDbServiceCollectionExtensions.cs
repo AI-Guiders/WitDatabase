@@ -61,6 +61,7 @@ public static class WitDbServiceCollectionExtensions
             // Migrations
             .TryAdd<IMigrationsSqlGenerator, WitMigrationsSqlGenerator>()
             .TryAdd<IHistoryRepository, WitHistoryRepository>()
+            .TryAdd<IMigrationsModelDiffer, WitMigrationsModelDiffer>()
             
             // Database creation
             .TryAdd<IRelationalDatabaseCreator, WitDatabaseCreator>();

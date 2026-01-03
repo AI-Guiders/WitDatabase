@@ -211,6 +211,7 @@ public sealed class PageManager : IDisposable
             ThrowIfNotInitialized();
 
             uint pageNumber;
+            bool reusingFreePage = false;
 
             if (m_header.FirstFreePage != DatabaseConstants.NULL_PAGE_NUMBER)
             {
@@ -226,9 +227,7 @@ public sealed class PageManager : IDisposable
                 m_header.FreePageCount--;
 
                 m_cache.ReleasePage(pageNumber);
-                
-                // Evict from cache so we can create fresh
-                m_cache.Evict(pageNumber);
+                reusingFreePage = true;
             }
             else
             {
@@ -238,8 +237,29 @@ public sealed class PageManager : IDisposable
                 m_storage.SetSize(m_header.TotalPageCount);
             }
 
-            // Create and initialize the new page
-            var page = m_cache.CreatePage(pageNumber);
+            CachedPage page;
+            
+            if (reusingFreePage)
+            {
+                // Try to evict from cache so we can create fresh
+                try
+                {
+                    m_cache.Evict(pageNumber);
+                    page = m_cache.CreatePage(pageNumber);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Page is still pinned by another operation - that's OK
+                    // Just get it and reinitialize its content
+                    page = m_cache.GetPage(pageNumber);
+                }
+            }
+            else
+            {
+                // New page - create it
+                page = m_cache.CreatePage(pageNumber);
+            }
+            
             var header = PageHeader.CreateEmpty(pageType, m_storage.PageSize);
             header.WriteTo(page.Data);
             page.MarkDirty();
@@ -347,6 +367,7 @@ public sealed class PageManager : IDisposable
             ThrowIfNotInitialized();
 
             var pageNumbers = new uint[count];
+            var reusedPages = new List<uint>();
             
             for (int i = 0; i < count; i++)
             {
@@ -360,7 +381,7 @@ public sealed class PageManager : IDisposable
                     m_header.FirstFreePage = freeHeader.RightChild;
                     m_header.FreePageCount--;
                     m_cache.ReleasePage(pageNumber);
-                    m_cache.Evict(pageNumber);
+                    reusedPages.Add(pageNumber);
                 }
                 else
                 {
@@ -377,10 +398,36 @@ public sealed class PageManager : IDisposable
                 m_storage.SetSize(m_header.TotalPageCount);
             }
 
+            // Try to evict reused pages, but don't fail if they're pinned
+            // The cache will handle them naturally when they're no longer in use
+            foreach (var pageNumber in reusedPages)
+            {
+                try
+                {
+                    m_cache.Evict(pageNumber);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Page is still pinned by another operation - that's OK
+                    // We'll just overwrite its content below
+                }
+            }
+
             // Initialize all pages
             for (int i = 0; i < count; i++)
             {
-                var page = m_cache.CreatePage(pageNumbers[i]);
+                CachedPage page;
+                try
+                {
+                    page = m_cache.CreatePage(pageNumbers[i]);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Page already exists in cache (wasn't evicted because it was pinned)
+                    // Just get it and reinitialize
+                    page = m_cache.GetPage(pageNumbers[i]);
+                }
+                
                 var header = PageHeader.CreateEmpty(pageType, m_storage.PageSize);
                 header.WriteTo(page.Data);
                 page.MarkDirty();
