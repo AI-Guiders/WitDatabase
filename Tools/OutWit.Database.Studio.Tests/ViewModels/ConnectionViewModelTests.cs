@@ -171,52 +171,6 @@ public class ConnectionViewModelTests
 
     #endregion
 
-    #region Dialog Properties Tests
-
-    [Test]
-    public void DialogTitleForNewDatabaseTest()
-    {
-        m_connectionVm.IsNewDatabase = true;
-        Assert.That(m_connectionVm.DialogTitle, Is.EqualTo("Create New Database"));
-    }
-
-    [Test]
-    public void DialogTitleForOpenDatabaseTest()
-    {
-        m_connectionVm.IsNewDatabase = false;
-        Assert.That(m_connectionVm.DialogTitle, Is.EqualTo("Open Database"));
-    }
-
-    [Test]
-    public void DialogDescriptionForNewDatabaseTest()
-    {
-        m_connectionVm.IsNewDatabase = true;
-        Assert.That(m_connectionVm.DialogDescription, Contains.Substring("Create"));
-    }
-
-    [Test]
-    public void DialogDescriptionForOpenDatabaseTest()
-    {
-        m_connectionVm.IsNewDatabase = false;
-        Assert.That(m_connectionVm.DialogDescription, Contains.Substring("Open"));
-    }
-
-    [Test]
-    public void ConnectButtonTextForNewDatabaseTest()
-    {
-        m_connectionVm.IsNewDatabase = true;
-        Assert.That(m_connectionVm.ConnectButtonText, Is.EqualTo("Create"));
-    }
-
-    [Test]
-    public void ConnectButtonTextForOpenDatabaseTest()
-    {
-        m_connectionVm.IsNewDatabase = false;
-        Assert.That(m_connectionVm.ConnectButtonText, Is.EqualTo("Open"));
-    }
-
-    #endregion
-
     #region PageSize Options Tests
 
     [Test]

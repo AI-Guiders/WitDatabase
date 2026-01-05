@@ -11,12 +11,11 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
-        var appVm = ViewModels.ApplicationViewModel.Instance;
-        DataContext = appVm.MainWindowVm;
-        
-        // Set MainWindow reference for dialogs
-        appVm.MainWindow = this;
-        
+        DataContext = ViewModels
+            .ApplicationViewModel
+            .Instance
+            .ResetOwnerWindow(this);
+
         InitializeComponent();
     }
 

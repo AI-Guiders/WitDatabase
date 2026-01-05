@@ -1,10 +1,11 @@
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
+using System.ComponentModel;
+using System.Windows.Input;
+using Microsoft.Extensions.Logging;
 using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.Logging;
-using System.ComponentModel;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -13,24 +14,11 @@ namespace OutWit.Database.Studio.ViewModels;
 /// </summary>
 public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 {
-    #region Fields
-
-    private readonly IDatabaseService m_databaseService;
-    private readonly ILogger<DatabaseExplorerViewModel> m_logger;
-    private DatabaseNode? m_selectedNode;
-
-    #endregion
-
     #region Constructors
 
-    public DatabaseExplorerViewModel(
-        ApplicationViewModel applicationVm,
-        IDatabaseService databaseService)
+    public DatabaseExplorerViewModel(ApplicationViewModel applicationVm)
         : base(applicationVm)
     {
-        m_databaseService = databaseService;
-        m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<DatabaseExplorerViewModel>.Instance;
-
         InitDefault();
         InitCommands();
         InitEvents();
@@ -47,13 +35,13 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private void InitCommands()
     {
-        RefreshCommand = new DelegateCommand<object>(async _ => await RefreshAsync());
-        BrowseDataCommand = new DelegateCommand<object>(_ => BrowseData(), _ => CanBrowseData());
-        ViewDefinitionCommand = new DelegateCommand<object>(_ => ViewDefinition(), _ => CanViewDefinition());
-        DropObjectCommand = new DelegateCommand<object>(async _ => await DropObjectAsync(), _ => CanDropObject());
-        CreateTableCommand = new DelegateCommand<object>(async _ => await CreateTableAsync(), _ => m_databaseService.IsConnected);
-        CreateViewCommand = new DelegateCommand<object>(async _ => await CreateViewAsync(), _ => m_databaseService.IsConnected);
-        CreateIndexCommand = new DelegateCommand<object>(async _ => await CreateIndexAsync(), _ => m_databaseService.IsConnected);
+        RefreshCommand = new RelayCommand(async void (_) => await RefreshAsync());
+        BrowseDataCommand = new RelayCommand(_ => BrowseData(), _ => CanBrowseData());
+        ViewDefinitionCommand = new RelayCommand(_ => ViewDefinition(), _ => CanViewDefinition());
+        DropObjectCommand = new RelayCommand(async void (_) => await DropObjectAsync(), _ => CanDropObject());
+        CreateTableCommand = new RelayCommand(async void (_) => await CreateTableAsync(), _ => Database.IsConnected);
+        CreateViewCommand = new RelayCommand(async void (_) => await CreateViewAsync(), _ => Database.IsConnected);
+        CreateIndexCommand = new RelayCommand(async void (_) => await CreateIndexAsync(), _ => Database.IsConnected);
     }
 
     private void InitEvents()
@@ -63,15 +51,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
-    #region Commands
-
-    public DelegateCommand<object> RefreshCommand { get; private set; } = null!;
-    public DelegateCommand<object> BrowseDataCommand { get; private set; } = null!;
-    public DelegateCommand<object> ViewDefinitionCommand { get; private set; } = null!;
-    public DelegateCommand<object> DropObjectCommand { get; private set; } = null!;
-    public DelegateCommand<object> CreateTableCommand { get; private set; } = null!;
-    public DelegateCommand<object> CreateViewCommand { get; private set; } = null!;
-    public DelegateCommand<object> CreateIndexCommand { get; private set; } = null!;
+    #region Functions
 
     private void BrowseData()
     {
@@ -82,7 +62,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         ApplicationVm.QueryEditorVm.SqlText = sql;
         ApplicationVm.QueryEditorVm.ExecuteCommand.Execute(null);
 
-        m_logger.LogInformation("Browse data for {ObjectName}", SelectedNode.Name);
+        Logger.LogInformation("Browse data for {ObjectName}", SelectedNode.Name);
     }
 
     private bool CanBrowseData()
@@ -109,7 +89,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             ApplicationVm.QueryEditorVm.ExecuteCommand.Execute(null);
         }
 
-        m_logger.LogInformation("View definition for {ObjectName}", SelectedNode.Name);
+        Logger.LogInformation("View definition for {ObjectName}", SelectedNode.Name);
     }
 
     private bool CanViewDefinition()
@@ -140,16 +120,16 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
         try
         {
-            await m_databaseService.ExecuteNonQueryAsync(sql);
+            await Database.ExecuteNonQueryAsync(sql);
             await RefreshAsync();
 
             ApplicationVm.MainWindowVm.StatusText = $"Dropped {objectType.ToLower()}: {SelectedNode.Name}";
-            m_logger.LogInformation("Dropped {ObjectType}: {ObjectName}", objectType, SelectedNode.Name);
+            Logger.LogInformation("Dropped {ObjectType}: {ObjectName}", objectType, SelectedNode.Name);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to drop {objectType.ToLower()}: {ex.Message}";
-            m_logger.LogError(ex, "Failed to drop {ObjectType}: {ObjectName}", objectType, SelectedNode.Name);
+            Logger.LogError(ex, "Failed to drop {ObjectType}: {ObjectName}", objectType, SelectedNode.Name);
         }
     }
 
@@ -164,54 +144,51 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateTableAsync()
     {
-        var createTableVm = new CreateTableViewModel(ApplicationVm, m_databaseService);
+        var createTableVm = new CreateTableViewModel(ApplicationVm, Database);
         var dialog = new Views.CreateTableDialog(createTableVm);
         
-        var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow);
+        var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow!);
         
         if (result == true)
-        {
-            m_logger.LogInformation("Table created successfully");
-        }
+            Logger.LogInformation("Table created successfully");
+        
     }
 
     private async Task CreateViewAsync()
     {
-        var createViewVm = new CreateViewViewModel(ApplicationVm, m_databaseService);
+        var createViewVm = new CreateViewViewModel(ApplicationVm, Database);
         var dialog = new Views.CreateViewDialog(createViewVm);
         
-        var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow);
+        var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow!);
         
         if (result == true)
-        {
-            m_logger.LogInformation("View created successfully");
-        }
+            Logger.LogInformation("View created successfully");
+        
     }
 
     private async Task CreateIndexAsync()
     {
-        var createIndexVm = new CreateIndexViewModel(ApplicationVm, m_databaseService);
+        var createIndexVm = new CreateIndexViewModel(ApplicationVm, Database);
         
         // Load tables on dialog open
         createIndexVm.LoadTablesCommand.Execute(null);
         
         var dialog = new Views.CreateIndexDialog(createIndexVm);
         
-        var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow);
+        var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow!);
         
         if (result == true)
-        {
-            m_logger.LogInformation("Index created successfully");
-        }
+            Logger.LogInformation("Index created successfully");
+        
     }
 
     public async Task RefreshAsync()
     {
-        m_logger.LogInformation("RefreshAsync called. IsConnected: {IsConnected}", m_databaseService.IsConnected);
+        Logger.LogInformation("RefreshAsync called. IsConnected: {IsConnected}", Database.IsConnected);
         
-        if (!m_databaseService.IsConnected)
+        if (!Database.IsConnected)
         {
-            m_logger.LogWarning("Not connected to database, clearing nodes");
+            Logger.LogWarning("Not connected to database, clearing nodes");
             Nodes.Clear();
             return;
         }
@@ -221,12 +198,12 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
         try
         {
-            m_logger.LogInformation("Starting schema load...");
+            Logger.LogInformation("Starting schema load...");
             var newNodes = new List<DatabaseNode>();
 
             // Create root node
-            var dbName = Path.GetFileNameWithoutExtension(m_databaseService.CurrentConnection?.FilePath ?? "Database");
-            m_logger.LogInformation("Database name: {DbName}", dbName);
+            var dbName = Path.GetFileNameWithoutExtension(Database.CurrentConnection?.FilePath ?? "Database");
+            Logger.LogInformation("Database name: {DbName}", dbName);
             
             var rootNode = new DatabaseNode
             {
@@ -243,9 +220,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
                 IsExpanded = true
             };
 
-            m_logger.LogInformation("Loading tables...");
-            var tables = await m_databaseService.GetTablesAsync();
-            m_logger.LogInformation("Loaded {Count} tables", tables.Count);
+            Logger.LogInformation("Loading tables...");
+            var tables = await Database.GetTablesAsync();
+            Logger.LogInformation("Loaded {Count} tables", tables.Count);
             
             foreach (var table in tables)
             {
@@ -264,9 +241,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
                 NodeType = DatabaseNodeType.ViewsFolder
             };
 
-            m_logger.LogInformation("Loading views...");
-            var views = await m_databaseService.GetViewsAsync();
-            m_logger.LogInformation("Loaded {Count} views", views.Count);
+            Logger.LogInformation("Loading views...");
+            var views = await Database.GetViewsAsync();
+            Logger.LogInformation("Loaded {Count} views", views.Count);
             
             foreach (var view in views)
             {
@@ -285,9 +262,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
                 NodeType = DatabaseNodeType.IndexesFolder
             };
 
-            m_logger.LogInformation("Loading indexes...");
-            var indexes = await m_databaseService.GetIndexesAsync();
-            m_logger.LogInformation("Loaded {Count} indexes", indexes.Count);
+            Logger.LogInformation("Loading indexes...");
+            var indexes = await Database.GetIndexesAsync();
+            Logger.LogInformation("Loaded {Count} indexes", indexes.Count);
             
             foreach (var index in indexes)
             {
@@ -317,25 +294,25 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
             newNodes.Add(rootNode);
             
-            m_logger.LogInformation("Setting Nodes collection with {Count} root nodes", newNodes.Count);
+            Logger.LogInformation("Setting Nodes collection with {Count} root nodes", newNodes.Count);
             Nodes = newNodes;
-            m_logger.LogInformation("Nodes.Count after assignment: {Count}", Nodes.Count);
+            Logger.LogInformation("Nodes.Count after assignment: {Count}", Nodes.Count);
 
             ApplicationVm.MainWindowVm.StatusText = $"Loaded: {tables.Count} tables, {views.Count} views, {indexes.Count} indexes";
 
-            m_logger.LogInformation("Database explorer refreshed: {Tables} tables, {Views} views, {Indexes} indexes",
+            Logger.LogInformation("Database explorer refreshed: {Tables} tables, {Views} views, {Indexes} indexes",
                 tables.Count, views.Count, indexes.Count);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to load schema: {ex.Message}";
             ApplicationVm.MainWindowVm.StatusText = "Error loading schema";
-            m_logger.LogError(ex, "Failed to refresh database explorer");
+            Logger.LogError(ex, "Failed to refresh database explorer");
         }
         finally
         {
             IsLoading = false;
-            m_logger.LogInformation("RefreshAsync completed. IsLoading: {IsLoading}, Nodes.Count: {NodesCount}", 
+            Logger.LogInformation("RefreshAsync completed. IsLoading: {IsLoading}, Nodes.Count: {NodesCount}", 
                 IsLoading, Nodes.Count);
         }
     }
@@ -367,29 +344,45 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
+    #region Commands
+
+    public ICommand RefreshCommand { get; private set; } = null!;
+
+    public ICommand BrowseDataCommand { get; private set; } = null!;
+
+    public ICommand ViewDefinitionCommand { get; private set; } = null!;
+
+    public ICommand DropObjectCommand { get; private set; } = null!;
+
+    public ICommand CreateTableCommand { get; private set; } = null!;
+
+    public ICommand CreateViewCommand { get; private set; } = null!;
+
+    public ICommand CreateIndexCommand { get; private set; } = null!;
+
+    #endregion
+
     #region Properties
 
     [Notify]
     public List<DatabaseNode> Nodes { get; set; } = null!;
 
-    public DatabaseNode? SelectedNode
-    {
-        get => m_selectedNode;
-        set
-        {
-            if (m_selectedNode != value)
-            {
-                m_selectedNode = value;
-                OnPropertyChanged(nameof(SelectedNode));
-            }
-        }
-    }
+    [Notify]
+    public DatabaseNode? SelectedNode { get; set; }
 
     [Notify]
     public bool IsLoading { get; set; }
 
     [Notify]
     public string? ErrorMessage { get; set; }
+
+    #endregion
+
+    #region Services
+
+    public IDatabaseService Database => ApplicationVm.Database;
+
+    public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
 }

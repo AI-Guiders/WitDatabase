@@ -7,35 +7,31 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="OutWit.Database.Studio.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Title="{Binding Title}"
+        x:DataType="vm:ApplicationViewModel"
+        Title="{Binding  MainWindowVm.Title}"
         Width="1200"
         Height="800">
-
-	<Design.DataContext>
-		<vm:MainWindowViewModel/>
-	</Design.DataContext>
 
 	<Grid RowDefinitions="Auto,*,Auto">
 		<!-- Menu -->
 		<Menu Grid.Row="0">
 			<MenuItem Header="_File">
 				<MenuItem Header="_New Database..."
-                          Command="{Binding NewDatabaseCommand}">
+                          Command="{Binding MainWindowVm.NewDatabaseCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}" />
 					</MenuItem.Icon>
 				</MenuItem>
 
 				<MenuItem Header="_Open Database..."
-                          Command="{Binding OpenDatabaseCommand}">
+                          Command="{Binding MainWindowVm.OpenDatabaseCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}" />
 					</MenuItem.Icon>
 				</MenuItem>
 
 				<MenuItem Header="_Close Database"
-                          Command="{Binding CloseDatabaseCommand}">
+                          Command="{Binding MainWindowVm.CloseDatabaseCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_CLOSE_DATABASE}" />
 					</MenuItem.Icon>
@@ -52,7 +48,7 @@
 				<Separator />
 
 				<MenuItem Header="E_xit"
-                          Command="{Binding ExitCommand}">
+                          Command="{Binding MainWindowVm.ExitCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
 					</MenuItem.Icon>
@@ -74,7 +70,7 @@
 
 			<MenuItem Header="_View">
 				<MenuItem Header="Refresh"
-                          Command="{Binding RefreshCommand}"
+                          Command="{Binding MainWindowVm.RefreshCommand}"
                           InputGesture="F5">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}" />
@@ -110,7 +106,7 @@
 			<Border Grid.Column="0"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     BorderThickness="0,0,1,0">
-				<views:DatabaseExplorer DataContext="{x:Static vm:ApplicationViewModel.Instance}"/>
+				<views:DatabaseExplorer/>
 			</Border>
 
 			<!-- Разделитель -->
@@ -122,7 +118,7 @@
 			<!-- Основная область контента -->
 			<Grid Grid.Column="2">
 				<!-- Welcome message (when not connected) -->
-				<Grid IsVisible="{Binding !IsConnected}">
+				<Grid IsVisible="{Binding !MainWindowVm.IsConnected}">
 					<StackPanel HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Spacing="20">
@@ -162,8 +158,20 @@
 					</StackPanel>
 				</Grid>
 
-				<!-- Table Structure Panel (when connected) -->
-				<views:TableStructure IsVisible="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).IsConnected}" />
+				<!-- Main Content Tabs (when connected) -->
+				<TabControl IsVisible="{Binding MainWindowVm.IsConnected}"
+                            Background="Transparent">
+					
+					<!-- Query Editor Tab -->
+					<TabItem Header="Query">
+						<views:QueryTabs DataContext="{Binding QueryTabsVm}"/>
+					</TabItem>
+
+					<!-- Table Structure Tab -->
+					<TabItem Header="Structure">
+						<views:TableStructure/>
+					</TabItem>
+				</TabControl>
 			</Grid>
 		</Grid>
 
@@ -175,25 +183,25 @@
                 Padding="8,4">
 			<Grid ColumnDefinitions="*,Auto,Auto">
 				<TextBlock Grid.Column="0"
-                           Text="{Binding StatusText}"
+                           Text="{Binding MainWindowVm.StatusText}"
                            VerticalAlignment="Center" />
 
 				<TextBlock Grid.Column="1"
                            VerticalAlignment="Center"
                            Margin="16,0,0,0"
-                           Text="{Binding IsConnected, StringFormat='Connected: {0}'}"/>
+                           Text="{Binding MainWindowVm.IsConnected, StringFormat='Connected: {0}'}"/>
 
 				<StackPanel Grid.Column="2"
                            Orientation="Horizontal"
                            Spacing="8"
                            Margin="16,0,0,0"
-                           IsVisible="{Binding IsConnected}">
+                           IsVisible="{Binding MainWindowVm.IsConnected}">
 					<TextBlock Text="[ENC]"
-                               IsVisible="{Binding CurrentConnection.IsEncrypted}"
+                               IsVisible="{Binding MainWindowVm.CurrentConnection.IsEncrypted}"
                                ToolTip.Tip="Database is encrypted"
                                Foreground="Orange"
                                FontWeight="Bold"/>
-					<TextBlock Text="{Binding CurrentConnection.FilePath}"
+					<TextBlock Text="{Binding MainWindowVm.CurrentConnection.FilePath}"
                                VerticalAlignment="Center"
                                Foreground="Gray"/>
 				</StackPanel>

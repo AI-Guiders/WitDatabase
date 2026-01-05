@@ -1,12 +1,15 @@
 using System.ComponentModel;
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
+using System.Windows.Input;
+using Avalonia.Platform.Storage;
+using Microsoft.Extensions.Logging;
 using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
+using OutWit.Common.Utils;
+using OutWit.Database.Core.Builder;
+using OutWit.Database.Core.Providers;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
-using OutWit.Database.Core.Builder;
-using Microsoft.Extensions.Logging;
-using OutWit.Common.Utils;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -15,26 +18,11 @@ namespace OutWit.Database.Studio.ViewModels;
 /// </summary>
 public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
 {
-    #region Fields
-
-    private readonly IDatabaseService m_databaseService;
-    private readonly ISettingsService m_settingsService;
-    private readonly ILogger<ConnectionViewModel> m_logger;
-
-    #endregion
-
     #region Constructors
 
-    public ConnectionViewModel(
-        ApplicationViewModel applicationVm,
-        IDatabaseService databaseService,
-        ISettingsService settingsService)
+    public ConnectionViewModel(ApplicationViewModel applicationVm)
         : base(applicationVm)
     {
-        m_databaseService = databaseService;
-        m_settingsService = settingsService;
-        m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectionViewModel>.Instance;
-
         InitDefault();
         InitCommands();
         InitEvents();
@@ -63,8 +51,8 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
 
     private void InitCommands()
     {
-        BrowseFileCommand = new DelegateCommand<object>(_ => BrowseFile());
-        ConnectCommand = new DelegateCommand<object>(async _ => await ConnectAsync(), _ => CanConnect());
+        BrowseFileCommand = new DelegateCommand<object>(async _ => await BrowseFileAsync());
+        ConnectCommand = new DelegateCommand<object>(async _ => await ConnectAsync());
         CancelCommand = new DelegateCommand<object>(_ => Cancel());
     }
 
@@ -77,115 +65,108 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
 
     #region Commands
 
-    public DelegateCommand<object> BrowseFileCommand { get; private set; } = null!;
-    public DelegateCommand<object> ConnectCommand { get; private set; } = null!;
-    public DelegateCommand<object> CancelCommand { get; private set; } = null!;
-
-    private void BrowseFile()
+    private async Task BrowseFileAsync()
     {
-        var mainWindow = System.Linq.Enumerable.FirstOrDefault(
-            Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop 
-                ? desktop.Windows 
-                : System.Array.Empty<Avalonia.Controls.Window>());
+        if (ApplicationVm.MainWindow == null)
+            return;
 
-        if (mainWindow != null)
-        {
-            var storageProvider = mainWindow.StorageProvider;
-            _ = BrowseFileAsync(storageProvider);
-        }
+        var storageProvider = ApplicationVm.MainWindow.StorageProvider;
+
+        if (IsNewDatabase)
+            await CreateNewDatabaseAsync(storageProvider);
+        
+        else
+            await OpenExistingDatabaseAsync(storageProvider);
+        
     }
 
-    private async Task BrowseFileAsync(Avalonia.Platform.Storage.IStorageProvider storageProvider)
+    private async Task OpenExistingDatabaseAsync(IStorageProvider storageProvider)
     {
-        if (IsNewDatabase)
+        // For open database - use Open dialog
+        var openOptions = new FilePickerOpenOptions
         {
-            // For new database - use Save dialog
-            var saveOptions = new Avalonia.Platform.Storage.FilePickerSaveOptions
+            Title = "Open Database",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
             {
-                Title = "Create New Database",
-                DefaultExtension = ".witdb",
-                SuggestedFileName = "database.witdb",
-                FileTypeChoices = new[]
+                new FilePickerFileType("WitDatabase Files")
                 {
-                    new Avalonia.Platform.Storage.FilePickerFileType("WitDatabase Files")
-                    {
-                        Patterns = new[] { "*.witdb" }
-                    },
-                    new Avalonia.Platform.Storage.FilePickerFileType("All Files")
-                    {
-                        Patterns = new[] { "*.*" }
-                    }
+                    Patterns = ["*.witdb", "*.db"]
+                },
+                new FilePickerFileType("All Files")
+                {
+                    Patterns = ["*.*"]
                 }
-            };
+            }
+        };
 
-            var file = await storageProvider.SaveFilePickerAsync(saveOptions);
-            
-            if (file != null)
+        IReadOnlyList<IStorageFile> files = await storageProvider.OpenFilePickerAsync(openOptions);
+
+        if (files.Count <= 0)
+            return;
+
+        var filePath = files[0].Path.LocalPath;
+        ConnectionInfo.FilePath = filePath;
+
+        // Auto-detect settings from existing database
+        if (UseAutoDetectedSettings && File.Exists(filePath))
+        {
+            try
             {
-                ConnectionInfo.FilePath = file.Path.LocalPath;
+                StorageDetectionResult dbInfo = WitDatabase.GetDatabaseInfo(filePath);
+                ConnectionInfo.IsEncrypted = dbInfo.RequiresPassword;
+
+                // Set storage engine from detected store type
+                if (!string.IsNullOrEmpty(dbInfo.StoreType))
+                {
+                    SelectedStorageEngine = dbInfo.StoreType.ToLowerInvariant();
+                }
+
+                // Configure features
+                // If encrypted, we can't read features reliably, keep user's defaults
+                if (!dbInfo.RequiresPassword)
+                {
+                    EnableTransactions = dbInfo.HasTransactions;
+                    EnableMvcc = dbInfo.HasMvcc;
+                    EnableFileLocking = dbInfo.HasFileLocking;
+                }
+            }
+            catch
+            {
+                // Ignore errors during detection
             }
         }
-        else
+
+        UpdateStatus();
+
+    }
+
+    private async Task CreateNewDatabaseAsync(IStorageProvider storageProvider)
+    {
+        // For new database - use Save dialog
+        var saveOptions = new FilePickerSaveOptions
         {
-            // For open database - use Open dialog
-            var openOptions = new Avalonia.Platform.Storage.FilePickerOpenOptions
-            {
-                Title = "Open Database",
-                AllowMultiple = false,
-                FileTypeFilter = new[]
+            Title = "Create New Database",
+            DefaultExtension = ".witdb",
+            SuggestedFileName = "database.witdb",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("WitDatabase Files")
                 {
-                    new Avalonia.Platform.Storage.FilePickerFileType("WitDatabase Files")
-                    {
-                        Patterns = new[] { "*.witdb", "*.db" }
-                    },
-                    new Avalonia.Platform.Storage.FilePickerFileType("All Files")
-                    {
-                        Patterns = new[] { "*.*" }
-                    }
+                    Patterns = ["*.witdb"]
+                },
+                new FilePickerFileType("All Files")
+                {
+                    Patterns = ["*.*"]
                 }
-            };
+            ]
+        };
 
-            var files = await storageProvider.OpenFilePickerAsync(openOptions);
+        var file = await storageProvider.SaveFilePickerAsync(saveOptions);
             
-            if (files.Count > 0)
-            {
-                var filePath = files[0].Path.LocalPath;
-                ConnectionInfo.FilePath = filePath;
-
-                // Auto-detect settings from existing database
-                if (UseAutoDetectedSettings && File.Exists(filePath))
-                {
-                    try
-                    {
-                        var dbInfo = WitDatabase.GetDatabaseInfo(filePath);
-                        if (dbInfo != null)
-                        {
-                            ConnectionInfo.IsEncrypted = dbInfo.RequiresPassword;
-                            
-                            // Set storage engine from detected store type
-                            if (!string.IsNullOrEmpty(dbInfo.StoreType))
-                            {
-                                SelectedStorageEngine = dbInfo.StoreType.ToLowerInvariant();
-                            }
-
-                            // Configure features
-                            // If encrypted, we can't read features reliably, keep user's defaults
-                            if (!dbInfo.RequiresPassword)
-                            {
-                                EnableTransactions = dbInfo.HasTransactions;
-                                EnableMvcc = dbInfo.HasMvcc;
-                                EnableFileLocking = dbInfo.HasFileLocking;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors during detection
-                    }
-                }
-
-                ConnectCommand?.RaiseCanExecuteChanged();
-            }
+        if (file != null)
+        {
+            ConnectionInfo.FilePath = file.Path.LocalPath;
         }
     }
 
@@ -286,18 +267,18 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
                 // Give the system time to release file locks
                 await Task.Delay(100, CancellationToken.None);
                 
-                m_logger.LogInformation("Database file created: {FilePath}", ConnectionInfo.FilePath);
+                Logger.LogInformation("Database file created: {FilePath}", ConnectionInfo.FilePath);
             }
 
             // Connect to the database (both for new and existing)
-            m_logger.LogInformation("Attempting to connect to database: {FilePath}", ConnectionInfo.FilePath);
-            var success = await m_databaseService.ConnectAsync(ConnectionInfo);
+            Logger.LogInformation("Attempting to connect to database: {FilePath}", ConnectionInfo.FilePath);
+            var success = await Database.ConnectAsync(ConnectionInfo);
             
             if (success)
             {
                 if (IsFileBased && !string.IsNullOrWhiteSpace(ConnectionInfo.FilePath) && ConnectionInfo.FilePath != ":memory:")
                 {
-                    await m_settingsService.AddRecentFileAsync(ConnectionInfo.FilePath);
+                    await Settings.AddRecentFileAsync(ConnectionInfo.FilePath);
                 }
                 
                 SelectedConnection = ConnectionInfo;
@@ -305,18 +286,18 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
                 
                 CloseDialog();
                 
-                m_logger.LogInformation("Successfully connected to {FilePath}", ConnectionInfo.FilePath);
+                Logger.LogInformation("Successfully connected to {FilePath}", ConnectionInfo.FilePath);
             }
             else
             {
                 ErrorMessage = "Failed to connect to database. Check file path and credentials.";
-                m_logger.LogWarning("Connection failed for {FilePath}", ConnectionInfo.FilePath);
+                Logger.LogWarning("Connection failed for {FilePath}", ConnectionInfo.FilePath);
             }
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Connection error: {ex.Message}";
-            m_logger.LogError(ex, "Connection error");
+            Logger.LogError(ex, "Connection error");
         }
         finally
         {
@@ -324,14 +305,14 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanConnect()
+    private void UpdateStatus()
     {
         // For in-memory database, no file path is needed
         if (IsNewDatabase && !IsFileBased)
-            return !IsConnecting && (!ConnectionInfo.IsEncrypted || !string.IsNullOrWhiteSpace(ConnectionInfo.Password));
+            CanConnect = !IsConnecting && (!ConnectionInfo.IsEncrypted || !string.IsNullOrWhiteSpace(ConnectionInfo.Password));
 
         // For file-based database, file path is required
-        return !string.IsNullOrWhiteSpace(ConnectionInfo?.FilePath) 
+        CanConnect = !string.IsNullOrWhiteSpace(ConnectionInfo?.FilePath) 
             && !IsConnecting
             && (!ConnectionInfo.IsEncrypted || !string.IsNullOrWhiteSpace(ConnectionInfo.Password));
     }
@@ -361,12 +342,12 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
         if (e.IsProperty((ConnectionViewModel vm) => vm.StorageType))
         {
             OnPropertyChanged(nameof(IsFileBased));
-            ConnectCommand?.RaiseCanExecuteChanged();
+            UpdateStatus();
         }
         else if (e.IsProperty((ConnectionViewModel vm) => vm.ConnectionInfo))
         {
-            ConnectCommand?.RaiseCanExecuteChanged();
-            
+            UpdateStatus();
+
             // Subscribe to ConnectionInfo property changes
             if (ConnectionInfo != null)
             {
@@ -376,89 +357,26 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
         }
         else if (e.IsProperty((ConnectionViewModel vm) => vm.IsConnecting))
         {
-            ConnectCommand?.RaiseCanExecuteChanged();
+            UpdateStatus();
         }
         else if (e.IsProperty((ConnectionViewModel vm) => vm.UseAutoDetectedSettings))
         {
             // When toggling between auto/manual, re-evaluate connect availability.
-            ConnectCommand?.RaiseCanExecuteChanged();
+            UpdateStatus();
         }
     }
 
     private void OnConnectionInfoPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // When any ConnectionInfo property changes, re-evaluate CanConnect
-        ConnectCommand?.RaiseCanExecuteChanged();
+        UpdateStatus();
     }
 
     #endregion
 
     #endregion
 
-    #region Properties
-
-    [Notify]
-    public ConnectionInfo ConnectionInfo { get; set; } = null!;
-
-    [Notify]
-    public List<string> StorageEngines { get; set; } = null!;
-
-    [Notify]
-    public string SelectedStorageEngine { get; set; } = "btree";
-
-    [Notify]
-    public bool IsConnecting { get; set; }
-
-    [Notify]
-    public string? ErrorMessage { get; set; }
-
-    [Notify]
-    public bool DialogResult { get; set; }
-
-    [Notify]
-    public bool IsNewDatabase { get; set; }
-
-    public ConnectionInfo? SelectedConnection { get; set; }
-
-    // Storage type: 0 = File-based, 1 = In-Memory
-    [Notify]
-    public int StorageType { get; set; }
-
-    public bool IsFileBased => StorageType == 0;
-
-    // Advanced settings for new database
-    [Notify]
-    public int SelectedPageSize { get; set; } = 4096;
-
-    [Notify]
-    public int CacheSize { get; set; } = 1000;
-
-    [Notify]
-    public bool EnableTransactions { get; set; } = true;
-
-    [Notify]
-    public bool EnableMvcc { get; set; } = true;
-
-    [Notify]
-    public bool EnableFileLocking { get; set; } = true;
-
-    [Notify]
-    public bool UseAutoDetectedSettings { get; set; } = true;
-
-    [Notify]
-    public List<int> PageSizeOptions { get; set; } = null!;
-
-    public string DialogTitle => IsNewDatabase ? "Create New Database" : "Open Database";
-    
-    public string DialogDescription => IsNewDatabase 
-        ? "Create a new WitDatabase file with custom settings"
-        : "Open an existing WitDatabase file";
-    
-    public string ConnectButtonText => IsNewDatabase ? "Create" : "Open";
-
-    public bool CanConnectChanged => CanConnect();
-
-    #endregion
+  
 
     #region Public Methods
 
@@ -541,6 +459,84 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
         else
             return await ShowOpenDialogAsync();
     }
+
+    #endregion
+
+    #region Properties
+
+    [Notify]
+    public ConnectionInfo ConnectionInfo { get; set; } = null!;
+
+    [Notify]
+    public List<string> StorageEngines { get; set; } = null!;
+
+    [Notify]
+    public string SelectedStorageEngine { get; set; } = "btree";
+
+    [Notify]
+    public bool IsConnecting { get; set; }
+
+    [Notify]
+    public string? ErrorMessage { get; set; }
+
+    [Notify]
+    public bool DialogResult { get; set; }
+
+    [Notify]
+    public bool IsNewDatabase { get; set; }
+
+    public ConnectionInfo? SelectedConnection { get; set; }
+
+    // Storage type: 0 = File-based, 1 = In-Memory
+    [Notify]
+    public int StorageType { get; set; }
+
+    public bool IsFileBased => StorageType == 0;
+
+    // Advanced settings for new database
+    [Notify]
+    public int SelectedPageSize { get; set; } = 4096;
+
+    [Notify]
+    public int CacheSize { get; set; } = 1000;
+
+    [Notify]
+    public bool EnableTransactions { get; set; } = true;
+
+    [Notify]
+    public bool EnableMvcc { get; set; } = true;
+
+    [Notify]
+    public bool EnableFileLocking { get; set; } = true;
+
+    [Notify]
+    public bool UseAutoDetectedSettings { get; set; } = true;
+
+    [Notify]
+    public List<int> PageSizeOptions { get; set; } = null!;
+
+    [Notify]
+    public bool CanConnect { get; set; }
+
+    #endregion
+
+    #region Commands
+
+    public ICommand BrowseFileCommand { get; private set; } = null!;
+
+    public ICommand ConnectCommand { get; private set; } = null!;
+
+    public ICommand CancelCommand { get; private set; } = null!;
+
+    #endregion
+
+    #region Services
+
+    public IDatabaseService Database => ApplicationVm.Database;
+
+    public ISettingsService Settings => ApplicationVm.Settings;
+
+    public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
 }

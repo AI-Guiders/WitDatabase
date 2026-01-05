@@ -1,0 +1,202 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="OutWit.Database.Studio.Views.QueryEditor"
+             x:DataType="vm:QueryEditorViewModel">
+
+    <Grid RowDefinitions="Auto,*,Auto,*">
+        
+        <!-- Toolbar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                
+                <Button Command="{Binding ExecuteCommand}"
+                        ToolTip.Tip="Execute Query (F5)"
+                        Width="100"
+                        Classes="accent">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Execute" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Command="{Binding ExecuteSelectionCommand}"
+                        ToolTip.Tip="Execute Selection (Ctrl+Enter)"
+                        Width="130">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Execute Selection" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Width="1" Height="24"/>
+
+                <Button Command="{Binding ClearCommand}"
+                        ToolTip.Tip="Clear Query"
+                        Width="80">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Clear" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Width="1" Height="24"/>
+
+                <TextBlock Text="Status:"
+                           VerticalAlignment="Center"
+                           Margin="8,0,4,0"/>
+                
+                <TextBlock Text="{Binding StatusText}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- SQL Editor -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="8">
+            <TextBox Text="{Binding SqlText}"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap"
+                     FontFamily="Consolas,Courier New"
+                     FontSize="13"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Watermark="Enter SQL query here..."/>
+        </Border>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Row="2"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+
+        <!-- Results Area -->
+        <TabControl Grid.Row="3"
+                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            
+            <!-- Results Tab -->
+            <TabItem Header="Results">
+                <Grid>
+                    <!-- Data Grid for Results -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  IsVisible="{Binding HasResults}">
+                        <DataGrid ItemsSource="{Binding ResultDataView}"
+                                  IsReadOnly="True"
+                                  GridLinesVisibility="All"
+                                  BorderThickness="0"
+                                  Background="Transparent"/>
+                    </ScrollViewer>
+
+                    <!-- No Results Message -->
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8"
+                                IsVisible="{Binding !HasResults}">
+                        <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"
+                                  Width="48"
+                                  Height="48"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+                        <TextBlock Text="No results to display"
+                                   FontSize="16"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <TextBlock Text="Execute a query to see results here"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Messages Tab -->
+            <TabItem Header="Messages">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16" Spacing="8">
+                        
+                        <!-- Success Message -->
+                        <Border Background="#D4EDDA"
+                                BorderBrush="#C3E6CB"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                IsVisible="{Binding IsSuccess}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="? Query executed successfully"
+                                           FontWeight="SemiBold"
+                                           Foreground="#155724"/>
+                                <TextBlock Foreground="#155724">
+                                    <Run Text="Rows affected:"/>
+                                    <Run Text="{Binding RowsAffected}" FontWeight="Bold"/>
+                                </TextBlock>
+                                <TextBlock Foreground="#155724">
+                                    <Run Text="Execution time:"/>
+                                    <Run Text="{Binding ExecutionTimeMs, StringFormat='{}{0:F2} ms'}" FontWeight="Bold"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Error Message -->
+                        <Border Background="#F8D7DA"
+                                BorderBrush="#F5C6CB"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="? Query execution failed"
+                                           FontWeight="SemiBold"
+                                           Foreground="#721C24"/>
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           TextWrapping="Wrap"
+                                           Foreground="#721C24"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- No Messages -->
+                        <TextBlock Text="No messages"
+                                   FontStyle="Italic"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                   IsVisible="{Binding !HasMessages}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Loading Overlay -->
+        <Border Grid.Row="0" Grid.RowSpan="4"
+                Background="#80000000"
+                IsVisible="{Binding IsExecuting}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                <Border Width="48" Height="48"
+                        Background="White"
+                        CornerRadius="24">
+                    <TextBlock Text="..."
+                               FontSize="24"
+                               Foreground="Black"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="Executing query..."
+                           Foreground="White"
+                           FontSize="16"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+
+</UserControl>

@@ -31,4 +31,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Sources\Providers\OutWit.Database.AdoNet\OutWit.Database.AdoNet.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Syntax\" />
+  </ItemGroup>
 </Project>
