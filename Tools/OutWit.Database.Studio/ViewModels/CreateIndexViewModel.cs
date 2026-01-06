@@ -1,11 +1,12 @@
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
-using OutWit.Common.Aspects;
-using OutWit.Database.Studio.Models;
-using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Windows.Input;
+using Microsoft.Extensions.Logging;
+using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
+using OutWit.Common.Utils;
+using OutWit.Database.Studio.Services;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -14,25 +15,20 @@ namespace OutWit.Database.Studio.ViewModels;
 /// </summary>
 public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
 {
-    #region Fields
+    #region Events
 
-    private readonly IDatabaseService m_databaseService;
-    private readonly ILogger<CreateIndexViewModel> m_logger;
+    public event Action<bool> ShouldCloseDialog = delegate { };
 
     #endregion
 
     #region Constructors
 
-    public CreateIndexViewModel(
-        ApplicationViewModel applicationVm,
-        IDatabaseService databaseService)
+    public CreateIndexViewModel(ApplicationViewModel applicationVm)
         : base(applicationVm)
     {
-        m_databaseService = databaseService;
-        m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<CreateIndexViewModel>.Instance;
-
         InitDefault();
         InitCommands();
+        InitEvents();
     }
 
     #endregion
@@ -50,71 +46,64 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
 
     private void InitCommands()
     {
-        LoadTablesCommand = new DelegateCommand<object>(async _ => await LoadTablesAsync());
-        LoadColumnsCommand = new DelegateCommand<object>(async _ => await LoadColumnsAsync(), _ => !string.IsNullOrWhiteSpace(TableName));
-        GenerateDdlCommand = new DelegateCommand<object>(_ => GenerateDdl(), _ => CanGenerateDdl());
-        CreateIndexCommand = new DelegateCommand<object>(async _ => await CreateIndexAsync(), _ => CanCreateIndex());
-        CancelCommand = new DelegateCommand<object>(_ => Cancel());
+        LoadTablesCommand = new RelayCommand(async void (_) => await LoadTablesAsync());
+        LoadColumnsCommand = new RelayCommand(async void (_) => await LoadColumnsAsync());
+        GenerateDdlCommand = new RelayCommand(_ => GenerateDdl());
+        CreateIndexCommand = new RelayCommand(async void (_) => await CreateIndexAsync());
+        CancelCommand = new RelayCommand(_ => Cancel());
+    }
+
+    private void InitEvents()
+    {
+        this.PropertyChanged += OnPropertyChanged;
+        SelectedColumns.CollectionChanged += OnCollectionChanged;
     }
 
     #endregion
 
     #region Commands
 
-    public DelegateCommand<object> LoadTablesCommand { get; private set; } = null!;
-    public DelegateCommand<object> LoadColumnsCommand { get; private set; } = null!;
-    public DelegateCommand<object> GenerateDdlCommand { get; private set; } = null!;
-    public DelegateCommand<object> CreateIndexCommand { get; private set; } = null!;
-    public DelegateCommand<object> CancelCommand { get; private set; } = null!;
-
     private async Task LoadTablesAsync()
     {
-        if (!m_databaseService.IsConnected)
+        if (!Database.IsConnected)
             return;
 
         try
         {
-            var tables = await m_databaseService.GetTablesAsync();
+            var tables = await Database.GetTablesAsync();
             AvailableTables = tables.Select(t => t.Name).ToList();
         }
         catch (Exception ex)
         {
-            m_logger.LogError(ex, "Failed to load tables");
+            Logger.LogError(ex, "Failed to load tables");
         }
     }
 
     private async Task LoadColumnsAsync()
     {
-        if (!m_databaseService.IsConnected || string.IsNullOrWhiteSpace(TableName))
+        if (!Database.IsConnected || string.IsNullOrWhiteSpace(TableName))
             return;
 
         try
         {
-            var columns = await m_databaseService.GetColumnsAsync(TableName);
+            var columns = await Database.GetColumnsAsync(TableName);
             AvailableColumns = columns.Select(c => c.Name).ToList();
         }
         catch (Exception ex)
         {
-            m_logger.LogError(ex, "Failed to load columns for table {TableName}", TableName);
+            Logger.LogError(ex, "Failed to load columns for table {TableName}", TableName);
         }
     }
 
     private void GenerateDdl()
     {
         GeneratedDdl = BuildCreateIndexSql();
-        m_logger.LogInformation("Generated DDL for index {IndexName}", IndexName);
-    }
-
-    private bool CanGenerateDdl()
-    {
-        return !string.IsNullOrWhiteSpace(IndexName)
-            && !string.IsNullOrWhiteSpace(TableName)
-            && SelectedColumns.Count > 0;
+        Logger.LogInformation("Generated DDL for index {IndexName}", IndexName);
     }
 
     private async Task CreateIndexAsync()
     {
-        if (!CanCreateIndex())
+        if (!CanCreateIndexChanged)
             return;
 
         IsCreating = true;
@@ -123,21 +112,21 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         try
         {
             var sql = BuildCreateIndexSql();
-            await m_databaseService.ExecuteNonQueryAsync(sql);
+            await Database.ExecuteNonQueryAsync(sql);
 
             ApplicationVm.MainWindowVm.StatusText = $"Created index: {IndexName}";
-            m_logger.LogInformation("Created index: {IndexName}", IndexName);
+            Logger.LogInformation("Created index: {IndexName}", IndexName);
 
             // Refresh explorer
             await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
 
-            IsCompleted = true;
+            ShouldCloseDialog(true);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to create index: {ex.Message}";
             ApplicationVm.MainWindowVm.StatusText = "Error creating index";
-            m_logger.LogError(ex, "Failed to create index {IndexName}", IndexName);
+            Logger.LogError(ex, "Failed to create index {IndexName}", IndexName);
         }
         finally
         {
@@ -145,18 +134,9 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanCreateIndex()
-    {
-        return !string.IsNullOrWhiteSpace(IndexName)
-            && !string.IsNullOrWhiteSpace(TableName)
-            && SelectedColumns.Count > 0
-            && !IsCreating
-            && m_databaseService.IsConnected;
-    }
-
     private void Cancel()
     {
-        IsCancelled = true;
+        ShouldCloseDialog(false);
     }
 
     #endregion
@@ -188,19 +168,42 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
-    #region Public Methods
+    #region Tools
 
-    public void Reset()
+    private void UpdateStatus()
     {
-        IndexName = string.Empty;
-        TableName = string.Empty;
-        IsUnique = false;
-        SelectedColumns.Clear();
-        FilterCondition = string.Empty;
-        GeneratedDdl = null;
-        ErrorMessage = null;
-        IsCompleted = false;
-        IsCancelled = false;
+        CanCreateIndexChanged = !string.IsNullOrWhiteSpace(IndexName)
+                                && !string.IsNullOrWhiteSpace(TableName)
+                                && SelectedColumns.Count > 0
+                                && !IsCreating
+                                && Database.IsConnected;
+
+        CanGenerateDdlChanged = !string.IsNullOrWhiteSpace(IndexName)
+                                && !string.IsNullOrWhiteSpace(TableName)
+                                && SelectedColumns.Count > 0;
+
+        CanLoadColumns = !string.IsNullOrWhiteSpace(TableName);
+    }
+
+    #endregion
+
+    #region Event Handlers
+
+    private void OnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if(e.IsProperty((CreateIndexViewModel vm)=>vm.IndexName))
+            UpdateStatus();
+
+        if (e.IsProperty((CreateIndexViewModel vm) => vm.TableName))
+            UpdateStatus();
+
+        if (e.IsProperty((CreateIndexViewModel vm) => vm.IsCreating))
+            UpdateStatus();
+    }
+
+    private void OnCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        UpdateStatus();
     }
 
     #endregion
@@ -237,13 +240,35 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
     public string? ErrorMessage { get; set; }
 
     [Notify]
-    public bool IsCompleted { get; set; }
+    public bool CanGenerateDdlChanged { get; private set; }
 
     [Notify]
-    public bool IsCancelled { get; set; }
+    public bool CanCreateIndexChanged { get; private set; }
 
-    public bool CanGenerateDdlChanged => CanGenerateDdl();
-    public bool CanCreateIndexChanged => CanCreateIndex();
+    [Notify]
+    public bool CanLoadColumns { get; private set; }
+
+    #endregion
+
+    #region Commands
+
+    public ICommand LoadTablesCommand { get; private set; } = null!;
+
+    public ICommand LoadColumnsCommand { get; private set; } = null!;
+
+    public ICommand GenerateDdlCommand { get; private set; } = null!;
+
+    public ICommand CreateIndexCommand { get; private set; } = null!;
+
+    public ICommand CancelCommand { get; private set; } = null!;
+
+    #endregion
+
+    #region Services
+
+    public IDatabaseService Database => ApplicationVm.Database;
+
+    public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
 }

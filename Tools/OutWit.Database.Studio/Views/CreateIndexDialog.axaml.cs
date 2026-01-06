@@ -17,24 +17,6 @@ public partial class CreateIndexDialog : Window
         InitializeComponent();
     }
 
-    public CreateIndexDialog(CreateIndexViewModel viewModel) : this()
-    {
-        DataContext = viewModel;
-        
-        // Subscribe to completion events
-        viewModel.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(CreateIndexViewModel.IsCompleted) && viewModel.IsCompleted)
-            {
-                Close(true);
-            }
-            else if (e.PropertyName == nameof(CreateIndexViewModel.IsCancelled) && viewModel.IsCancelled)
-            {
-                Close(false);
-            }
-        };
-    }
-
     #endregion
 
     #region Event Handlers

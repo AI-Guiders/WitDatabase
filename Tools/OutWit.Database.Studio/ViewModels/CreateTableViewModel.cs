@@ -307,8 +307,6 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
 
     public IDatabaseService Database => ApplicationVm.Database;
 
-    public ISettingsService Settings => ApplicationVm.Settings;
-
     public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion

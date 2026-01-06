@@ -159,9 +159,12 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateViewAsync()
     {
-        var createViewVm = new CreateViewViewModel(ApplicationVm, Database);
-        var dialog = new Views.CreateViewDialog(createViewVm);
-        
+        var createViewVm = new CreateViewViewModel(ApplicationVm);
+
+        var dialog = new Views.CreateViewDialog {DataContext = createViewVm};
+
+        createViewVm.ShouldCloseDialog += success => { dialog.Close(success); };
+
         var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow!);
         
         if (result == true)
@@ -171,13 +174,15 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateIndexAsync()
     {
-        var createIndexVm = new CreateIndexViewModel(ApplicationVm, Database);
+        var createIndexVm = new CreateIndexViewModel(ApplicationVm);
         
         // Load tables on dialog open
         createIndexVm.LoadTablesCommand.Execute(null);
         
-        var dialog = new Views.CreateIndexDialog(createIndexVm);
-        
+        var dialog = new Views.CreateIndexDialog{DataContext = createIndexVm };
+
+        createIndexVm.ShouldCloseDialog += success => { dialog.Close(success); };
+
         var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow!);
         
         if (result == true)

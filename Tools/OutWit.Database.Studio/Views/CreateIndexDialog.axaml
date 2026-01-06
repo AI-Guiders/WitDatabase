@@ -129,6 +129,7 @@
                     
                     <Button Content="Load Columns for Selected Table"
                             Command="{Binding LoadColumnsCommand}"
+                            IsEnabled="{Binding CanLoadColumns}"
                             Width="250"
                             HorizontalAlignment="Left"
                             Margin="0,4,0,0"/>
@@ -157,6 +158,7 @@
                         
                         <Button Content="Generate DDL"
                                 Command="{Binding GenerateDdlCommand}"
+                                IsEnabled="{Binding CanGenerateDdlChanged}"
                                 DockPanel.Dock="Right"
                                 HorizontalAlignment="Right"
                                 Margin="8,0,0,0"/>
@@ -215,6 +217,7 @@
                 
                 <Button Content="Create Index"
                         Command="{Binding CreateIndexCommand}"
+                        IsEnabled="{Binding CanCreateIndexChanged}"
                         Width="120"
                         HorizontalContentAlignment="Center"
                         Classes="accent"/>

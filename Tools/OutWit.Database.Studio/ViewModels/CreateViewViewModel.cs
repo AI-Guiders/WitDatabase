@@ -1,8 +1,11 @@
+using System.ComponentModel;
+using System.Windows.Input;
 using OutWit.Common.MVVM.ViewModels;
 using OutWit.Common.MVVM.Commands;
 using OutWit.Common.Aspects;
 using OutWit.Database.Studio.Services;
 using Microsoft.Extensions.Logging;
+using OutWit.Common.Utils;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -11,25 +14,20 @@ namespace OutWit.Database.Studio.ViewModels;
 /// </summary>
 public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
 {
-    #region Fields
+    #region Events
 
-    private readonly IDatabaseService m_databaseService;
-    private readonly ILogger<CreateViewViewModel> m_logger;
+    public event Action<bool> ShouldCloseDialog = delegate { };
 
     #endregion
 
     #region Constructors
 
-    public CreateViewViewModel(
-        ApplicationViewModel applicationVm,
-        IDatabaseService databaseService)
+    public CreateViewViewModel(ApplicationViewModel applicationVm)
         : base(applicationVm)
     {
-        m_databaseService = databaseService;
-        m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<CreateViewViewModel>.Instance;
-
         InitDefault();
         InitCommands();
+        InitEvents();
     }
 
     #endregion
@@ -44,20 +42,22 @@ public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
 
     private void InitCommands()
     {
-        CreateViewCommand = new DelegateCommand<object>(async _ => await CreateViewAsync(), _ => CanCreateView());
-        CancelCommand = new DelegateCommand<object>(_ => Cancel());
+        CreateViewCommand = new RelayCommand(async void (_) => await CreateViewAsync());
+        CancelCommand = new RelayCommand(_ => Cancel());
+    }
+
+    private void InitEvents()
+    {
+        this.PropertyChanged += OnPropertyChanged;
     }
 
     #endregion
 
-    #region Commands
-
-    public DelegateCommand<object> CreateViewCommand { get; private set; } = null!;
-    public DelegateCommand<object> CancelCommand { get; private set; } = null!;
+    #region Functions
 
     private async Task CreateViewAsync()
     {
-        if (!CanCreateView())
+        if (!CanCreateView)
             return;
 
         IsCreating = true;
@@ -66,21 +66,21 @@ public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
         try
         {
             var sql = $"CREATE VIEW {ViewName} AS\n{SelectStatement}";
-            await m_databaseService.ExecuteNonQueryAsync(sql);
+            await Database.ExecuteNonQueryAsync(sql);
 
             ApplicationVm.MainWindowVm.StatusText = $"Created view: {ViewName}";
-            m_logger.LogInformation("Created view: {ViewName}", ViewName);
+            Logger.LogInformation("Created view: {ViewName}", ViewName);
 
             // Refresh explorer
             await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
 
-            IsCompleted = true;
+            ShouldCloseDialog(true);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to create view: {ex.Message}";
             ApplicationVm.MainWindowVm.StatusText = "Error creating view";
-            m_logger.LogError(ex, "Failed to create view {ViewName}", ViewName);
+            Logger.LogError(ex, "Failed to create view {ViewName}", ViewName);
         }
         finally
         {
@@ -88,30 +88,37 @@ public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanCreateView()
-    {
-        return !string.IsNullOrWhiteSpace(ViewName)
-            && !string.IsNullOrWhiteSpace(SelectStatement)
-            && !IsCreating
-            && m_databaseService.IsConnected;
-    }
-
     private void Cancel()
     {
-        IsCancelled = true;
+        ShouldCloseDialog(false);
     }
 
     #endregion
 
-    #region Public Methods
+    #region Tools
 
-    public void Reset()
+    private void UpdateStatus()
     {
-        ViewName = string.Empty;
-        SelectStatement = "SELECT \n    \nFROM \nWHERE ";
-        ErrorMessage = null;
-        IsCompleted = false;
-        IsCancelled = false;
+        CanCreateView = !string.IsNullOrWhiteSpace(ViewName)
+                               && !string.IsNullOrWhiteSpace(SelectStatement)
+                               && !IsCreating
+                               && Database.IsConnected;
+    }
+
+    #endregion
+    
+    #region Event Handlers
+
+    private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if(e.IsProperty((CreateViewViewModel vm)=>vm.ViewName)) 
+            UpdateStatus();
+
+        if (e.IsProperty((CreateViewViewModel vm) => vm.SelectStatement))
+            UpdateStatus();
+
+        if (e.IsProperty((CreateViewViewModel vm) => vm.IsCreating))
+            UpdateStatus();
     }
 
     #endregion
@@ -131,12 +138,23 @@ public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
     public string? ErrorMessage { get; set; }
 
     [Notify]
-    public bool IsCompleted { get; set; }
+    public bool CanCreateView { get; private set; }
 
-    [Notify]
-    public bool IsCancelled { get; set; }
+    #endregion
 
-    public bool CanCreateViewChanged => CanCreateView();
+    #region Commands
+
+    public ICommand CreateViewCommand { get; private set; } = null!;
+
+    public ICommand CancelCommand { get; private set; } = null!;
+
+    #endregion
+
+    #region Services
+
+    public IDatabaseService Database => ApplicationVm.Database;
+
+    public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
 }
