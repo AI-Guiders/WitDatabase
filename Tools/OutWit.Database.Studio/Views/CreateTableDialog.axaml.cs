@@ -15,23 +15,5 @@ public partial class CreateTableDialog : Window
         InitializeComponent();
     }
 
-    public CreateTableDialog(CreateTableViewModel viewModel) : this()
-    {
-        DataContext = viewModel;
-        
-        // Subscribe to completion events
-        viewModel.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(CreateTableViewModel.IsCompleted) && viewModel.IsCompleted)
-            {
-                Close(true);
-            }
-            else if (e.PropertyName == nameof(CreateTableViewModel.IsCancelled) && viewModel.IsCancelled)
-            {
-                Close(false);
-            }
-        };
-    }
-
     #endregion
 }

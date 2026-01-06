@@ -144,9 +144,12 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateTableAsync()
     {
-        var createTableVm = new CreateTableViewModel(ApplicationVm, Database);
-        var dialog = new Views.CreateTableDialog(createTableVm);
-        
+        var createTableVm = new CreateTableViewModel(ApplicationVm);
+
+        var dialog = new Views.CreateTableDialog{DataContext = createTableVm};
+
+        createTableVm.ShouldCloseDialog += success => { dialog.Close(success); };
+
         var result = await dialog.ShowDialog<bool?>(ApplicationVm.MainWindow!);
         
         if (result == true)

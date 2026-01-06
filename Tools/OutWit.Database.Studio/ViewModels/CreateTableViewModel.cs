@@ -1,11 +1,13 @@
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
-using OutWit.Common.Aspects;
-using OutWit.Database.Studio.Models;
-using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Windows.Input;
+using Microsoft.Extensions.Logging;
+using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
+using OutWit.Common.Utils;
+using OutWit.Database.Studio.Models;
+using OutWit.Database.Studio.Services;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -30,24 +32,19 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
-    #region Fields
+    #region Events
 
-    private readonly IDatabaseService m_databaseService;
-    private readonly ILogger<CreateTableViewModel> m_logger;
+    public event Action<bool> ShouldCloseDialog = delegate { };
 
     #endregion
 
     #region Constructors
 
-    public CreateTableViewModel(
-        ApplicationViewModel applicationVm,
-        IDatabaseService databaseService)
+    public CreateTableViewModel(ApplicationViewModel applicationVm)
         : base(applicationVm)
     {
-        m_databaseService = databaseService;
-        m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<CreateTableViewModel>.Instance;
-
         InitDefault();
+        InitEvents();
         InitCommands();
     }
 
@@ -60,41 +57,28 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
         TableName = string.Empty;
         Columns = new ObservableCollection<ColumnDefinition>();
         AvailableDataTypes = DATA_TYPES;
+
+        // Add first column by default
+        AddColumn();
     }
 
     private void InitCommands()
     {
-        AddColumnCommand = new DelegateCommand<object>(_ => AddColumn());
-        RemoveColumnCommand = new DelegateCommand<ColumnDefinition>(RemoveColumn, CanRemoveColumn);
-        GenerateDdlCommand = new DelegateCommand<object>(_ => GenerateDdl(), _ => CanGenerateDdl());
-        CreateTableCommand = new DelegateCommand<object>(async _ => await CreateTableAsync(), _ => CanCreateTable());
-        CancelCommand = new DelegateCommand<object>(_ => Cancel());
-        
-        // Subscribe to PropertyChanged to update CanExecute
-        PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(TableName))
-            {
-                GenerateDdlCommand.RaiseCanExecuteChanged();
-                CreateTableCommand.RaiseCanExecuteChanged();
-                OnPropertyChanged(nameof(CanGenerateDdlProperty));
-                OnPropertyChanged(nameof(CanCreateTableProperty));
-            }
-        };
-        
-        // Add first column by default after commands are initialized
-        AddColumn();
+        AddColumnCommand = new RelayCommand(_ => AddColumn());
+        RemoveColumnCommand = new RelayCommand(_ => RemoveColumn());
+        GenerateDdlCommand = new RelayCommand(_ => GenerateDdl());
+        CreateTableCommand = new RelayCommand(async _ => await CreateTableAsync());
+        CancelCommand = new RelayCommand(_ => Cancel());
+    }
+
+    private void InitEvents()
+    {
+        PropertyChanged += OnPropertyChanged;
     }
 
     #endregion
 
-    #region Commands
-
-    public DelegateCommand<object> AddColumnCommand { get; private set; } = null!;
-    public DelegateCommand<ColumnDefinition> RemoveColumnCommand { get; private set; } = null!;
-    public DelegateCommand<object> GenerateDdlCommand { get; private set; } = null!;
-    public DelegateCommand<object> CreateTableCommand { get; private set; } = null!;
-    public DelegateCommand<object> CancelCommand { get; private set; } = null!;
+    #region Command Functions
 
     private void AddColumn()
     {
@@ -116,47 +100,29 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
             column.IsNullable = false;
             column.IsAutoIncrement = true;
         }
-
-        RemoveColumnCommand.RaiseCanExecuteChanged();
-        GenerateDdlCommand.RaiseCanExecuteChanged();
-        CreateTableCommand.RaiseCanExecuteChanged();
-        OnPropertyChanged(nameof(CanGenerateDdlProperty));
-        OnPropertyChanged(nameof(CanCreateTableProperty));
+        
+        UpdateStatus();
     }
 
-    private void RemoveColumn(ColumnDefinition? column)
+    private void RemoveColumn()
     {
-        if (column == null)
+        if (SelectedColumn == null)
             return;
 
-        Columns.Remove(column);
+        Columns.Remove(SelectedColumn);
         
-        RemoveColumnCommand.RaiseCanExecuteChanged();
-        GenerateDdlCommand.RaiseCanExecuteChanged();
-        CreateTableCommand.RaiseCanExecuteChanged();
-        OnPropertyChanged(nameof(CanGenerateDdlProperty));
-        OnPropertyChanged(nameof(CanCreateTableProperty));
-    }
-
-    private bool CanRemoveColumn(ColumnDefinition? column)
-    {
-        return column != null && Columns.Count > 1;
+        UpdateStatus();
     }
 
     private void GenerateDdl()
     {
         GeneratedDdl = BuildCreateTableSql();
-        m_logger.LogInformation("Generated DDL for table {TableName}", TableName);
-    }
-
-    private bool CanGenerateDdl()
-    {
-        return !string.IsNullOrWhiteSpace(TableName) && Columns.Count > 0;
+        Logger.LogInformation("Generated DDL for table {TableName}", TableName);
     }
 
     private async Task CreateTableAsync()
     {
-        if (!CanCreateTable())
+        if (!CanCreateTable)
             return;
 
         IsCreating = true;
@@ -165,22 +131,22 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
         try
         {
             var sql = BuildCreateTableSql();
-            await m_databaseService.ExecuteNonQueryAsync(sql);
+            await Database.ExecuteNonQueryAsync(sql);
 
             ApplicationVm.MainWindowVm.StatusText = $"Created table: {TableName}";
-            m_logger.LogInformation("Created table: {TableName}", TableName);
+            Logger.LogInformation("Created table: {TableName}", TableName);
 
             // Refresh explorer
             await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
 
             // Close dialog (set by caller)
-            IsCompleted = true;
+            ShouldCloseDialog(true);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to create table: {ex.Message}";
             ApplicationVm.MainWindowVm.StatusText = "Error creating table";
-            m_logger.LogError(ex, "Failed to create table {TableName}", TableName);
+            Logger.LogError(ex, "Failed to create table {TableName}", TableName);
         }
         finally
         {
@@ -188,17 +154,9 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanCreateTable()
-    {
-        return !string.IsNullOrWhiteSpace(TableName) 
-            && Columns.Count > 0 
-            && !IsCreating
-            && m_databaseService.IsConnected;
-    }
-
     private void Cancel()
     {
-        IsCancelled = true;
+        ShouldCloseDialog(false);
     }
 
     #endregion
@@ -272,17 +230,27 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
-    #region Public Methods
+    #region Tools
 
-    public void Reset()
+    private void UpdateStatus()
     {
-        TableName = string.Empty;
-        Columns.Clear();
-        AddColumn();
-        GeneratedDdl = null;
-        ErrorMessage = null;
-        IsCompleted = false;
-        IsCancelled = false;
+        CanCreateTable = !string.IsNullOrWhiteSpace(TableName) && Columns.Count > 0
+                                                               && !IsCreating
+                                                               && Database.IsConnected;
+
+        CanGenerateDdl = !string.IsNullOrWhiteSpace(TableName) && Columns.Count > 0;
+
+        CanRemoveColumn = SelectedColumn != null && Columns.Count > 1;
+    }
+
+    #endregion
+
+    #region Event Handlers
+
+    private void OnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.IsProperty((CreateTableViewModel vm) => vm.TableName))
+            UpdateStatus();
     }
 
     #endregion
@@ -292,8 +260,13 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
     [Notify]
     public string TableName { get; set; } = null!;
 
+    [Notify]
     public ObservableCollection<ColumnDefinition> Columns { get; private set; } = null!;
 
+    [Notify]
+    public ColumnDefinition? SelectedColumn { get; set; }
+
+    [Notify]
     public string[] AvailableDataTypes { get; private set; } = null!;
 
     [Notify]
@@ -306,14 +279,37 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
     public string? ErrorMessage { get; set; }
 
     [Notify]
-    public bool IsCompleted { get; set; }
+    public bool CanGenerateDdl { get; private set; }
 
     [Notify]
-    public bool IsCancelled { get; set; }
+    public bool CanCreateTable { get; private set; }
 
-    // Computed properties for UI binding
-    public bool CanGenerateDdlProperty => CanGenerateDdl();
-    public bool CanCreateTableProperty => CanCreateTable();
+    [Notify]
+    public bool CanRemoveColumn { get; private set; }
+
+    #endregion
+
+    #region Commands
+
+    public ICommand AddColumnCommand { get; private set; } = null!;
+
+    public ICommand RemoveColumnCommand { get; private set; } = null!;
+
+    public ICommand GenerateDdlCommand { get; private set; } = null!;
+
+    public ICommand CreateTableCommand { get; private set; } = null!;
+
+    public ICommand CancelCommand { get; private set; } = null!;
+
+    #endregion
+
+    #region Services
+
+    public IDatabaseService Database => ApplicationVm.Database;
+
+    public ISettingsService Settings => ApplicationVm.Settings;
+
+    public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
 }

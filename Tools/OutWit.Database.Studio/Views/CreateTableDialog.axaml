@@ -57,6 +57,7 @@
                             BorderThickness="1"
                             CornerRadius="4">
                         <DataGrid ItemsSource="{Binding Columns}"
+                                  SelectedItem="{Binding SelectedColumn, Mode=TwoWay}"
                                   AutoGenerateColumns="False"
                                   CanUserReorderColumns="False"
                                   CanUserResizeColumns="True"
@@ -118,6 +119,7 @@
                                         <DataTemplate>
                                             <Button Content="Remove"
                                                     Command="{Binding $parent[Window].((vm:CreateTableViewModel)DataContext).RemoveColumnCommand}"
+                                                    IsEnabled="{Binding $parent[Window].((vm:CreateTableViewModel)DataContext).CanRemoveColumn}"
                                                     CommandParameter="{Binding}"
                                                     HorizontalAlignment="Center"
                                                     Padding="8,4"/>
@@ -140,7 +142,7 @@
                         
                         <Button Content="Generate DDL"
                                 Command="{Binding GenerateDdlCommand}"
-                                IsEnabled="{Binding CanGenerateDdlProperty}"
+                                IsEnabled="{Binding CanGenerateDdl}"
                                 DockPanel.Dock="Right"
                                 HorizontalAlignment="Right"
                                 Margin="8,0,0,0"/>
@@ -203,7 +205,7 @@
                 
                 <Button Content="Create Table"
                         Command="{Binding CreateTableCommand}"
-                        IsEnabled="{Binding CanCreateTableProperty}"
+                        IsEnabled="{Binding CanCreateTable}"
                         Width="120"
                         HorizontalContentAlignment="Center"
                         Classes="accent"/>
