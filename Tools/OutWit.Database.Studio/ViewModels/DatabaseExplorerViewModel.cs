@@ -61,7 +61,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             return;
 
         var tableName = SelectedNode.Name;
-        var sql = $"SELECT * FROM [{tableName}] LIMIT 100";
+        var sql = $"SELECT * FROM {tableName} LIMIT 100";
         
         // Create a new tab or use the selected one
         var tab = ApplicationVm.QueryTabsVm.SelectedTab;
