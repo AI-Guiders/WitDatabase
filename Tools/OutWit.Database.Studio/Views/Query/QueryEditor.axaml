@@ -34,11 +34,57 @@
                 <Grid RowDefinitions="*,Auto">
                     <!-- Custom Data Grid for Results -->
                     <c:ResultDataGrid Grid.Row="0"
-                                             HeaderRow="{Binding HeaderRow}"
-                                             ResultPage="{Binding ResultPage}"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             IsVisible="{Binding HasResults}"/>
+                                      HeaderRow="{Binding HeaderRow}"
+                                      ResultPage="{Binding ResultPage}"
+                                      SelectedRows="{Binding SelectedRows, Mode=OneWayToSource}"
+                                      BorderThickness="0"
+                                      Background="Transparent"
+                                      IsVisible="{Binding HasResults}">
+                        
+                        <!-- Context Menu -->
+                        <c:ResultDataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Copy"
+                                          Command="{Binding CopyRowsCommand}"
+                                          InputGesture="Ctrl+C">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copy with Headers"
+                                          Command="{Binding CopyRowsAsCsvCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copy as INSERT"
+                                          Command="{Binding CopyRowsAsInsertCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Copy All Rows"
+                                          Command="{Binding CopyAllRowsCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copy All as INSERT"
+                                          Command="{Binding CopyAllRowsAsInsertCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </c:ResultDataGrid.ContextMenu>
+                        
+                        <!-- Keyboard shortcuts -->
+                        <c:ResultDataGrid.KeyBindings>
+                            <KeyBinding Gesture="Ctrl+C" Command="{Binding CopyRowsCommand}"/>
+                        </c:ResultDataGrid.KeyBindings>
+                        
+                    </c:ResultDataGrid>
 
                     <!-- Pagination -->
                     <Border Grid.Row="1"
@@ -47,16 +93,37 @@
                             IsVisible="{Binding HasResults}">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <!-- Row count info -->
-                            <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center">
-                                <Run Text="Showing"/>
-                                <Run Text="{Binding DisplayedRowStart}" FontWeight="SemiBold"/>
-                                <Run Text="-"/>
-                                <Run Text="{Binding DisplayedRowEnd}" FontWeight="SemiBold"/>
-                                <Run Text="of"/>
-                                <Run Text="{Binding TotalRowCount}" FontWeight="SemiBold"/>
-                                <Run Text="rows"/>
-                            </TextBlock>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                                <TextBlock VerticalAlignment="Center">
+                                    <Run Text="Showing"/>
+                                    <Run Text="{Binding DisplayedRowStart}" FontWeight="SemiBold"/>
+                                    <Run Text="-"/>
+                                    <Run Text="{Binding DisplayedRowEnd}" FontWeight="SemiBold"/>
+                                    <Run Text="of"/>
+                                    <Run Text="{Binding TotalRowCount}" FontWeight="SemiBold"/>
+                                    <Run Text="rows"/>
+                                </TextBlock>
+                                
+                                <!-- Copy buttons -->
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Button Command="{Binding CopyRowsCommand}"
+                                            IsEnabled="{Binding CanCopyRows}"
+                                            Width="28" Height="28"
+                                            Padding="0"
+                                            ToolTip.Tip="Copy selected rows (Ctrl+C)">
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}"
+                                                  Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Command="{Binding CopyRowsAsInsertCommand}"
+                                            IsEnabled="{Binding CanCopyRows}"
+                                            Width="28" Height="28"
+                                            Padding="0"
+                                            ToolTip.Tip="Copy as INSERT statements">
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}"
+                                                  Width="14" Height="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
                             
                             <!-- Pagination controls -->
                             <StackPanel Grid.Column="2"

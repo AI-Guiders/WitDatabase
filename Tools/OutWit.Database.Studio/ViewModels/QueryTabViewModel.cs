@@ -1,4 +1,9 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Text;
 using System.Windows.Input;
+using Avalonia;
+using Avalonia.Controls;
 using OutWit.Common.Aspects;
 using OutWit.Common.Locker;
 using OutWit.Common.MVVM.Commands;
@@ -16,6 +21,7 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
     #region Constants
 
     private const int DEFAULT_PAGE_SIZE = 100;
+    private const string NULL_DISPLAY = "NULL";
 
     #endregion
 
@@ -44,15 +50,22 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         PreviousPageCommand = new RelayCommand(GoToPreviousPage);
         NextPageCommand = new RelayCommand(GoToNextPage);
         LastPageCommand = new RelayCommand(GoToLastPage);
+        
+        CopyRowsCommand = new RelayCommandAsync(CopyRowsAsync);
+        CopyRowsAsInsertCommand = new RelayCommandAsync(CopyRowsAsInsertAsync);
+        CopyRowsAsCsvCommand = new RelayCommandAsync(CopyRowsAsCsvAsync);
+        CopyAllRowsCommand = new RelayCommandAsync(CopyAllRowsAsync);
+        CopyAllRowsAsInsertCommand = new RelayCommandAsync(CopyAllRowsAsInsertAsync);
     }
 
     private void InitEvents()
     {
-        this.PropertyChanged += OnPropertyChanged;
+        PropertyChanged += OnPropertyChanged;
     }
+
     #endregion
 
-    #region Command Handlers
+    #region Pagination Handlers
 
     private void GoToFirstPage()
     {
@@ -100,6 +113,70 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         CurrentPage = TotalPages;
         ApplyPagination();
         UpdateStatus();
+    }
+
+    #endregion
+
+    #region Copy Handlers
+
+    private async Task CopyRowsAsync()
+    {
+        if (!CanCopyRows)
+            return;
+
+        var csv = RowsToCsv(GetSelectedOrAllRows(), includeHeaders: false);
+        await SetClipboardTextAsync(csv);
+    }
+
+    private async Task CopyRowsAsCsvAsync()
+    {
+        if (!CanCopyRows)
+            return;
+
+        var csv = RowsToCsv(GetSelectedOrAllRows(), includeHeaders: true);
+        await SetClipboardTextAsync(csv);
+    }
+
+    private async Task CopyRowsAsInsertAsync()
+    {
+        if (!CanCopyRows)
+            return;
+
+        var sql = RowsToInsertStatements(GetSelectedOrAllRows());
+        await SetClipboardTextAsync(sql);
+    }
+
+    private async Task CopyAllRowsAsync()
+    {
+        if (!HasResults || ResultTable == null)
+            return;
+
+        var allRows = ResultTable.Pages.SelectMany(p => p.Rows).ToList();
+        var csv = RowsToCsv(allRows, includeHeaders: true);
+        await SetClipboardTextAsync(csv);
+    }
+
+    private async Task CopyAllRowsAsInsertAsync()
+    {
+        if (!HasResults || ResultTable == null)
+            return;
+
+        var allRows = ResultTable.Pages.SelectMany(p => p.Rows).ToList();
+        var sql = RowsToInsertStatements(allRows);
+        await SetClipboardTextAsync(sql);
+    }
+
+    private async Task SetClipboardTextAsync(string text)
+    {
+        var mainWindow = ApplicationVm.MainWindow;
+        if (mainWindow == null)
+            return;
+
+        var clipboard = TopLevel.GetTopLevel(mainWindow)?.Clipboard;
+        if (clipboard != null)
+        {
+            await clipboard.SetTextAsync(text);
+        }
     }
 
     #endregion
@@ -170,8 +247,20 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         RowsAffected = 0;
         ExecutionTimeMs = 0;
         ErrorMessage = null;
+        SelectedRows = null;
 
         UpdateStatus();
+    }
+
+    private IReadOnlyList<TableViewRow> GetSelectedOrAllRows()
+    {
+        if (SelectedRows != null && SelectedRows.Count > 0)
+            return SelectedRows.ToList();
+
+        if (ResultPage != null)
+            return ResultPage.Rows.ToList();
+
+        return [];
     }
 
     private void ResetPagination()
@@ -181,6 +270,82 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         CurrentPage = 1;
         ApplyPagination();
     }
+
+    #endregion
+
+    #region Export Functions
+
+    private string RowsToCsv(IReadOnlyList<TableViewRow> rows, bool includeHeaders)
+    {
+        if (rows.Count == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+
+        // Headers
+        if (includeHeaders && HeaderRow != null)
+        {
+            var headers = HeaderRow.Values.Select(v => EscapeCsvField(v.Text ?? ""));
+            sb.AppendLine(string.Join(",", headers));
+        }
+
+        // Rows
+        foreach (var row in rows)
+        {
+            var values = row.Values.Select(v => EscapeCsvField(v.Text ?? ""));
+            sb.AppendLine(string.Join(",", values));
+        }
+
+        return sb.ToString();
+    }
+
+    private string RowsToInsertStatements(IReadOnlyList<TableViewRow> rows)
+    {
+        if (rows.Count == 0 || HeaderRow == null)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+        var tableName = "TableName"; // Placeholder since we don't know the table name from SELECT results
+        var columns = string.Join(", ", HeaderRow.Values.Select(v => v.Text ?? ""));
+
+        foreach (var row in rows)
+        {
+            var values = row.Values.Select(v => FormatSqlValue(v.Text));
+            sb.AppendLine($"INSERT INTO {tableName} ({columns}) VALUES ({string.Join(", ", values)});");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string EscapeCsvField(string? field)
+    {
+        if (string.IsNullOrEmpty(field))
+            return string.Empty;
+
+        if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
+        {
+            return $"\"{field.Replace("\"", "\"\"")}\"";
+        }
+
+        return field;
+    }
+
+    private static string FormatSqlValue(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return NULL_DISPLAY;
+
+        // Check if it's a number
+        if (double.TryParse(value, out _))
+            return value;
+
+        // Escape single quotes and wrap in quotes
+        return $"'{value.Replace("'", "''")}'";
+    }
+
+    #endregion
+
+    #region Tools
 
     private void UpdateStatus()
     {
@@ -203,14 +368,16 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         HasMessages = !string.IsNullOrEmpty(ErrorMessage) || RowsAffected > 0;
 
         DisplayTitle = IsModified ? $"{Title} *" : Title;
-
+        
+        var selectedCount = SelectedRows?.Count ?? 0;
+        CanCopyRows = HasResults && (selectedCount > 0 || ResultPage?.Rows.Count > 0);
     }
 
     #endregion
 
     #region Event Handlers
 
-    private void OnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if(GlobalLocker.IsLocked(nameof(QueryTabViewModel)))
             return;
@@ -236,13 +403,15 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         if (e.IsProperty((QueryTabViewModel vm) => vm.ResultPage))
             UpdateStatus();
 
+        if (e.IsProperty((QueryTabViewModel vm) => vm.SelectedRows))
+            UpdateStatus();
+
         if (e.IsProperty((QueryTabViewModel vm) => vm.PageSize))
         {
             ResetPagination();
             UpdateStatus();
         }
     }
-
 
     #endregion
 
@@ -337,6 +506,18 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
     /// </summary>
     [Notify]
     public bool HasMessages { get; private set; }
+    
+    /// <summary>
+    /// Gets whether rows can be copied.
+    /// </summary>
+    [Notify]
+    public bool CanCopyRows { get; private set; }
+
+    /// <summary>
+    /// Currently selected rows in the DataGrid.
+    /// </summary>
+    [Notify]
+    public ObservableCollection<TableViewRow>? SelectedRows { get; set; }
 
     #endregion
 
@@ -401,7 +582,16 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand NextPageCommand { get; private set; } = null!;
 
     public ICommand LastPageCommand { get; private set; } = null!;
+    
+    public ICommand CopyRowsCommand { get; private set; } = null!;
+    
+    public ICommand CopyRowsAsCsvCommand { get; private set; } = null!;
+    
+    public ICommand CopyRowsAsInsertCommand { get; private set; } = null!;
+    
+    public ICommand CopyAllRowsCommand { get; private set; } = null!;
+    
+    public ICommand CopyAllRowsAsInsertCommand { get; private set; } = null!;
 
     #endregion
-
 }
