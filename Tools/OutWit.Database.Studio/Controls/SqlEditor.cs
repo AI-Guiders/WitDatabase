@@ -168,7 +168,7 @@ public partial class SqlEditor : TextEditor
     /// Gets the currently selected text (bindable, one-way to source).
     /// </summary>
     [StyledProperty]
-    public string? SelectedText { get; set; }
+    public new string? SelectedText { get; set; }
 
     protected override Type StyleKeyOverride => typeof(TextEditor);
 

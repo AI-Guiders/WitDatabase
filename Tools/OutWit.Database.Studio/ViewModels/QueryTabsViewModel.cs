@@ -64,15 +64,15 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
 
     private void InitCommands()
     {
-        NewTabCommand = new RelayCommand(_ => AddNewTab());
+        NewTabCommand = new RelayCommand(AddNewTab);
         CloseTabCommand = new RelayCommand<QueryTabViewModel>(CloseTab);
-        CloseAllTabsCommand = new RelayCommand(_ => CloseAllTabs());
+        CloseAllTabsCommand = new RelayCommand(CloseAllTabs);
         CloseOtherTabsCommand = new RelayCommand<QueryTabViewModel>(CloseOtherTabs);
-        SaveTabCommand = new RelayCommand<QueryTabViewModel>(async tab => await SaveTabAsync(tab));
-        SaveTabAsCommand = new RelayCommand<QueryTabViewModel>(async tab => await SaveTabAsAsync(tab));
-        ExecuteQueryCommand = new RelayCommand<QueryTabViewModel>(async tab => await ExecuteQueryAsync(tab));
-        ExecuteSelectionCommand = new RelayCommand(async _ => await ExecuteSelectionAsync());
-        ClearResultsCommand = new RelayCommand<QueryTabViewModel>(ClearResults);
+        SaveTabCommand = new RelayCommandAsync(SaveTabAsync);
+        SaveTabAsCommand = new RelayCommandAsync(SaveTabAsAsync);
+        ExecuteQueryCommand = new RelayCommandAsync(ExecuteQueryAsync);
+        ExecuteSelectionCommand = new RelayCommandAsync(ExecuteSelectionAsync);
+        ClearResultsCommand = new RelayCommand(ClearResults);
     }
 
     #endregion
@@ -148,35 +148,35 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         Logger.LogInformation("Closed other query tabs, kept: {Title}", tab.Title);
     }
 
-    private async Task SaveTabAsync(QueryTabViewModel? tab)
+    private async Task SaveTabAsync()
     {
-        if (tab == null || !CanSaveTab)
+        if (SelectedTab == null || !CanSaveTab)
             return;
 
-        if (string.IsNullOrEmpty(tab.FilePath))
+        if (string.IsNullOrEmpty(SelectedTab.FilePath))
         {
-            await SaveTabAsAsync(tab);
+            await SaveTabAsAsync();
             return;
         }
 
         try
         {
-            await File.WriteAllTextAsync(tab.FilePath, tab.SqlText);
-            tab.IsModified = false;
+            await File.WriteAllTextAsync(SelectedTab.FilePath, SelectedTab.SqlText);
+            SelectedTab.IsModified = false;
 
-            ApplicationVm.MainWindowVm.StatusText = $"Saved: {tab.FilePath}";
-            Logger.LogInformation("Saved query tab: {FilePath}", tab.FilePath);
+            ApplicationVm.MainWindowVm.StatusText = $"Saved: {SelectedTab.FilePath}";
+            Logger.LogInformation("Saved query tab: {FilePath}", SelectedTab.FilePath);
         }
         catch (Exception ex)
         {
             ApplicationVm.MainWindowVm.StatusText = $"Error saving file: {ex.Message}";
-            Logger.LogError(ex, "Failed to save query tab: {FilePath}", tab.FilePath);
+            Logger.LogError(ex, "Failed to save query tab: {FilePath}", SelectedTab.FilePath);
         }
     }
 
-    private async Task SaveTabAsAsync(QueryTabViewModel? tab)
+    private async Task SaveTabAsAsync()
     {
-        if (tab == null)
+        if (SelectedTab == null)
             return;
 
         if (ApplicationVm.MainWindow == null)
@@ -188,7 +188,7 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         {
             Title = "Save Query As",
             DefaultExtension = ".sql",
-            SuggestedFileName = $"{tab.Title}.sql",
+            SuggestedFileName = $"{SelectedTab.Title}.sql",
             FileTypeChoices =
             [
                 new FilePickerFileType("SQL Files")
@@ -210,11 +210,11 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         try
         {
             var filePath = file.Path.LocalPath;
-            await File.WriteAllTextAsync(filePath, tab.SqlText);
+            await File.WriteAllTextAsync(filePath, SelectedTab.SqlText);
             
-            tab.FilePath = filePath;
-            tab.Title = Path.GetFileNameWithoutExtension(filePath);
-            tab.IsModified = false;
+            SelectedTab.FilePath = filePath;
+            SelectedTab.Title = Path.GetFileNameWithoutExtension(filePath);
+            SelectedTab.IsModified = false;
 
             ApplicationVm.MainWindowVm.StatusText = $"Saved: {filePath}";
             Logger.LogInformation("Saved query tab as: {FilePath}", filePath);
@@ -226,12 +226,9 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private async Task ExecuteQueryAsync(QueryTabViewModel? tab)
+    private async Task ExecuteQueryAsync()
     {
-        if (tab == null)
-            tab = SelectedTab;
-
-        if (tab == null || string.IsNullOrWhiteSpace(tab.SqlText))
+        if (SelectedTab == null || string.IsNullOrWhiteSpace(SelectedTab.SqlText))
             return;
 
         if (!Database.IsConnected)
@@ -240,7 +237,7 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
             return;
         }
 
-        await ExecuteSqlAsync(tab, tab.SqlText);
+        await ExecuteSqlAsync(SelectedTab, SelectedTab.SqlText);
     }
 
     private async Task ExecuteSelectionAsync()
@@ -319,12 +316,12 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private void ClearResults(QueryTabViewModel? tab)
+    private void ClearResults()
     {
-        if (tab == null)
+        if (SelectedTab == null)
             return;
 
-        tab.ClearResults();
+        SelectedTab.ClearResults();
         ApplicationVm.MainWindowVm.StatusText = "Results cleared";
     }
 

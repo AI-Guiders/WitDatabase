@@ -18,10 +18,10 @@
 		<KeyBinding Gesture="Ctrl+N" Command="{Binding QueryTabsVm.NewTabCommand}"/>
 		<KeyBinding Gesture="Ctrl+W" Command="{Binding QueryTabsVm.CloseTabCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
 		<KeyBinding Gesture="Ctrl+O" Command="{Binding MainWindowVm.OpenDatabaseCommand}"/>
-		<KeyBinding Gesture="F5" Command="{Binding QueryTabsVm.ExecuteQueryCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
-		<KeyBinding Gesture="Ctrl+Return" Command="{Binding QueryTabsVm.ExecuteQueryCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
-		<KeyBinding Gesture="Ctrl+S" Command="{Binding QueryTabsVm.SaveTabCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
-		<KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding QueryTabsVm.SaveTabAsCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
+		<KeyBinding Gesture="F5" Command="{Binding QueryTabsVm.ExecuteQueryCommand}"/>
+		<KeyBinding Gesture="Ctrl+Return" Command="{Binding QueryTabsVm.ExecuteSelectionCommand}"/>
+		<KeyBinding Gesture="Ctrl+S" Command="{Binding QueryTabsVm.SaveTabCommand}"/>
+		<KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding QueryTabsVm.SaveTabAsCommand}"/>
 	</Window.KeyBindings>
 
 	<Grid RowDefinitions="Auto,*,Auto">
@@ -64,7 +64,6 @@
 
 				<MenuItem Header="_Save Query"
 				          Command="{Binding QueryTabsVm.SaveTabCommand}"
-				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
 				          InputGesture="Ctrl+S">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
@@ -73,7 +72,6 @@
 
 				<MenuItem Header="Save Query _As..."
 				          Command="{Binding QueryTabsVm.SaveTabAsCommand}"
-				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
 				          InputGesture="Ctrl+Shift+S">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
@@ -115,16 +113,14 @@
 			<MenuItem Header="_Query">
 				<MenuItem Header="_Execute"
 				          Command="{Binding QueryTabsVm.ExecuteQueryCommand}"
-				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
 				          InputGesture="F5">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
 					</MenuItem.Icon>
 				</MenuItem>
 
-				<MenuItem Header="Execute (Alt)"
-				          Command="{Binding QueryTabsVm.ExecuteQueryCommand}"
-				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
+				<MenuItem Header="Execute _Selection"
+				          Command="{Binding QueryTabsVm.ExecuteSelectionCommand}"
 				          InputGesture="Ctrl+Enter">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
@@ -134,8 +130,7 @@
 				<Separator />
 
 				<MenuItem Header="_Clear Results"
-				          Command="{Binding QueryTabsVm.ClearResultsCommand}"
-				          CommandParameter="{Binding QueryTabsVm.SelectedTab}">
+				          Command="{Binding QueryTabsVm.ClearResultsCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_CLEAR}" />
 					</MenuItem.Icon>
