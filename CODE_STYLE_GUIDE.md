@@ -340,3 +340,103 @@ OutWit.Database.Core.Tests/
     StorageMemoryTests.cs
   Stores/
     StoreBTreeTests.cs
+```
+
+## 10. ViewModel Style (MVVM)
+
+### Element Order in ViewModels
+
+1.  Constants
+2.	Events (if any)
+3.	Fields
+4.	Constructors
+5.	Initialization
+    •	InitDefault()
+    •	InitEvents()
+    •	InitCommands()
+6.	Functions (command implementations and business logic)
+    •	Group by meaning if many
+    •	Private helper methods at the end
+7.	Tools
+    •	UpdateStatus() method
+8.	Event Handlers
+    •	OnPropertyChanged, OnCollectionChanged, etc.
+9.	Properties
+    •	Data properties first
+    •	CanXxx properties for command enablement
+10.	Commands
+    •	ICommand declarations at the very end
+11.	Services (if using service locator pattern)
+
+### Commands Declaration
+
+Commands (`ICommand`) are declared in a separate `#region Commands` **after Properties**:
+
+```csharp
+#region Properties
+
+[Notify] 
+public string Name { get; set; } = null!;
+
+[Notify] 
+public bool IsLoading { get; set; }
+
+[Notify] 
+public bool CanSave { get; private set; }
+
+#endregion
+
+#region Commands
+
+public ICommand SaveCommand { get; private set; } = null!;
+
+public ICommand CancelCommand { get; private set; } = null!;
+
+public ICommand RefreshCommand { get; private set; } = null!;
+
+#endregion
+
+```
+### Command Enablement Pattern
+
+Use `UpdateStatus()` method called from `OnPropertyChanged` instead of explicit `RaiseCanExecuteChanged()`:
+
+**Wrong:**
+ 
+ ```csharp
+ public bool CanSave => !string.IsNullOrWhiteSpace(Name) && !IsLoading;
+// In property setter or command SaveCommand.RaiseCanExecuteChanged();
+ ```
+
+**Correct:**
+
+```csharp
+#region Tools
+
+private void UpdateStatus() 
+{ 
+    CanSave = !string.IsNullOrWhiteSpace(Name) && !IsLoading && Database.IsConnected; 
+    CanCancel = !IsLoading; 
+}
+
+#endregion
+
+#region Event Handlers
+
+private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e) 
+{ 
+    if (e.IsProperty((MyViewModel vm) => vm.Name))
+        UpdateStatus();
+    if (e.IsProperty((MyViewModel vm) => vm.IsLoading))
+        UpdateStatus();
+}
+```
+#endregion
+
+### Key Principles
+
+1. **Never call `RaiseCanExecuteChanged()` explicitly** - use `CanXxx` properties with `[Notify]` attribute
+2. **Bind `IsEnabled` to `CanXxx` properties** in XAML instead of using command's CanExecute
+3. **Centralize enablement logic in `UpdateStatus()`** - easier to maintain and debug
+4. **Subscribe to `PropertyChanged` in `InitEvents()`** - keeps initialization organized
+5. **Use `e.IsProperty()` extension** for type-safe property name checks

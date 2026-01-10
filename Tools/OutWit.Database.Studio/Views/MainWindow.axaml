@@ -12,11 +12,32 @@
         Width="1200"
         Height="800">
 
+	<!-- Keyboard Shortcuts -->
+	<Window.KeyBindings>
+		<KeyBinding Gesture="Ctrl+N" Command="{Binding QueryTabsVm.NewTabCommand}"/>
+		<KeyBinding Gesture="Ctrl+W" Command="{Binding QueryTabsVm.CloseTabCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
+		<KeyBinding Gesture="Ctrl+O" Command="{Binding MainWindowVm.OpenDatabaseCommand}"/>
+		<KeyBinding Gesture="F5" Command="{Binding QueryTabsVm.ExecuteQueryCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
+		<KeyBinding Gesture="Ctrl+Return" Command="{Binding QueryTabsVm.ExecuteQueryCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
+		<KeyBinding Gesture="Ctrl+S" Command="{Binding QueryTabsVm.SaveTabCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
+		<KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding QueryTabsVm.SaveTabAsCommand}" CommandParameter="{Binding QueryTabsVm.SelectedTab}"/>
+	</Window.KeyBindings>
+
 	<Grid RowDefinitions="Auto,*,Auto">
 		<!-- Menu -->
 		<Menu Grid.Row="0">
 			<MenuItem Header="_File">
-				<MenuItem Header="_New Database..."
+				<MenuItem Header="_New Query Tab"
+				          Command="{Binding QueryTabsVm.NewTabCommand}"
+				          InputGesture="Ctrl+N">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.TAB_NEW}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<Separator />
+
+				<MenuItem Header="New _Database..."
                           Command="{Binding MainWindowVm.NewDatabaseCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}" />
@@ -24,7 +45,8 @@
 				</MenuItem>
 
 				<MenuItem Header="_Open Database..."
-                          Command="{Binding MainWindowVm.OpenDatabaseCommand}">
+                          Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+                          InputGesture="Ctrl+O">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}" />
 					</MenuItem.Icon>
@@ -39,6 +61,26 @@
 
 				<Separator />
 
+				<MenuItem Header="_Save Query"
+				          Command="{Binding QueryTabsVm.SaveTabCommand}"
+				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
+				          InputGesture="Ctrl+S">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<MenuItem Header="Save Query _As..."
+				          Command="{Binding QueryTabsVm.SaveTabAsCommand}"
+				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
+				          InputGesture="Ctrl+Shift+S">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<Separator />
+
 				<MenuItem Header="Recent Files">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_RECENT_FILES}" />
@@ -48,7 +90,8 @@
 				<Separator />
 
 				<MenuItem Header="E_xit"
-                          Command="{Binding MainWindowVm.ExitCommand}">
+                          Command="{Binding MainWindowVm.ExitCommand}"
+                          InputGesture="Alt+F4">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
 					</MenuItem.Icon>
@@ -68,8 +111,56 @@
 				</MenuItem>
 			</MenuItem>
 
+			<MenuItem Header="_Query">
+				<MenuItem Header="_Execute"
+				          Command="{Binding QueryTabsVm.ExecuteQueryCommand}"
+				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
+				          InputGesture="F5">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<MenuItem Header="Execute (Alt)"
+				          Command="{Binding QueryTabsVm.ExecuteQueryCommand}"
+				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
+				          InputGesture="Ctrl+Enter">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<Separator />
+
+				<MenuItem Header="_Clear Results"
+				          Command="{Binding QueryTabsVm.ClearResultsCommand}"
+				          CommandParameter="{Binding QueryTabsVm.SelectedTab}">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_CLEAR}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<Separator />
+
+				<MenuItem Header="Close _Tab"
+				          Command="{Binding QueryTabsVm.CloseTabCommand}"
+				          CommandParameter="{Binding QueryTabsVm.SelectedTab}"
+				          InputGesture="Ctrl+W">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
+					</MenuItem.Icon>
+				</MenuItem>
+
+				<MenuItem Header="Close _All Tabs"
+				          Command="{Binding QueryTabsVm.CloseAllTabsCommand}">
+					<MenuItem.Icon>
+						<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
+					</MenuItem.Icon>
+				</MenuItem>
+			</MenuItem>
+
 			<MenuItem Header="_View">
-				<MenuItem Header="Refresh"
+				<MenuItem Header="_Refresh"
                           Command="{Binding MainWindowVm.RefreshCommand}"
                           InputGesture="F5">
 					<MenuItem.Icon>
@@ -128,12 +219,9 @@
                                 CornerRadius="32"
                                 HorizontalAlignment="Center"
                                 Margin="0,0,0,8">
-							<TextBlock Text="DB"
-                                       FontSize="24"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
+							<PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
+							          Width="32" Height="32"
+							          Foreground="White"/>
 						</Border>
 
 						<!-- Title -->
@@ -149,11 +237,32 @@
                                        HorizontalAlignment="Center"
                                        FontSize="14"
                                        Foreground="Gray"/>
-							<TextBlock Text="Use File → Open Database or create a new one"
+							<TextBlock Text="Use File → Open Database or press Ctrl+O"
                                        HorizontalAlignment="Center"
                                        FontSize="13"
                                        Foreground="Gray"
                                        Opacity="0.8"/>
+						</StackPanel>
+
+						<!-- Quick Actions -->
+						<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16" Margin="0,16,0,0">
+							<Button Command="{Binding MainWindowVm.NewDatabaseCommand}"
+							        Width="140">
+								<StackPanel Orientation="Horizontal" Spacing="8">
+									<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}"
+									          Width="16" Height="16"/>
+									<TextBlock Text="New Database"/>
+								</StackPanel>
+							</Button>
+							<Button Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+							        Width="140"
+							        Classes="accent">
+								<StackPanel Orientation="Horizontal" Spacing="8">
+									<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}"
+									          Width="16" Height="16"/>
+									<TextBlock Text="Open Database"/>
+								</StackPanel>
+							</Button>
 						</StackPanel>
 					</StackPanel>
 				</Grid>
@@ -196,11 +305,17 @@
                            Spacing="8"
                            Margin="16,0,0,0"
                            IsVisible="{Binding MainWindowVm.IsConnected}">
-					<TextBlock Text="[ENC]"
-                               IsVisible="{Binding MainWindowVm.CurrentConnection.IsEncrypted}"
+					<PathIcon Data="{x:Static ui:StudioIcons.COMMON_BULLET}"
+					          Width="8" Height="8"
+					          Foreground="LimeGreen"
+					          VerticalAlignment="Center"/>
+					<TextBlock IsVisible="{Binding MainWindowVm.CurrentConnection.IsEncrypted}"
                                ToolTip.Tip="Database is encrypted"
                                Foreground="Orange"
-                               FontWeight="Bold"/>
+                               FontWeight="Bold"
+                               VerticalAlignment="Center">
+						<TextBlock.Text>ENC</TextBlock.Text>
+					</TextBlock>
 					<TextBlock Text="{Binding MainWindowVm.CurrentConnection.FilePath}"
                                VerticalAlignment="Center"
                                Foreground="Gray"/>

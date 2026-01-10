@@ -33,10 +33,15 @@ public sealed class ApplicationViewModel
 
     #region Constructors
 
-    public ApplicationViewModel(IDatabaseService databaseService, ISettingsService settingsService, ILogger<ApplicationViewModel> logger)
+    public ApplicationViewModel(
+        IDatabaseService databaseService, 
+        ISettingsService settingsService,
+        IExportService exportService,
+        ILogger<ApplicationViewModel> logger)
     {
         Database = databaseService;
         Settings = settingsService;
+        Export = exportService;
         Logger = logger;
 
         InitViewModels();
@@ -51,11 +56,8 @@ public sealed class ApplicationViewModel
         MainWindowVm = new MainWindowViewModel(this);
         ConnectionVm = new ConnectionViewModel(this);
         DatabaseExplorerVm = new DatabaseExplorerViewModel(this);
-        QueryEditorVm = new QueryEditorViewModel(this);
-        QueryTabsVm = new QueryTabsViewModel(this,
-            Database);
-        TableStructureVm = new TableStructureViewModel(this,
-            Database);
+        QueryTabsVm = new QueryTabsViewModel(this);
+        TableStructureVm = new TableStructureViewModel(this, Database);
     }
 
     #endregion
@@ -75,7 +77,6 @@ public sealed class ApplicationViewModel
     public MainWindowViewModel MainWindowVm { get; private set; } = null!;
     public ConnectionViewModel ConnectionVm { get; private set; } = null!;
     public DatabaseExplorerViewModel DatabaseExplorerVm { get; private set; } = null!;
-    public QueryEditorViewModel QueryEditorVm { get; private set; } = null!;
     public QueryTabsViewModel QueryTabsVm { get; private set; } = null!;
     public TableStructureViewModel TableStructureVm { get; private set; } = null!;
 
@@ -86,6 +87,8 @@ public sealed class ApplicationViewModel
     public IDatabaseService Database { get; }
 
     public ISettingsService Settings { get; }
+
+    public IExportService Export { get; }
 
     public ILogger<ApplicationViewModel> Logger { get; }
     

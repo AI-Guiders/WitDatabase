@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.Windows.Input;
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
-using OutWit.Common.Aspects;
-using OutWit.Database.Studio.Services;
 using Microsoft.Extensions.Logging;
+using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
 using OutWit.Common.Utils;
+using OutWit.Database.Studio.Services;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -26,8 +26,8 @@ public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
         : base(applicationVm)
     {
         InitDefault();
-        InitCommands();
         InitEvents();
+        InitCommands();
     }
 
     #endregion
@@ -40,15 +40,15 @@ public class CreateViewViewModel : ViewModelBase<ApplicationViewModel>
         SelectStatement = "SELECT \n    \nFROM \nWHERE ";
     }
 
+    private void InitEvents()
+    {
+        PropertyChanged += OnPropertyChanged;
+    }
+
     private void InitCommands()
     {
         CreateViewCommand = new RelayCommandAsync(CreateViewAsync);
         CancelCommand = new RelayCommand(Cancel);
-    }
-
-    private void InitEvents()
-    {
-        this.PropertyChanged += OnPropertyChanged;
     }
 
     #endregion

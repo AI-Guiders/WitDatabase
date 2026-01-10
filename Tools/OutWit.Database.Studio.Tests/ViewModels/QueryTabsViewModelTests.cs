@@ -20,6 +20,7 @@ public class QueryTabsViewModelTests
         m_applicationVm = new ApplicationViewModel(
             databaseService,
             new FakeSettingsService(),
+            new FakeExportService(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<ApplicationViewModel>.Instance);
         
         m_viewModel = m_applicationVm.QueryTabsVm;

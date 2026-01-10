@@ -31,6 +31,7 @@ public class ApplicationViewModelTests
 
         services.AddSingleton<IDatabaseService, DatabaseService>();
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IExportService, ExportService>();
         services.AddSingleton<ApplicationViewModel>();
 
         var serviceProvider = services.BuildServiceProvider();
@@ -67,9 +68,9 @@ public class ApplicationViewModelTests
     }
 
     [Test]
-    public void QueryEditorVmIsNotNullTest()
+    public void QueryTabsVmIsNotNullTest()
     {
-        Assert.That(m_appVm.QueryEditorVm, Is.Not.Null);
+        Assert.That(m_appVm.QueryTabsVm, Is.Not.Null);
     }
 
     [Test]
@@ -90,7 +91,7 @@ public class ApplicationViewModelTests
             Assert.That(m_appVm.MainWindowVm, Is.Not.Null);
             Assert.That(m_appVm.ConnectionVm, Is.Not.Null);
             Assert.That(m_appVm.DatabaseExplorerVm, Is.Not.Null);
-            Assert.That(m_appVm.QueryEditorVm, Is.Not.Null);
+            Assert.That(m_appVm.QueryTabsVm, Is.Not.Null);
             Assert.That(m_appVm.TableStructureVm, Is.Not.Null);
         });
     }

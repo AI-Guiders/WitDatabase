@@ -4,7 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:OutWit.Database.Studio.ViewModels"
         mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
-        x:Class="OutWit.Database.Studio.Views.CreateViewDialog"
+        x:Class="OutWit.Database.Studio.Views.Dialogs.CreateViewDialog"
         x:DataType="vm:CreateViewViewModel"
         Title="Create View"
         Width="700" Height="500"

@@ -64,6 +64,7 @@ sealed class Program
         // Services
         services.AddSingleton<IDatabaseService, DatabaseService>();
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IExportService, ExportService>();
 
         // Application ViewModel (main container)
         services.AddSingleton<ApplicationViewModel>();

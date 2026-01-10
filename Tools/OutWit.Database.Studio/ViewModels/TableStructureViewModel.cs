@@ -1,10 +1,12 @@
+using System.ComponentModel;
 using System.Windows.Input;
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
+using Microsoft.Extensions.Logging;
 using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
+using OutWit.Common.Utils;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.Logging;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -31,6 +33,7 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
         m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<TableStructureViewModel>.Instance;
 
         InitDefault();
+        InitEvents();
         InitCommands();
     }
 
@@ -43,16 +46,20 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
         Columns = [];
     }
 
+    private void InitEvents()
+    {
+        PropertyChanged += OnPropertyChanged;
+        m_databaseService.ConnectionStatusChanged += OnConnectionStatusChanged;
+    }
+
     private void InitCommands()
     {
-        RefreshCommand = new RelayCommandAsync(async _ => await RefreshAsync(), _ => CanRefresh());
+        RefreshCommand = new RelayCommandAsync(async _ => await RefreshAsync());
     }
 
     #endregion
 
-    #region Commands
-
-    public ICommand RefreshCommand { get; private set; } = null!;
+    #region Functions
 
     public async Task RefreshAsync()
     {
@@ -96,8 +103,6 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
             {
                 IsLoading = false;
             }
-
-            return;
         }
     }
 
@@ -214,11 +219,6 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanRefresh()
-    {
-        return !string.IsNullOrWhiteSpace(SelectedObjectName) && !IsLoading && m_databaseService.IsConnected;
-    }
-
     #endregion
 
     #region Public Methods
@@ -260,7 +260,6 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
             return;
         }
 
-        // Folders/others
         Clear();
     }
 
@@ -298,8 +297,38 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
         IndexTableName = null;
         IndexIsUnique = null;
         IndexFilterCondition = null;
-        //RefreshCommand?.RaiseCanExecuteChanged();
     }
+
+    #endregion
+
+    #region Tools
+
+    private void UpdateStatus()
+    {
+        CanRefresh = !string.IsNullOrWhiteSpace(SelectedObjectName) && !IsLoading && m_databaseService.IsConnected;
+    }
+
+    #endregion
+
+    #region Event Handlers
+
+    private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.IsProperty((TableStructureViewModel vm) => vm.SelectedObjectName))
+            UpdateStatus();
+
+        if (e.IsProperty((TableStructureViewModel vm) => vm.IsLoading))
+            UpdateStatus();
+    }
+
+    private void OnConnectionStatusChanged(object? sender, bool isConnected)
+    {
+        UpdateStatus();
+    }
+
+    #endregion
+
+    #region Properties
 
     public bool IsStructureSelected => SelectedObjectType != null;
 
@@ -317,11 +346,7 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
         _ => "Object"
     };
 
-    #endregion
-
-    #region Properties
-
-    [Notify(NotifyAlso = nameof(CanRefreshChanged))]
+    [Notify]
     public TableInfo? SelectedTable { get; set; }
 
     [Notify]
@@ -333,7 +358,8 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
     [Notify]
     public string? ErrorMessage { get; set; }
 
-    public bool CanRefreshChanged => CanRefresh();
+    [Notify]
+    public bool CanRefresh { get; private set; }
 
     [Notify(NotifyAlso = nameof(HasViewDefinition))]
     public string? ViewDefinition { get; set; }
@@ -350,6 +376,12 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
     public string? IndexFilterCondition { get; set; }
 
     public bool HasIndexDetails => !string.IsNullOrWhiteSpace(IndexTableName) || IndexIsUnique is not null || !string.IsNullOrWhiteSpace(IndexFilterCondition);
+
+    #endregion
+
+    #region Commands
+
+    public ICommand RefreshCommand { get; private set; } = null!;
 
     #endregion
 }

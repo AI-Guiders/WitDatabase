@@ -1,0 +1,221 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:models="using:OutWit.Database.Studio.Models"
+             xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="OutWit.Database.Studio.Views.Query.QueryEditor"
+             x:DataType="models:QueryTab"
+             x:Name="Root">
+
+    <Grid RowDefinitions="*,Auto,*">
+        
+        <!-- SQL Editor -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="8">
+            <TextBox Name="SqlTextBox"
+                     Text="{Binding SqlText, Mode=TwoWay}"
+                     AcceptsReturn="True"
+                     AcceptsTab="True"
+                     TextWrapping="NoWrap"
+                     FontFamily="Consolas,Courier New"
+                     FontSize="13"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Watermark="Enter SQL query here... (F5 to execute)"/>
+        </Border>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Row="1"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+
+        <!-- Results Area -->
+        <TabControl Grid.Row="2"
+                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            
+            <!-- Results Tab -->
+            <TabItem Header="Results">
+                <Grid RowDefinitions="*,Auto">
+                    <!-- Data Grid for Results -->
+                    <DataGrid Grid.Row="0"
+                              ItemsSource="{Binding ResultData}"
+                              AutoGenerateColumns="True"
+                              IsReadOnly="True"
+                              GridLinesVisibility="All"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="True"
+                              CanUserSortColumns="True"
+                              IsVisible="{Binding HasResults}"/>
+
+                    <!-- Pagination -->
+                    <Border Grid.Row="1"
+                            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                            Padding="8"
+                            IsVisible="{Binding HasResults}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Row count info -->
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center">
+                                <Run Text="Showing"/>
+                                <Run Text="{Binding DisplayedRowStart}" FontWeight="SemiBold"/>
+                                <Run Text="-"/>
+                                <Run Text="{Binding DisplayedRowEnd}" FontWeight="SemiBold"/>
+                                <Run Text="of"/>
+                                <Run Text="{Binding TotalRowCount}" FontWeight="SemiBold"/>
+                                <Run Text="rows"/>
+                            </TextBlock>
+                            
+                            <!-- Pagination controls -->
+                            <StackPanel Grid.Column="2"
+                                        Orientation="Horizontal"
+                                        Spacing="4">
+                                <Button Command="{Binding FirstPageCommand}"
+                                        IsEnabled="{Binding CanGoToPreviousPage}"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        ToolTip.Tip="First page">
+                                    <PathIcon Data="{x:Static ui:StudioIcons.PAGE_FIRST}"
+                                              Width="12" Height="12"/>
+                                </Button>
+                                <Button Command="{Binding PreviousPageCommand}"
+                                        IsEnabled="{Binding CanGoToPreviousPage}"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        ToolTip.Tip="Previous page">
+                                    <PathIcon Data="{x:Static ui:StudioIcons.PAGE_PREVIOUS}"
+                                              Width="12" Height="12"/>
+                                </Button>
+                                
+                                <TextBlock VerticalAlignment="Center"
+                                           Margin="8,0">
+                                    <Run Text="Page"/>
+                                    <Run Text="{Binding CurrentPage}" FontWeight="SemiBold"/>
+                                    <Run Text="of"/>
+                                    <Run Text="{Binding TotalPages}" FontWeight="SemiBold"/>
+                                </TextBlock>
+                                
+                                <Button Command="{Binding NextPageCommand}"
+                                        IsEnabled="{Binding CanGoToNextPage}"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        ToolTip.Tip="Next page">
+                                    <PathIcon Data="{x:Static ui:StudioIcons.PAGE_NEXT}"
+                                              Width="12" Height="12"/>
+                                </Button>
+                                <Button Command="{Binding LastPageCommand}"
+                                        IsEnabled="{Binding CanGoToNextPage}"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        ToolTip.Tip="Last page">
+                                    <PathIcon Data="{x:Static ui:StudioIcons.PAGE_LAST}"
+                                              Width="12" Height="12"/>
+                                </Button>
+                                
+                                <Separator Width="1" Height="20" Margin="8,0"/>
+                                
+                                <TextBlock Text="Page size:" VerticalAlignment="Center"/>
+                                <ComboBox SelectedItem="{Binding PageSize}"
+                                          Width="80"
+                                          VerticalAlignment="Center">
+                                    <x:Int32>50</x:Int32>
+                                    <x:Int32>100</x:Int32>
+                                    <x:Int32>250</x:Int32>
+                                    <x:Int32>500</x:Int32>
+                                    <x:Int32>1000</x:Int32>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- No Results Message -->
+                    <StackPanel Grid.Row="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8"
+                                IsVisible="{Binding !HasResults}">
+                        <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
+                                  Width="48"
+                                  Height="48"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+                        <TextBlock Text="No results to display"
+                                   FontSize="16"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <TextBlock Text="Execute a query to see results here"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Messages Tab -->
+            <TabItem Header="Messages">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16" Spacing="8">
+                        
+                        <!-- Success Message -->
+                        <Border Background="#D4EDDA"
+                                BorderBrush="#C3E6CB"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                IsVisible="{Binding IsSuccess}">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                                              Width="16" Height="16"
+                                              Foreground="#155724"/>
+                                    <TextBlock Text="Query executed successfully"
+                                               FontWeight="SemiBold"
+                                               Foreground="#155724"/>
+                                </StackPanel>
+                                <TextBlock Foreground="#155724">
+                                    <Run Text="Rows affected:"/>
+                                    <Run Text="{Binding RowsAffected}" FontWeight="Bold"/>
+                                </TextBlock>
+                                <TextBlock Foreground="#155724">
+                                    <Run Text="Execution time:"/>
+                                    <Run Text="{Binding ExecutionTimeMs, StringFormat='{}{0:F2} ms'}" FontWeight="Bold"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Error Message -->
+                        <Border Background="#F8D7DA"
+                                BorderBrush="#F5C6CB"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                                              Width="16" Height="16"
+                                              Foreground="#721C24"/>
+                                    <TextBlock Text="Query execution failed"
+                                               FontWeight="SemiBold"
+                                               Foreground="#721C24"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           TextWrapping="Wrap"
+                                           Foreground="#721C24"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- No Messages -->
+                        <TextBlock Text="No messages"
+                                   FontStyle="Italic"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                   IsVisible="{Binding !HasMessages}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+
+</UserControl>

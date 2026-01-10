@@ -5,7 +5,7 @@
         xmlns:vm="using:OutWit.Database.Studio.ViewModels"
         xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
-        x:Class="OutWit.Database.Studio.Views.CreateDatabaseDialog"
+        x:Class="OutWit.Database.Studio.Views.Dialogs.CreateDatabaseDialog"
         x:DataType="vm:ConnectionViewModel"
         Title="Create New Database"
         Width="600"

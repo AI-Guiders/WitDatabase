@@ -52,6 +52,7 @@
 
                 <Button Grid.Column="1"
                         Command="{Binding TableStructureVm.RefreshCommand}"
+                        IsEnabled="{Binding TableStructureVm.CanRefresh}"
                         ToolTip.Tip="Refresh"
                         Width="32"
                         Height="32"
@@ -75,7 +76,7 @@
                         Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
                         CornerRadius="24"
                         HorizontalAlignment="Center">
-                    <PathIcon Data="M5,4H19A2,2 0 0,1 21,6V18A2,2 0 0,1 19,20H5A2,2 0 0,1 3,18V6A2,2 0 0,1 5,4M5,8V12H11V8H5M13,8V12H19V8H13M5,14V18H11V14H5M13,14V18H19V14H13Z"
+                    <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
                              Width="24"
                              Height="24"
                              Foreground="Gray"/>
@@ -157,13 +158,11 @@
                     <Border Width="32" Height="32"
                             Background="White"
                             CornerRadius="16">
-                        <TextBlock Text="..."
-                                   FontSize="18"
-                                   Foreground="Black"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
+                        <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
+                                  Width="16" Height="16"
+                                  Foreground="{DynamicResource SystemAccentColor}"/>
                     </Border>
-                    <TextBlock Text="Loading table structure..."
+                    <TextBlock Text="Loading structure..."
                                Foreground="White"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
@@ -177,10 +176,10 @@
                     Margin="8"
                     VerticalAlignment="Top"
                     IsVisible="{Binding TableStructureVm.ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="[!] Error"
-                               FontWeight="Bold"
-                               Foreground="#856404"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                              Width="16" Height="16"
+                              Foreground="#856404"/>
                     <TextBlock Text="{Binding TableStructureVm.ErrorMessage}"
                                TextWrapping="Wrap"
                                Foreground="#856404"/>

@@ -3,8 +3,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+        xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
         mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="600"
-        x:Class="OutWit.Database.Studio.Views.CreateIndexDialog"
+        x:Class="OutWit.Database.Studio.Views.Dialogs.CreateIndexDialog"
         x:DataType="vm:CreateIndexViewModel"
         Title="Create Index"
         Width="700" Height="600"
@@ -20,9 +21,14 @@
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16">
-            <TextBlock Text="Create New Index"
-                       FontSize="18"
-                       FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{x:Static ui:StudioIcons.DB_INDEX}"
+                          Width="24" Height="24"/>
+                <TextBlock Text="Create New Index"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
         </Border>
 
         <!-- Content -->
@@ -53,11 +59,16 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
-                    <Button Content="Load Tables"
-                            Command="{Binding LoadTablesCommand}"
-                            Width="120"
+                    <Button Command="{Binding LoadTablesCommand}"
+                            Width="140"
                             HorizontalAlignment="Left"
-                            Margin="0,4,0,0"/>
+                            Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}"
+                                      Width="14" Height="14"/>
+                            <TextBlock Text="Load Tables"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- Unique Checkbox -->
@@ -96,19 +107,31 @@
                                     VerticalAlignment="Center"
                                     Spacing="8"
                                     Margin="8">
-                            <Button Content="&gt;"
-                                    Width="40"
-                                    Click="AddColumn_Click"/>
-                            <Button Content="&lt;"
-                                    Width="40"
-                                    Click="RemoveColumn_Click"/>
-                            <Button Content="?"
-                                    Width="40"
+                            <Button Width="40"
+                                    Click="AddColumn_Click"
+                                    ToolTip.Tip="Add selected column">
+                                <PathIcon Data="{x:Static ui:StudioIcons.CHEVRON_RIGHT}"
+                                          Width="14" Height="14"/>
+                            </Button>
+                            <Button Width="40"
+                                    Click="RemoveColumn_Click"
+                                    ToolTip.Tip="Remove selected column">
+                                <PathIcon Data="{x:Static ui:StudioIcons.CHEVRON_LEFT}"
+                                          Width="14" Height="14"/>
+                            </Button>
+                            <Button Width="40"
                                     Margin="0,16,0,0"
-                                    Click="MoveUp_Click"/>
-                            <Button Content="?"
-                                    Width="40"
-                                    Click="MoveDown_Click"/>
+                                    Click="MoveUp_Click"
+                                    ToolTip.Tip="Move up">
+                                <PathIcon Data="{x:Static ui:StudioIcons.ARROW_UP}"
+                                          Width="14" Height="14"/>
+                            </Button>
+                            <Button Width="40"
+                                    Click="MoveDown_Click"
+                                    ToolTip.Tip="Move down">
+                                <PathIcon Data="{x:Static ui:StudioIcons.ARROW_DOWN}"
+                                          Width="14" Height="14"/>
+                            </Button>
                         </StackPanel>
 
                         <!-- Selected Columns -->
@@ -127,12 +150,17 @@
                         </Border>
                     </Grid>
                     
-                    <Button Content="Load Columns for Selected Table"
-                            Command="{Binding LoadColumnsCommand}"
+                    <Button Command="{Binding LoadColumnsCommand}"
                             IsEnabled="{Binding CanLoadColumns}"
-                            Width="250"
+                            Width="270"
                             HorizontalAlignment="Left"
-                            Margin="0,4,0,0"/>
+                            Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}"
+                                      Width="14" Height="14"/>
+                            <TextBlock Text="Load Columns for Selected Table"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- Filter Condition (Partial Index) -->
@@ -156,12 +184,13 @@
                                    DockPanel.Dock="Left"
                                    VerticalAlignment="Center"/>
                         
-                        <Button Content="Generate DDL"
-                                Command="{Binding GenerateDdlCommand}"
-                                IsEnabled="{Binding CanGenerateDdlChanged}"
+                        <Button Command="{Binding GenerateDdlCommand}"
+                                IsEnabled="{Binding CanGenerateDdl}"
                                 DockPanel.Dock="Right"
                                 HorizontalAlignment="Right"
-                                Margin="8,0,0,0"/>
+                                Margin="8,0,0,0">
+                            <TextBlock Text="Generate DDL"/>
+                        </Button>
                     </DockPanel>
 
                     <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
@@ -190,10 +219,10 @@
                 Padding="12"
                 Margin="16,0"
                 IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <StackPanel Spacing="4">
-                <TextBlock Text="[!] Error"
-                           FontWeight="Bold"
-                           Foreground="#856404"/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                          Width="16" Height="16"
+                          Foreground="#856404"/>
                 <TextBlock Text="{Binding ErrorMessage}"
                            TextWrapping="Wrap"
                            Foreground="#856404"/>
@@ -210,17 +239,23 @@
                         HorizontalAlignment="Right"
                         Spacing="8">
                 
-                <Button Content="Cancel"
-                        Command="{Binding CancelCommand}"
+                <Button Command="{Binding CancelCommand}"
                         Width="100"
-                        HorizontalContentAlignment="Center"/>
+                        HorizontalContentAlignment="Center">
+                    <TextBlock Text="Cancel"/>
+                </Button>
                 
-                <Button Content="Create Index"
-                        Command="{Binding CreateIndexCommand}"
-                        IsEnabled="{Binding CanCreateIndexChanged}"
-                        Width="120"
+                <Button Command="{Binding CreateIndexCommand}"
+                        IsEnabled="{Binding CanCreateIndex}"
+                        Width="130"
                         HorizontalContentAlignment="Center"
-                        Classes="accent"/>
+                        Classes="accent">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{x:Static ui:StudioIcons.DB_INDEX}"
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Create Index"/>
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
 
@@ -234,11 +269,9 @@
                 <Border Width="48" Height="48"
                         Background="White"
                         CornerRadius="24">
-                    <TextBlock Text="..."
-                               FontSize="24"
-                               Foreground="Black"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
+                    <PathIcon Data="{x:Static ui:StudioIcons.DB_INDEX}"
+                              Width="24" Height="24"
+                              Foreground="{DynamicResource SystemAccentColor}"/>
                 </Border>
                 <TextBlock Text="Creating index..."
                            Foreground="White"

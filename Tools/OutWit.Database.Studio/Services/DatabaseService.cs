@@ -305,19 +305,70 @@ public sealed class DatabaseService : IDatabaseService
 
             using var reader = await command.ExecuteReaderAsync(ct);
 
+            // Manually build DataTable instead of using Load() 
+            // which may have issues with our custom DbDataReader
             var table = new DataTable();
-            table.Load(reader);
+
+            // Add columns from schema - use object type for complex types
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                var columnName = reader.GetName(i);
+                var columnType = reader.GetFieldType(i);
+                
+                // Map complex types to simpler ones for DataGrid display
+                var displayType = columnType switch
+                {
+                    Type t when t == typeof(DateOnly) => typeof(string),
+                    Type t when t == typeof(TimeOnly) => typeof(string),
+                    Type t when t == typeof(TimeSpan) => typeof(string),
+                    Type t when t == typeof(DateTimeOffset) => typeof(string),
+                    Type t when t == typeof(byte[]) => typeof(string),
+                    _ => columnType
+                };
+                
+                table.Columns.Add(columnName, displayType);
+            }
+
+            // Read rows manually
+            while (await reader.ReadAsync(ct))
+            {
+                var row = table.NewRow();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    if (reader.IsDBNull(i))
+                    {
+                        row[i] = DBNull.Value;
+                    }
+                    else
+                    {
+                        var value = reader.GetValue(i);
+                        
+                        // Convert complex types to strings for display
+                        row[i] = value switch
+                        {
+                            DateOnly d => d.ToString("yyyy-MM-dd"),
+                            TimeOnly t => t.ToString("HH:mm:ss"),
+                            TimeSpan ts => ts.ToString(),
+                            DateTimeOffset dto => dto.ToString("yyyy-MM-dd HH:mm:ss zzz"),
+                            byte[] bytes => $"0x{BitConverter.ToString(bytes).Replace("-", "")}",
+                            _ => value
+                        };
+                    }
+                }
+                table.Rows.Add(row);
+            }
 
             result.ResultTable = table;
             result.RowsAffected = table.Rows.Count;
             result.ExecutionTimeMs = sw.Elapsed.TotalMilliseconds;
 
-            m_logger.LogInformation("Query executed successfully in {Time}ms, {Rows} rows",
-                result.ExecutionTimeMs, result.RowsAffected);
+            m_logger.LogInformation("Query executed successfully in {Time}ms, {Rows} rows, {Columns} columns",
+                result.ExecutionTimeMs, result.RowsAffected, table.Columns.Count);
         }
         catch (Exception ex)
         {
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = FormatErrorMessage(ex);
+            result.ExecutionTimeMs = sw.Elapsed.TotalMilliseconds;
             m_logger.LogError(ex, "Query execution failed");
         }
         finally
@@ -356,6 +407,27 @@ public sealed class DatabaseService : IDatabaseService
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected to a database");
+    }
+
+    private static string FormatErrorMessage(Exception ex)
+    {
+        // Check for parsing errors - they have a specific format
+        if (ex.Message.StartsWith("Line ", StringComparison.Ordinal))
+        {
+            return $"SQL Syntax Error: {ex.Message}";
+        }
+
+        // Check for inner exceptions
+        if (ex.InnerException != null)
+        {
+            var innerMessage = ex.InnerException.Message;
+            if (innerMessage.StartsWith("Line ", StringComparison.Ordinal))
+            {
+                return $"SQL Syntax Error: {innerMessage}";
+            }
+        }
+
+        return ex.Message;
     }
 
     private async Task<IReadOnlyList<string>> ExecuteStringListQueryAsync(string sql, CancellationToken ct)

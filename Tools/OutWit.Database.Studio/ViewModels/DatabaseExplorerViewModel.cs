@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
@@ -6,6 +7,7 @@ using OutWit.Common.MVVM.Commands;
 using OutWit.Common.MVVM.ViewModels;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
+using OutWit.Database.Studio.Views.Dialogs;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -58,9 +60,22 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         if (SelectedNode == null)
             return;
 
-        var sql = $"SELECT * FROM {SelectedNode.Name} LIMIT 100";
-        ApplicationVm.QueryEditorVm.SqlText = sql;
-        ApplicationVm.QueryEditorVm.ExecuteCommand.Execute(null);
+        var tableName = SelectedNode.Name;
+        var sql = $"SELECT * FROM [{tableName}] LIMIT 100";
+        
+        // Create a new tab or use the selected one
+        var tab = ApplicationVm.QueryTabsVm.SelectedTab;
+        if (tab == null)
+        {
+            ApplicationVm.QueryTabsVm.NewTabCommand.Execute(null);
+            tab = ApplicationVm.QueryTabsVm.SelectedTab;
+        }
+
+        if (tab != null)
+        {
+            tab.SqlText = sql;
+            ApplicationVm.QueryTabsVm.ExecuteQueryCommand.Execute(tab);
+        }
 
         Logger.LogInformation("Browse data for {ObjectName}", SelectedNode.Name);
     }
@@ -83,10 +98,20 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             _ => string.Empty
         };
 
-        if (!string.IsNullOrEmpty(sql))
+        if (string.IsNullOrEmpty(sql))
+            return;
+
+        var tab = ApplicationVm.QueryTabsVm.SelectedTab;
+        if (tab == null)
         {
-            ApplicationVm.QueryEditorVm.SqlText = sql;
-            ApplicationVm.QueryEditorVm.ExecuteCommand.Execute(null);
+            ApplicationVm.QueryTabsVm.NewTabCommand.Execute(null);
+            tab = ApplicationVm.QueryTabsVm.SelectedTab;
+        }
+
+        if (tab != null)
+        {
+            tab.SqlText = sql;
+            ApplicationVm.QueryTabsVm.ExecuteQueryCommand.Execute(tab);
         }
 
         Logger.LogInformation("View definition for {ObjectName}", SelectedNode.Name);
@@ -146,7 +171,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
     {
         var createTableVm = new CreateTableViewModel(ApplicationVm);
 
-        var dialog = new Views.CreateTableDialog{DataContext = createTableVm};
+        var dialog = new CreateTableDialog { DataContext = createTableVm };
 
         createTableVm.ShouldCloseDialog += success => { dialog.Close(success); };
 
@@ -154,14 +179,13 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         
         if (result == true)
             Logger.LogInformation("Table created successfully");
-        
     }
 
     private async Task CreateViewAsync()
     {
         var createViewVm = new CreateViewViewModel(ApplicationVm);
 
-        var dialog = new Views.CreateViewDialog {DataContext = createViewVm};
+        var dialog = new CreateViewDialog { DataContext = createViewVm };
 
         createViewVm.ShouldCloseDialog += success => { dialog.Close(success); };
 
@@ -169,7 +193,6 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         
         if (result == true)
             Logger.LogInformation("View created successfully");
-        
     }
 
     private async Task CreateIndexAsync()
@@ -179,7 +202,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         // Load tables on dialog open
         createIndexVm.LoadTablesCommand.Execute(null);
         
-        var dialog = new Views.CreateIndexDialog{DataContext = createIndexVm };
+        var dialog = new CreateIndexDialog { DataContext = createIndexVm };
 
         createIndexVm.ShouldCloseDialog += success => { dialog.Close(success); };
 
@@ -187,7 +210,6 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         
         if (result == true)
             Logger.LogInformation("Index created successfully");
-        
     }
 
     public async Task RefreshAsync()
@@ -207,7 +229,6 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         try
         {
             Logger.LogInformation("Starting schema load...");
-            var newNodes = new List<DatabaseNode>();
 
             // Create root node
             var dbName = Path.GetFileNameWithoutExtension(Database.CurrentConnection?.FilePath ?? "Database");
@@ -300,11 +321,10 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             };
             rootNode.Children.Add(sequencesFolder);
 
-            newNodes.Add(rootNode);
+            Nodes.Clear();
+            Nodes.Add(rootNode);
             
-            Logger.LogInformation("Setting Nodes collection with {Count} root nodes", newNodes.Count);
-            Nodes = newNodes;
-            Logger.LogInformation("Nodes.Count after assignment: {Count}", Nodes.Count);
+            Logger.LogInformation("Nodes updated. Count: {Count}", Nodes.Count);
 
             ApplicationVm.MainWindowVm.StatusText = $"Loaded: {tables.Count} tables, {views.Count} views, {indexes.Count} indexes";
 
@@ -352,6 +372,24 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
+    #region Properties
+
+    /// <summary>
+    /// Observable collection of database nodes for the tree view.
+    /// </summary>
+    public ObservableCollection<DatabaseNode> Nodes { get; private set; } = null!;
+
+    [Notify]
+    public DatabaseNode? SelectedNode { get; set; }
+
+    [Notify]
+    public bool IsLoading { get; set; }
+
+    [Notify]
+    public string? ErrorMessage { get; set; }
+
+    #endregion
+
     #region Commands
 
     public ICommand RefreshCommand { get; private set; } = null!;
@@ -367,22 +405,6 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand CreateViewCommand { get; private set; } = null!;
 
     public ICommand CreateIndexCommand { get; private set; } = null!;
-
-    #endregion
-
-    #region Properties
-
-    [Notify]
-    public List<DatabaseNode> Nodes { get; set; } = null!;
-
-    [Notify]
-    public DatabaseNode? SelectedNode { get; set; }
-
-    [Notify]
-    public bool IsLoading { get; set; }
-
-    [Notify]
-    public string? ErrorMessage { get; set; }
 
     #endregion
 

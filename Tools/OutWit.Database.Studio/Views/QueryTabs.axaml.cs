@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.ViewModels;
+using OutWit.Database.Studio.Views.Query;
 
 namespace OutWit.Database.Studio.Views;
 
@@ -12,27 +13,25 @@ namespace OutWit.Database.Studio.Views;
 /// </summary>
 public partial class QueryTabs : UserControl
 {
+    #region Constructors
+
     public QueryTabs()
     {
         InitializeComponent();
         
-        // Set focus when control is loaded
         Loaded += OnLoaded;
     }
 
-    /// <summary>
-    /// Handles control loaded event to set initial focus.
-    /// </summary>
+    #endregion
+
+    #region Event Handlers
+
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        // Try to focus the SQL editor when the control is first loaded
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusSqlEditor(), 
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusEditor(), 
             Avalonia.Threading.DispatcherPriority.Loaded);
     }
 
-    /// <summary>
-    /// Handles tab header click to select the tab.
-    /// </summary>
     private void OnTabHeaderClick(object? sender, PointerPressedEventArgs e)
     {
         if (sender is Border border && border.Tag is QueryTab tab)
@@ -41,24 +40,33 @@ public partial class QueryTabs : UserControl
             {
                 viewModel.SelectedTab = tab;
                 
-                // Focus the SQL editor after tab switch - delay to allow UI update
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusSqlEditor(), 
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusEditor(), 
                     Avalonia.Threading.DispatcherPriority.Loaded);
             }
         }
     }
 
+    #endregion
+
+    #region Functions
+
     /// <summary>
-    /// Tries to focus the SQL editor TextBox.
+    /// Gets the selected SQL text from the current QueryEditor.
     /// </summary>
-    private void FocusSqlEditor()
+    public string? GetSelectedSqlText()
     {
-        // Find the TextBox in the current visual tree
-        var textBox = this.FindLogicalDescendantOfType<TextBox>();
-        if (textBox != null)
-        {
-            textBox.Focus();
-            textBox.CaretIndex = textBox.Text?.Length ?? 0;
-        }
+        var editor = this.FindLogicalDescendantOfType<QueryEditor>();
+        return editor?.GetSelectedText();
     }
+
+    /// <summary>
+    /// Sets focus to the SQL editor.
+    /// </summary>
+    public void FocusEditor()
+    {
+        var editor = this.FindLogicalDescendantOfType<QueryEditor>();
+        editor?.FocusEditor();
+    }
+
+    #endregion
 }

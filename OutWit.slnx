@@ -1,8 +1,8 @@
 <Solution>
   <Folder Name="/@Docs/">
+    <File Path="CODE_STYLE_GUIDE.md" />
     <File Path="Directory.Build.props" />
     <File Path="Docs/BENCHMARKS_AND_SAMPLES_PLAN.md" />
-    <File Path="Docs/CODE_STYLE_GUIDE.md" />
     <File Path="Docs/COMPLETION_PLAN.md" />
     <File Path="Docs/PROJECT_STATUS.md" />
     <File Path="Docs/AUDIT-WitDatabase-Core.md" />

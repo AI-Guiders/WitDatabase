@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Text;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
@@ -27,8 +29,8 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         : base(applicationVm)
     {
         InitDefault();
-        InitCommands();
         InitEvents();
+        InitCommands();
     }
 
     #endregion
@@ -40,8 +42,16 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         IndexName = string.Empty;
         TableName = string.Empty;
         IsUnique = false;
-        SelectedColumns = new ObservableCollection<string>();
+        SelectedColumns = [];
         FilterCondition = string.Empty;
+        AvailableTables = [];
+        AvailableColumns = [];
+    }
+
+    private void InitEvents()
+    {
+        PropertyChanged += OnPropertyChanged;
+        SelectedColumns.CollectionChanged += OnCollectionChanged;
     }
 
     private void InitCommands()
@@ -53,15 +63,9 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         CancelCommand = new RelayCommand(Cancel);
     }
 
-    private void InitEvents()
-    {
-        this.PropertyChanged += OnPropertyChanged;
-        SelectedColumns.CollectionChanged += OnCollectionChanged;
-    }
-
     #endregion
 
-    #region Commands
+    #region Functions
 
     private async Task LoadTablesAsync()
     {
@@ -103,7 +107,7 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateIndexAsync()
     {
-        if (!CanCreateIndexChanged)
+        if (!CanCreateIndex)
             return;
 
         IsCreating = true;
@@ -117,7 +121,6 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
             ApplicationVm.MainWindowVm.StatusText = $"Created index: {IndexName}";
             Logger.LogInformation("Created index: {IndexName}", IndexName);
 
-            // Refresh explorer
             await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
 
             ShouldCloseDialog(true);
@@ -139,10 +142,6 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         ShouldCloseDialog(false);
     }
 
-    #endregion
-
-    #region Build DDL
-
     private string BuildCreateIndexSql()
     {
         var sb = new StringBuilder();
@@ -154,14 +153,14 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
         sb.Append($"INDEX {IndexName}");
         sb.Append($" ON {TableName} (");
         sb.Append(string.Join(", ", SelectedColumns));
-        sb.Append(")");
+        sb.Append(')');
 
         if (!string.IsNullOrWhiteSpace(FilterCondition))
         {
             sb.Append($" WHERE {FilterCondition}");
         }
 
-        sb.Append(";");
+        sb.Append(';');
 
         return sb.ToString();
     }
@@ -172,26 +171,22 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
 
     private void UpdateStatus()
     {
-        CanCreateIndexChanged = !string.IsNullOrWhiteSpace(IndexName)
-                                && !string.IsNullOrWhiteSpace(TableName)
-                                && SelectedColumns.Count > 0
-                                && !IsCreating
-                                && Database.IsConnected;
+        var hasIndexName = !string.IsNullOrWhiteSpace(IndexName);
+        var hasTableName = !string.IsNullOrWhiteSpace(TableName);
+        var hasColumns = SelectedColumns.Count > 0;
 
-        CanGenerateDdlChanged = !string.IsNullOrWhiteSpace(IndexName)
-                                && !string.IsNullOrWhiteSpace(TableName)
-                                && SelectedColumns.Count > 0;
-
-        CanLoadColumns = !string.IsNullOrWhiteSpace(TableName);
+        CanCreateIndex = hasIndexName && hasTableName && hasColumns && !IsCreating && Database.IsConnected;
+        CanGenerateDdl = hasIndexName && hasTableName && hasColumns;
+        CanLoadColumns = hasTableName;
     }
 
     #endregion
 
     #region Event Handlers
 
-    private void OnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if(e.IsProperty((CreateIndexViewModel vm)=>vm.IndexName))
+        if (e.IsProperty((CreateIndexViewModel vm) => vm.IndexName))
             UpdateStatus();
 
         if (e.IsProperty((CreateIndexViewModel vm) => vm.TableName))
@@ -201,7 +196,7 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
             UpdateStatus();
     }
 
-    private void OnCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         UpdateStatus();
     }
@@ -225,10 +220,10 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
     public string FilterCondition { get; set; } = null!;
 
     [Notify]
-    public List<string> AvailableTables { get; set; } = [];
+    public List<string> AvailableTables { get; set; } = null!;
 
     [Notify]
-    public List<string> AvailableColumns { get; set; } = [];
+    public List<string> AvailableColumns { get; set; } = null!;
 
     [Notify]
     public string? GeneratedDdl { get; set; }
@@ -240,10 +235,10 @@ public class CreateIndexViewModel : ViewModelBase<ApplicationViewModel>
     public string? ErrorMessage { get; set; }
 
     [Notify]
-    public bool CanGenerateDdlChanged { get; private set; }
+    public bool CanGenerateDdl { get; private set; }
 
     [Notify]
-    public bool CanCreateIndexChanged { get; private set; }
+    public bool CanCreateIndex { get; private set; }
 
     [Notify]
     public bool CanLoadColumns { get; private set; }

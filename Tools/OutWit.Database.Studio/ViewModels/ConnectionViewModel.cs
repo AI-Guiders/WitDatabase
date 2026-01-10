@@ -11,6 +11,7 @@ using OutWit.Database.Core.Builder;
 using OutWit.Database.Core.Providers;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
+using OutWit.Database.Studio.Views.Dialogs;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -381,7 +382,7 @@ public class ConnectionViewModel : ViewModelBase<ApplicationViewModel>
         // Reset to defaults for Create dialog
         InitDefault();
 
-        Dialog = new Views.CreateDatabaseDialog
+        Dialog = new CreateDatabaseDialog
         {
             DataContext = this
         };

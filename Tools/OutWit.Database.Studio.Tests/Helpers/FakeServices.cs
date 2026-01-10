@@ -1,3 +1,4 @@
+using System.Data;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
 
@@ -63,4 +64,18 @@ internal class FakeSettingsService : ISettingsService
     public Task AddRecentFileAsync(string filePath) { RecentFiles.Add(filePath); return Task.CompletedTask; }
     public Task RemoveRecentFileAsync(string filePath) { RecentFiles.Remove(filePath); return Task.CompletedTask; }
     public Task ClearRecentFilesAsync() { RecentFiles.Clear(); return Task.CompletedTask; }
+}
+
+/// <summary>
+/// Test double for IExportService.
+/// </summary>
+internal class FakeExportService : IExportService
+{
+    public Task ExportToCsvAsync(DataTable data, string filePath) => Task.CompletedTask;
+    public Task ExportToJsonAsync(DataTable data, string filePath) => Task.CompletedTask;
+    public Task ExportToSqlAsync(DataTable data, string tableName, string filePath) => Task.CompletedTask;
+    public string ToCsv(DataTable data, bool includeHeaders = true) => string.Empty;
+    public string ToInsertStatements(DataTable data, string tableName) => string.Empty;
+    public string RowsToCsv(IEnumerable<DataRowView> rows, DataTable schema, bool includeHeaders = true) => string.Empty;
+    public string RowsToInsertStatements(IEnumerable<DataRowView> rows, DataTable schema, string tableName) => string.Empty;
 }

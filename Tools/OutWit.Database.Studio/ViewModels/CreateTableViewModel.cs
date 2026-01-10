@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Text;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
@@ -55,11 +57,17 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
     private void InitDefault()
     {
         TableName = string.Empty;
-        Columns = new ObservableCollection<ColumnDefinition>();
+        Columns = [];
         AvailableDataTypes = DATA_TYPES;
 
         // Add first column by default
         AddColumn();
+    }
+
+    private void InitEvents()
+    {
+        PropertyChanged += OnPropertyChanged;
+        Columns.CollectionChanged += OnColumnsCollectionChanged;
     }
 
     private void InitCommands()
@@ -71,14 +79,9 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
         CancelCommand = new RelayCommand(Cancel);
     }
 
-    private void InitEvents()
-    {
-        PropertyChanged += OnPropertyChanged;
-    }
-
     #endregion
 
-    #region Command Functions
+    #region Functions
 
     private void AddColumn()
     {
@@ -89,10 +92,8 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
             IsNullable = true
         };
 
-        Columns.Add(column);
-        
         // Auto-set first column as PK if none exists
-        if (Columns.Count == 1)
+        if (Columns.Count == 0)
         {
             column.Name = "Id";
             column.DataType = "BIGINT";
@@ -100,22 +101,24 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
             column.IsNullable = false;
             column.IsAutoIncrement = true;
         }
-        
-        UpdateStatus();
+
+        Columns.Add(column);
     }
 
     private void RemoveColumn()
     {
-        if (SelectedColumn == null)
+        if (SelectedColumn == null || !CanRemoveColumn)
             return;
 
         Columns.Remove(SelectedColumn);
-        
-        UpdateStatus();
+        SelectedColumn = Columns.LastOrDefault();
     }
 
     private void GenerateDdl()
     {
+        if (!CanGenerateDdl)
+            return;
+
         GeneratedDdl = BuildCreateTableSql();
         Logger.LogInformation("Generated DDL for table {TableName}", TableName);
     }
@@ -136,10 +139,8 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
             ApplicationVm.MainWindowVm.StatusText = $"Created table: {TableName}";
             Logger.LogInformation("Created table: {TableName}", TableName);
 
-            // Refresh explorer
             await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
 
-            // Close dialog (set by caller)
             ShouldCloseDialog(true);
         }
         catch (Exception ex)
@@ -159,10 +160,6 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
         ShouldCloseDialog(false);
     }
 
-    #endregion
-
-    #region Build DDL
-
     private string BuildCreateTableSql()
     {
         var sb = new StringBuilder();
@@ -179,12 +176,10 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
             var colDef = new StringBuilder();
             colDef.Append($"    {col.Name} {col.DataType}");
 
-            // PRIMARY KEY must come first (for single-column PK)
             if (col.IsPrimaryKey && pkColumns.Count == 0)
             {
                 colDef.Append(" PRIMARY KEY");
                 
-                // AUTOINCREMENT must come immediately after PRIMARY KEY
                 if (col.IsAutoIncrement)
                     colDef.Append(" AUTOINCREMENT");
                 
@@ -192,23 +187,18 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
             }
             else if (col.IsPrimaryKey)
             {
-                // Multi-column PK - will be added as table constraint
                 pkColumns.Add(col.Name);
             }
 
-            // NOT NULL
             if (!col.IsNullable)
                 colDef.Append(" NOT NULL");
 
-            // UNIQUE
             if (col.IsUnique && !col.IsPrimaryKey)
                 colDef.Append(" UNIQUE");
 
-            // DEFAULT
             if (!string.IsNullOrWhiteSpace(col.DefaultValue))
                 colDef.Append($" DEFAULT {col.DefaultValue}");
 
-            // CHECK
             if (!string.IsNullOrWhiteSpace(col.CheckConstraint))
                 colDef.Append($" CHECK ({col.CheckConstraint})");
 
@@ -217,7 +207,6 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
 
         sb.AppendLine(string.Join(",\n", columnDefs));
 
-        // Add PRIMARY KEY constraint if multiple columns
         if (pkColumns.Count > 1)
         {
             sb.AppendLine($",\n    PRIMARY KEY ({string.Join(", ", pkColumns)})");
@@ -234,12 +223,11 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
 
     private void UpdateStatus()
     {
-        CanCreateTable = !string.IsNullOrWhiteSpace(TableName) && Columns.Count > 0
-                                                               && !IsCreating
-                                                               && Database.IsConnected;
+        var hasTableName = !string.IsNullOrWhiteSpace(TableName);
+        var hasColumns = Columns.Count > 0;
 
-        CanGenerateDdl = !string.IsNullOrWhiteSpace(TableName) && Columns.Count > 0;
-
+        CanCreateTable = hasTableName && hasColumns && !IsCreating && Database.IsConnected;
+        CanGenerateDdl = hasTableName && hasColumns;
         CanRemoveColumn = SelectedColumn != null && Columns.Count > 1;
     }
 
@@ -247,10 +235,21 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
 
     #region Event Handlers
 
-    private void OnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.IsProperty((CreateTableViewModel vm) => vm.TableName))
             UpdateStatus();
+
+        if (e.IsProperty((CreateTableViewModel vm) => vm.SelectedColumn))
+            UpdateStatus();
+
+        if (e.IsProperty((CreateTableViewModel vm) => vm.IsCreating))
+            UpdateStatus();
+    }
+
+    private void OnColumnsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        UpdateStatus();
     }
 
     #endregion
@@ -260,13 +259,11 @@ public class CreateTableViewModel : ViewModelBase<ApplicationViewModel>
     [Notify]
     public string TableName { get; set; } = null!;
 
-    [Notify]
     public ObservableCollection<ColumnDefinition> Columns { get; private set; } = null!;
 
     [Notify]
     public ColumnDefinition? SelectedColumn { get; set; }
 
-    [Notify]
     public string[] AvailableDataTypes { get; private set; } = null!;
 
     [Notify]

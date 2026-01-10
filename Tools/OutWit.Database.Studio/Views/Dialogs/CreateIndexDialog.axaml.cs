@@ -1,9 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using OutWit.Database.Studio.ViewModels;
-using System.Linq;
 
-namespace OutWit.Database.Studio.Views;
+namespace OutWit.Database.Studio.Views.Dialogs;
 
 /// <summary>
 /// Dialog for creating a new index.

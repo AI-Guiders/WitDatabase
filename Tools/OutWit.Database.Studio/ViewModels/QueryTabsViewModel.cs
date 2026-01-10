@@ -1,11 +1,13 @@
-using OutWit.Common.MVVM.ViewModels;
-using OutWit.Common.MVVM.Commands;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Input;
+using Microsoft.Extensions.Logging;
 using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.ViewModels;
+using OutWit.Common.Utils;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.Logging;
-using System.Collections.ObjectModel;
-using System.Windows.Input;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -14,25 +16,31 @@ namespace OutWit.Database.Studio.ViewModels;
 /// </summary>
 public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
 {
+    #region Constants
+
+    /// <summary>
+    /// DDL keywords that should trigger a schema refresh after execution.
+    /// </summary>
+    private static readonly string[] DDL_KEYWORDS = 
+    [
+        "CREATE", "DROP", "ALTER", "TRUNCATE", "RENAME"
+    ];
+
+    #endregion
+
     #region Fields
 
-    private readonly IDatabaseService m_databaseService;
-    private readonly ILogger<QueryTabsViewModel> m_logger;
     private int m_nextQueryNumber = 1;
 
     #endregion
 
     #region Constructors
 
-    public QueryTabsViewModel(
-        ApplicationViewModel applicationVm,
-        IDatabaseService databaseService)
+    public QueryTabsViewModel(ApplicationViewModel applicationVm)
         : base(applicationVm)
     {
-        m_databaseService = databaseService;
-        m_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryTabsViewModel>.Instance;
-
         InitDefault();
+        InitEvents();
         InitCommands();
     }
 
@@ -42,36 +50,34 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
 
     private void InitDefault()
     {
-        Tabs = new ObservableCollection<QueryTab>();
+        Tabs = [];
         
         // Create initial tab
         AddNewTab();
     }
 
+    private void InitEvents()
+    {
+        PropertyChanged += OnPropertyChanged;
+        Database.ConnectionStatusChanged += OnConnectionStatusChanged;
+    }
+
     private void InitCommands()
     {
         NewTabCommand = new RelayCommand(_ => AddNewTab());
-        CloseTabCommand = new RelayCommand<QueryTab>(CloseTab, CanCloseTab);
-        CloseAllTabsCommand = new RelayCommand<object>(_ => CloseAllTabs(), _ => CanCloseAllTabs());
-        CloseOtherTabsCommand = new RelayCommand<QueryTab>(CloseOtherTabs, CanCloseOtherTabs);
-        SaveTabCommand = new RelayCommand<QueryTab>(async tab => await SaveTabAsync(tab), CanSaveTab);
-        SaveTabAsCommand = new RelayCommand<QueryTab>(async tab => await SaveTabAsAsync(tab), CanSaveTab);
-        ExecuteQueryCommand = new RelayCommand<QueryTab>(async tab => await ExecuteQueryAsync(tab), CanExecuteQuery);
-        ClearResultsCommand = new RelayCommand<QueryTab>(ClearResults, tab => tab != null);
+        CloseTabCommand = new RelayCommand<QueryTab>(CloseTab);
+        CloseAllTabsCommand = new RelayCommand(_ => CloseAllTabs());
+        CloseOtherTabsCommand = new RelayCommand<QueryTab>(CloseOtherTabs);
+        SaveTabCommand = new RelayCommand<QueryTab>(async tab => await SaveTabAsync(tab));
+        SaveTabAsCommand = new RelayCommand<QueryTab>(async tab => await SaveTabAsAsync(tab));
+        ExecuteQueryCommand = new RelayCommand<QueryTab>(async tab => await ExecuteQueryAsync(tab));
+        ExecuteSelectionCommand = new RelayCommand<string>(async sql => await ExecuteSelectionAsync(sql));
+        ClearResultsCommand = new RelayCommand<QueryTab>(ClearResults);
     }
 
     #endregion
 
-    #region Commands
-
-    public ICommand NewTabCommand { get; private set; } = null!;
-    public ICommand CloseTabCommand { get; private set; } = null!;
-    public ICommand CloseAllTabsCommand { get; private set; } = null!;
-    public ICommand CloseOtherTabsCommand { get; private set; } = null!;
-    public ICommand SaveTabCommand { get; private set; } = null!;
-    public ICommand SaveTabAsCommand { get; private set; } = null!;
-    public ICommand ExecuteQueryCommand { get; private set; } = null!;
-    public ICommand ClearResultsCommand { get; private set; } = null!;
+    #region Functions
 
     private void AddNewTab()
     {
@@ -81,28 +87,24 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
             SqlText = string.Empty
         };
 
+        tab.PropertyChanged += OnTabPropertyChanged;
+
         Tabs.Add(tab);
         SelectedTab = tab;
 
-        m_logger.LogInformation("Created new query tab: {Title}", tab.Title);
+        Logger.LogInformation("Created new query tab: {Title}", tab.Title);
     }
 
     private void CloseTab(QueryTab? tab)
     {
-        if (tab == null)
+        if (tab == null || !CanCloseTab)
             return;
 
-        // Check for unsaved changes
-        if (tab.IsModified)
-        {
-            // TODO: Show confirmation dialog
-            // For now, just close
-        }
+        tab.PropertyChanged -= OnTabPropertyChanged;
 
         var index = Tabs.IndexOf(tab);
         Tabs.Remove(tab);
 
-        // Select another tab
         if (Tabs.Count > 0)
         {
             if (index >= Tabs.Count)
@@ -112,69 +114,43 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         }
         else
         {
-            // Always keep at least one tab
             AddNewTab();
         }
 
-        m_logger.LogInformation("Closed query tab: {Title}", tab.Title);
-    }
-
-    private bool CanCloseTab(QueryTab? tab)
-    {
-        return tab != null && Tabs.Count > 1;
+        Logger.LogInformation("Closed query tab: {Title}", tab.Title);
     }
 
     private void CloseAllTabs()
     {
-        // Check for unsaved changes
-        var modifiedTabs = Tabs.Where(t => t.IsModified).ToList();
-        if (modifiedTabs.Count > 0)
+        foreach (var tab in Tabs)
         {
-            // TODO: Show confirmation dialog
+            tab.PropertyChanged -= OnTabPropertyChanged;
         }
 
         Tabs.Clear();
         AddNewTab();
-
-        m_logger.LogInformation("Closed all query tabs");
-    }
-
-    private bool CanCloseAllTabs()
-    {
-        return Tabs.Count > 0;
+        Logger.LogInformation("Closed all query tabs");
     }
 
     private void CloseOtherTabs(QueryTab? tab)
     {
-        if (tab == null)
+        if (tab == null || !CanCloseOtherTabs)
             return;
-
-        // Check for unsaved changes in other tabs
-        var modifiedTabs = Tabs.Where(t => t != tab && t.IsModified).ToList();
-        if (modifiedTabs.Count > 0)
-        {
-            // TODO: Show confirmation dialog
-        }
 
         var tabsToRemove = Tabs.Where(t => t != tab).ToList();
         foreach (var t in tabsToRemove)
         {
+            t.PropertyChanged -= OnTabPropertyChanged;
             Tabs.Remove(t);
         }
 
         SelectedTab = tab;
-
-        m_logger.LogInformation("Closed other query tabs, kept: {Title}", tab.Title);
-    }
-
-    private bool CanCloseOtherTabs(QueryTab? tab)
-    {
-        return tab != null && Tabs.Count > 1;
+        Logger.LogInformation("Closed other query tabs, kept: {Title}", tab.Title);
     }
 
     private async Task SaveTabAsync(QueryTab? tab)
     {
-        if (tab == null)
+        if (tab == null || !CanSaveTab)
             return;
 
         if (string.IsNullOrEmpty(tab.FilePath))
@@ -187,15 +163,14 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         {
             await File.WriteAllTextAsync(tab.FilePath, tab.SqlText);
             tab.IsModified = false;
-            OnPropertyChanged(nameof(Tabs));
 
             ApplicationVm.MainWindowVm.StatusText = $"Saved: {tab.FilePath}";
-            m_logger.LogInformation("Saved query tab: {FilePath}", tab.FilePath);
+            Logger.LogInformation("Saved query tab: {FilePath}", tab.FilePath);
         }
         catch (Exception ex)
         {
             ApplicationVm.MainWindowVm.StatusText = $"Error saving file: {ex.Message}";
-            m_logger.LogError(ex, "Failed to save query tab: {FilePath}", tab.FilePath);
+            Logger.LogError(ex, "Failed to save query tab: {FilePath}", tab.FilePath);
         }
     }
 
@@ -205,64 +180,94 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
             return;
 
         // TODO: Show save file dialog
-        // For now, just log
-        m_logger.LogInformation("Save As requested for tab: {Title}", tab.Title);
-        
+        Logger.LogInformation("Save As requested for tab: {Title}", tab.Title);
         await Task.CompletedTask;
-    }
-
-    private bool CanSaveTab(QueryTab? tab)
-    {
-        return tab != null && !string.IsNullOrWhiteSpace(tab.SqlText);
     }
 
     private async Task ExecuteQueryAsync(QueryTab? tab)
     {
+        if (tab == null)
+            tab = SelectedTab;
+
         if (tab == null || string.IsNullOrWhiteSpace(tab.SqlText))
             return;
 
+        if (!Database.IsConnected)
+        {
+            ApplicationVm.MainWindowVm.StatusText = "Not connected to database";
+            return;
+        }
+
+        await ExecuteSqlAsync(tab, tab.SqlText);
+    }
+
+    private async Task ExecuteSelectionAsync(string? selectedText)
+    {
+        if (SelectedTab == null)
+            return;
+
+        var sqlToExecute = string.IsNullOrWhiteSpace(selectedText) 
+            ? SelectedTab.SqlText 
+            : selectedText;
+
+        if (string.IsNullOrWhiteSpace(sqlToExecute))
+            return;
+
+        if (!Database.IsConnected)
+        {
+            ApplicationVm.MainWindowVm.StatusText = "Not connected to database";
+            return;
+        }
+
+        await ExecuteSqlAsync(SelectedTab, sqlToExecute);
+    }
+
+    private async Task ExecuteSqlAsync(QueryTab tab, string sql)
+    {
         IsExecuting = true;
         CurrentExecutingTab = tab;
         tab.ErrorMessage = null;
-        tab.ResultDataView = null;
+        tab.SetResultData(null);
+
+        var isDdlStatement = IsDdlStatement(sql);
 
         try
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var result = await m_databaseService.ExecuteQueryAsync(tab.SqlText);
+            var result = await Database.ExecuteQueryAsync(sql);
             stopwatch.Stop();
 
             if (result.IsSuccess)
             {
-                // Convert DataTable to DataView for binding
-                if (result.ResultTable != null)
-                {
-                    tab.ResultDataView = result.ResultTable.DefaultView;
-                }
-
+                tab.SetResultData(result.ResultTable);
                 tab.RowsAffected = result.RowsAffected;
                 tab.ExecutionTimeMs = stopwatch.Elapsed.TotalMilliseconds;
                 
                 ApplicationVm.MainWindowVm.StatusText = 
                     $"Query executed in {tab.ExecutionTimeMs:F2}ms. {tab.RowsAffected} rows affected.";
 
-                m_logger.LogInformation("Query executed successfully: {Time}ms, {Rows} rows",
+                Logger.LogInformation("Query executed successfully: {Time}ms, {Rows} rows",
                     tab.ExecutionTimeMs, tab.RowsAffected);
+
+                // Refresh schema tree after DDL operations
+                if (isDdlStatement)
+                {
+                    Logger.LogInformation("DDL statement detected, refreshing schema tree");
+                    await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
+                }
             }
             else
             {
                 tab.ErrorMessage = result.ErrorMessage;
                 ApplicationVm.MainWindowVm.StatusText = "Query execution failed";
-                m_logger.LogWarning("Query execution failed: {Error}", result.ErrorMessage);
+                Logger.LogWarning("Query execution failed: {Error}", result.ErrorMessage);
             }
-
-            OnPropertyChanged(nameof(Tabs));
         }
         catch (Exception ex)
         {
             tab.ErrorMessage = $"Execution error: {ex.Message}";
             ApplicationVm.MainWindowVm.StatusText = "Query execution error";
-            m_logger.LogError(ex, "Query execution error");
+            Logger.LogError(ex, "Query execution error");
         }
         finally
         {
@@ -271,35 +276,36 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanExecuteQuery(QueryTab? tab)
-    {
-        return tab != null 
-            && !string.IsNullOrWhiteSpace(tab.SqlText) 
-            && !IsExecuting 
-            && m_databaseService.IsConnected;
-    }
-
     private void ClearResults(QueryTab? tab)
     {
         if (tab == null)
             return;
 
-        tab.ResultDataView = null;
-        tab.ErrorMessage = null;
-        tab.RowsAffected = 0;
-        tab.ExecutionTimeMs = 0;
-
-        OnPropertyChanged(nameof(Tabs));
+        tab.ClearResults();
         ApplicationVm.MainWindowVm.StatusText = "Results cleared";
+    }
+
+    /// <summary>
+    /// Checks if the SQL statement is a DDL statement that modifies schema.
+    /// </summary>
+    private static bool IsDdlStatement(string sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql))
+            return false;
+
+        // Get first non-whitespace word
+        var trimmed = sql.TrimStart();
+        var firstWord = trimmed.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                               .FirstOrDefault()?
+                               .ToUpperInvariant();
+
+        return firstWord != null && DDL_KEYWORDS.Contains(firstWord);
     }
 
     #endregion
 
     #region Public Methods
 
-    /// <summary>
-    /// Opens a query from a file.
-    /// </summary>
     public async Task OpenFileAsync(string filePath)
     {
         try
@@ -315,29 +321,71 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
                 IsModified = false
             };
 
+            tab.PropertyChanged += OnTabPropertyChanged;
+
             Tabs.Add(tab);
             SelectedTab = tab;
 
             ApplicationVm.MainWindowVm.StatusText = $"Opened: {filePath}";
-            m_logger.LogInformation("Opened query file: {FilePath}", filePath);
+            Logger.LogInformation("Opened query file: {FilePath}", filePath);
         }
         catch (Exception ex)
         {
             ApplicationVm.MainWindowVm.StatusText = $"Error opening file: {ex.Message}";
-            m_logger.LogError(ex, "Failed to open query file: {FilePath}", filePath);
+            Logger.LogError(ex, "Failed to open query file: {FilePath}", filePath);
         }
     }
 
-    /// <summary>
-    /// Marks the current tab as modified.
-    /// </summary>
     public void MarkCurrentTabAsModified()
     {
         if (SelectedTab != null)
         {
             SelectedTab.IsModified = true;
-            OnPropertyChanged(nameof(Tabs));
         }
+    }
+
+    #endregion
+
+    #region Tools
+
+    private void UpdateStatus()
+    {
+        var hasSelectedTab = SelectedTab != null;
+        var hasMultipleTabs = Tabs.Count > 1;
+        var hasSqlText = hasSelectedTab && !string.IsNullOrWhiteSpace(SelectedTab!.SqlText);
+        var isConnected = Database.IsConnected;
+        
+        CanCloseTab = hasSelectedTab && hasMultipleTabs;
+        CanCloseAllTabs = Tabs.Count > 0;
+        CanCloseOtherTabs = hasSelectedTab && hasMultipleTabs;
+        CanSaveTab = hasSqlText;
+        CanExecuteQuery = hasSqlText && !IsExecuting && isConnected;
+    }
+
+    #endregion
+
+    #region Event Handlers
+
+    private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.IsProperty((QueryTabsViewModel vm) => vm.SelectedTab))
+            UpdateStatus();
+
+        if (e.IsProperty((QueryTabsViewModel vm) => vm.IsExecuting))
+            UpdateStatus();
+    }
+
+    private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender == SelectedTab && e.PropertyName == nameof(QueryTab.SqlText))
+        {
+            UpdateStatus();
+        }
+    }
+
+    private void OnConnectionStatusChanged(object? sender, bool isConnected)
+    {
+        UpdateStatus();
     }
 
     #endregion
@@ -355,9 +403,6 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
     [Notify]
     public QueryTab? CurrentExecutingTab { get; set; }
 
-    /// <summary>
-    /// Gets the SQL text of the currently selected tab.
-    /// </summary>
     public string CurrentSqlText
     {
         get => SelectedTab?.SqlText ?? string.Empty;
@@ -367,11 +412,56 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
             {
                 SelectedTab.SqlText = value;
                 SelectedTab.IsModified = true;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(Tabs));
             }
         }
     }
+
+    [Notify]
+    public bool CanCloseTab { get; private set; }
+
+    [Notify]
+    public bool CanCloseAllTabs { get; private set; }
+
+    [Notify]
+    public bool CanCloseOtherTabs { get; private set; }
+
+    [Notify]
+    public bool CanSaveTab { get; private set; }
+
+    [Notify]
+    public bool CanExecuteQuery { get; private set; }
+
+    #endregion
+
+    #region Commands
+
+    public ICommand NewTabCommand { get; private set; } = null!;
+
+    public ICommand CloseTabCommand { get; private set; } = null!;
+
+    public ICommand CloseAllTabsCommand { get; private set; } = null!;
+
+    public ICommand CloseOtherTabsCommand { get; private set; } = null!;
+
+    public ICommand SaveTabCommand { get; private set; } = null!;
+
+    public ICommand SaveTabAsCommand { get; private set; } = null!;
+
+    public ICommand ExecuteQueryCommand { get; private set; } = null!;
+
+    public ICommand ExecuteSelectionCommand { get; private set; } = null!;
+
+    public ICommand ClearResultsCommand { get; private set; } = null!;
+
+    #endregion
+
+    #region Services
+
+    public IDatabaseService Database => ApplicationVm.Database;
+
+    public ISettingsService Settings => ApplicationVm.Settings;
+
+    public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
 }

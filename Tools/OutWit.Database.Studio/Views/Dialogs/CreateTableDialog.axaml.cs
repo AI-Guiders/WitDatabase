@@ -1,7 +1,6 @@
 using Avalonia.Controls;
-using OutWit.Database.Studio.ViewModels;
 
-namespace OutWit.Database.Studio.Views;
+namespace OutWit.Database.Studio.Views.Dialogs;
 
 /// <summary>
 /// Dialog for creating a new table.
