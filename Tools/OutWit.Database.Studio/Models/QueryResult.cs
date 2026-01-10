@@ -1,5 +1,5 @@
 using OutWit.Common.Abstract;
-using System.Data;
+using OutWit.Common.MVVM.Table;
 
 namespace OutWit.Database.Studio.Models;
 
@@ -22,15 +22,13 @@ public sealed class QueryResult : ModelBase
 
     public override QueryResult Clone()
     {
-        var clone = new QueryResult
+        return new QueryResult
         {
             RowsAffected = RowsAffected,
             ExecutionTimeMs = ExecutionTimeMs,
             ErrorMessage = ErrorMessage,
-            ResultTable = ResultTable?.Copy()
+            Data = Data?.Clone() as TableView
         };
-
-        return clone;
     }
 
     #endregion
@@ -53,9 +51,9 @@ public sealed class QueryResult : ModelBase
     public string? ErrorMessage { get; set; }
 
     /// <summary>
-    /// Gets or sets the result data table (for SELECT queries).
+    /// Gets or sets the result data (for SELECT queries).
     /// </summary>
-    public DataTable? ResultTable { get; set; }
+    public TableView? Data { get; set; }
 
     /// <summary>
     /// Gets whether the query was successful.

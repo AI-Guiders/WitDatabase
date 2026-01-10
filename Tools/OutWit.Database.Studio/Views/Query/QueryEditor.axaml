@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:models="using:OutWit.Database.Studio.Models"
+             xmlns:controls="using:OutWit.Database.Studio.Controls"
              xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="OutWit.Database.Studio.Views.Query.QueryEditor"
@@ -40,18 +41,13 @@
             <!-- Results Tab -->
             <TabItem Header="Results">
                 <Grid RowDefinitions="*,Auto">
-                    <!-- Data Grid for Results -->
-                    <DataGrid Grid.Row="0"
-                              ItemsSource="{Binding ResultData}"
-                              AutoGenerateColumns="True"
-                              IsReadOnly="True"
-                              GridLinesVisibility="All"
-                              BorderThickness="0"
-                              Background="Transparent"
-                              CanUserResizeColumns="True"
-                              CanUserReorderColumns="True"
-                              CanUserSortColumns="True"
-                              IsVisible="{Binding HasResults}"/>
+                    <!-- Custom Data Grid for Results -->
+                    <controls:ResultDataGrid Grid.Row="0"
+                                             HeaderRow="{Binding HeaderRow}"
+                                             ResultPage="{Binding ResultPage}"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             IsVisible="{Binding HasResults}"/>
 
                     <!-- Pagination -->
                     <Border Grid.Row="1"

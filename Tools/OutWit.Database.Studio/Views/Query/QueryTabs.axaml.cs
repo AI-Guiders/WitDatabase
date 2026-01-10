@@ -1,12 +1,8 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
-using OutWit.Database.Studio.Models;
-using OutWit.Database.Studio.ViewModels;
-using OutWit.Database.Studio.Views.Query;
 
-namespace OutWit.Database.Studio.Views;
+namespace OutWit.Database.Studio.Views.Query;
 
 /// <summary>
 /// View for managing multiple query editor tabs.
@@ -30,20 +26,6 @@ public partial class QueryTabs : UserControl
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusEditor(), 
             Avalonia.Threading.DispatcherPriority.Loaded);
-    }
-
-    private void OnTabHeaderClick(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is Border border && border.Tag is QueryTab tab)
-        {
-            if (DataContext is QueryTabsViewModel viewModel)
-            {
-                viewModel.SelectedTab = tab;
-                
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusEditor(), 
-                    Avalonia.Threading.DispatcherPriority.Loaded);
-            }
-        }
     }
 
     #endregion

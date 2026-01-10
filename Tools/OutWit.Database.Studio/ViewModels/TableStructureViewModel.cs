@@ -138,58 +138,63 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
 
             var result = await m_databaseService.ExecuteQueryAsync(sql);
 
-            if (string.IsNullOrEmpty(result.ErrorMessage) && result.ResultTable != null && result.ResultTable.Rows.Count > 0)
+            if (string.IsNullOrEmpty(result.ErrorMessage) && result.Data != null && result.Data.Pages.Count > 0)
             {
-                var list = new List<ColumnInfo>();
-
-                foreach (System.Data.DataRow row in result.ResultTable.Rows)
+                var rows = result.Data.Pages.SelectMany(p => p.Rows).ToList();
+                if (rows.Count > 0)
                 {
-                    var tableName = row[0]?.ToString();
-                    var colName = row[1]?.ToString() ?? string.Empty;
-                    var ordinal = 0;
-                    _ = int.TryParse(row[2]?.ToString(), out ordinal);
-                    var isUniqueStr = row[3]?.ToString();
-                    var filter = row[4]?.ToString();
-                    var dataType = row[5]?.ToString();
+                    var list = new List<ColumnInfo>();
 
-                    IndexTableName ??= tableName;
-
-                    if (IndexIsUnique is null && !string.IsNullOrWhiteSpace(isUniqueStr))
-                        IndexIsUnique = isUniqueStr.Equals("YES", StringComparison.OrdinalIgnoreCase);
-
-                    if (IndexFilterCondition is null && !string.IsNullOrWhiteSpace(filter))
-                        IndexFilterCondition = filter;
-
-                    list.Add(new ColumnInfo
+                    foreach (var row in rows)
                     {
-                        Name = colName,
-                        OrdinalPosition = ordinal == 0 ? list.Count + 1 : ordinal,
-                        DataType = string.IsNullOrWhiteSpace(dataType) ? string.Empty : dataType,
-                        IsNullable = true,
-                        IsPrimaryKey = false,
-                        DefaultValue = null
-                    });
-                }
+                        var tableName = row[0]?.Text;
+                        var colName = row[1]?.Text ?? string.Empty;
+                        var ordinal = 0;
+                        _ = int.TryParse(row[2]?.Text, out ordinal);
+                        var isUniqueStr = row[3]?.Text;
+                        var filter = row[4]?.Text;
+                        var dataType = row[5]?.Text;
 
-                Columns = list;
-                ApplicationVm.MainWindowVm.StatusText = $"Loaded {Columns.Count} columns from index \"{indexName}\"";
-                return;
+                        IndexTableName ??= tableName;
+
+                        if (IndexIsUnique is null && !string.IsNullOrWhiteSpace(isUniqueStr))
+                            IndexIsUnique = isUniqueStr.Equals("YES", StringComparison.OrdinalIgnoreCase);
+
+                        if (IndexFilterCondition is null && !string.IsNullOrWhiteSpace(filter))
+                            IndexFilterCondition = filter;
+
+                        list.Add(new ColumnInfo
+                        {
+                            Name = colName,
+                            OrdinalPosition = ordinal == 0 ? list.Count + 1 : ordinal,
+                            DataType = string.IsNullOrWhiteSpace(dataType) ? string.Empty : dataType,
+                            IsNullable = true,
+                            IsPrimaryKey = false,
+                            DefaultValue = null
+                        });
+                    }
+
+                    Columns = list;
+                    ApplicationVm.MainWindowVm.StatusText = $"Loaded {Columns.Count} columns from index \"{indexName}\"";
+                    return;
+                }
             }
 
             // Fallback to PRAGMA index_info
             var pragmaResult = await m_databaseService.ExecuteQueryAsync(
                 $"PRAGMA index_info(\"{indexName.Replace("\"", "\"\"")}\")");
 
-            if (!string.IsNullOrEmpty(pragmaResult.ErrorMessage) || pragmaResult.ResultTable == null)
+            if (!string.IsNullOrEmpty(pragmaResult.ErrorMessage) || pragmaResult.Data == null)
             {
                 ErrorMessage = pragmaResult.ErrorMessage ?? result.ErrorMessage ?? "Failed to load index info";
                 return;
             }
 
             var fallbackColumns = new List<ColumnInfo>();
-            foreach (System.Data.DataRow row in pragmaResult.ResultTable.Rows)
+            var pragmaRows = pragmaResult.Data.Pages.SelectMany(p => p.Rows).ToList();
+            foreach (var row in pragmaRows)
             {
-                var colName = row.ItemArray.Length > 2 ? row[2]?.ToString() ?? string.Empty : string.Empty;
+                var colName = row.Values.Length > 2 ? row[2]?.Text ?? string.Empty : string.Empty;
                 if (string.IsNullOrWhiteSpace(colName))
                     continue;
 
@@ -273,12 +278,16 @@ public class TableStructureViewModel : ViewModelBase<ApplicationViewModel>
             var result = await m_databaseService.ExecuteQueryAsync(
                 $"SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = '{viewName.Replace("'", "''")}'");
 
-            if (!string.IsNullOrEmpty(result.ErrorMessage) || result.ResultTable == null || result.ResultTable.Rows.Count == 0)
+            if (!string.IsNullOrEmpty(result.ErrorMessage) || result.Data == null || result.Data.Pages.Count == 0)
             {
                 return;
             }
 
-            ViewDefinition = result.ResultTable.Rows[0][0]?.ToString();
+            var rows = result.Data.Pages.SelectMany(p => p.Rows).ToList();
+            if (rows.Count > 0)
+            {
+                ViewDefinition = rows[0][0]?.Text;
+            }
         }
         catch
         {

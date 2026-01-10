@@ -1,8 +1,8 @@
-using System.Data;
 using System.Windows.Input;
 using OutWit.Common.Abstract;
 using OutWit.Common.Aspects;
 using OutWit.Common.MVVM.Commands;
+using OutWit.Common.MVVM.Table;
 
 namespace OutWit.Database.Studio.Models;
 
@@ -19,7 +19,7 @@ public class QueryTab : ModelBase
 
     #region Fields
 
-    private DataTable? m_fullResultData;
+    private TableView? m_fullResultData;
     private int m_currentPage = 1;
     private int m_pageSize = DEFAULT_PAGE_SIZE;
     private int m_totalRowCount;
@@ -111,10 +111,16 @@ public class QueryTab : ModelBase
     public string DisplayTitle => IsModified ? $"{Title} *" : Title;
 
     /// <summary>
-    /// Result data table from query execution (paginated).
+    /// Header row with column names.
+    /// </summary>
+    [Notify]
+    public TableViewRow? HeaderRow { get; set; }
+
+    /// <summary>
+    /// Current page of results for display.
     /// </summary>
     [Notify(NotifyAlso = nameof(HasResults))]
-    public DataTable? ResultData { get; set; }
+    public TableViewPage? ResultPage { get; set; }
 
     /// <summary>
     /// Error message from query execution.
@@ -295,23 +301,24 @@ public class QueryTab : ModelBase
     /// <summary>
     /// Sets the full result data and applies pagination.
     /// </summary>
-    public void SetResultData(DataTable? data)
+    public void SetResultData(TableView? data)
     {
         m_fullResultData = data;
         
-        if (data == null)
+        if (data == null || data.Pages.Count == 0)
         {
             TotalRowCount = 0;
             CurrentPage = 1;
-            ResultData = null;
+            HeaderRow = null;
+            ResultPage = null;
             OnPropertyChanged(nameof(DisplayedRowStart));
             OnPropertyChanged(nameof(DisplayedRowEnd));
             return;
         }
 
-        // Set TotalRowCount first, then CurrentPage, then apply pagination
-        TotalRowCount = data.Rows.Count;
-        m_currentPage = 1; // Set directly to avoid triggering ApplyPagination twice
+        HeaderRow = data.HeaderRow;
+        TotalRowCount = data.Pages.Sum(p => p.Rows.Count);
+        m_currentPage = 1;
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(DisplayedRowStart));
         OnPropertyChanged(nameof(DisplayedRowEnd));
@@ -326,32 +333,25 @@ public class QueryTab : ModelBase
     /// </summary>
     private void ApplyPagination()
     {
-        if (m_fullResultData == null || m_fullResultData.Rows.Count == 0)
+        if (m_fullResultData == null || m_fullResultData.Pages.Count == 0)
         {
-            ResultData = null;
+            ResultPage = null;
             return;
         }
 
+        // TableView ??? ????? ????????? ????? Pages
+        // ???????? ??? ?????? ? ??????? ???????? ??? ???????? ?????????
+        var allRows = m_fullResultData.Pages.SelectMany(p => p.Rows).ToList();
         var startIndex = (CurrentPage - 1) * PageSize;
-        var endIndex = Math.Min(startIndex + PageSize, m_fullResultData.Rows.Count);
+        var endIndex = Math.Min(startIndex + PageSize, allRows.Count);
 
-        // If all data fits on one page, just use the original table
-        if (startIndex == 0 && endIndex >= m_fullResultData.Rows.Count)
-        {
-            ResultData = m_fullResultData;
-            return;
-        }
-
-        // Create a new DataTable with the same schema
-        var pageTable = m_fullResultData.Clone();
-
-        // Copy rows for the current page
+        var page = new TableViewPage(CurrentPage);
         for (var i = startIndex; i < endIndex; i++)
         {
-            pageTable.ImportRow(m_fullResultData.Rows[i]);
+            page.Add(allRows[i]);
         }
 
-        ResultData = pageTable;
+        ResultPage = page;
     }
 
     /// <summary>
@@ -360,7 +360,8 @@ public class QueryTab : ModelBase
     public void ClearResults()
     {
         m_fullResultData = null;
-        ResultData = null;
+        HeaderRow = null;
+        ResultPage = null;
         TotalRowCount = 0;
         CurrentPage = 1;
         RowsAffected = 0;

@@ -239,7 +239,7 @@ public class QueryTabsViewModel : ViewModelBase<ApplicationViewModel>
 
             if (result.IsSuccess)
             {
-                tab.SetResultData(result.ResultTable);
+                tab.SetResultData(result.Data);
                 tab.RowsAffected = result.RowsAffected;
                 tab.ExecutionTimeMs = stopwatch.Elapsed.TotalMilliseconds;
                 

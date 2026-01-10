@@ -30,8 +30,11 @@ public sealed class DatabaseServiceInformationSchemaTests
         // Use INFORMATION_SCHEMA.TABLES for views to match engine tests and avoid depending on INFORMATION_SCHEMA.VIEWS.
         var views = await harness.Service.ExecuteQueryAsync("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'VIEW'");
         Assert.That(views.ErrorMessage, Is.Null.Or.Empty);
+        Assert.That(views.Data, Is.Not.Null);
+        Assert.That(views.Data!.Pages, Has.Count.GreaterThan(0));
 
-        var names = views.ResultTable!.Rows.Cast<System.Data.DataRow>().Select(r => r[0]!.ToString()).ToList();
+        var rows = views.Data.Pages.SelectMany(p => p.Rows).ToList();
+        var names = rows.Select(r => r[0]?.Text).ToList();
         Assert.That(names, Is.EquivalentTo(new[] { "ActiveUsers" }));
     }
 

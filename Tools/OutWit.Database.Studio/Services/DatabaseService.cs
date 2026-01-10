@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using OutWit.Common.MVVM.Table;
 using OutWit.Database.AdoNet;
 using OutWit.Database.Studio.Models;
 using System.Data;
@@ -194,8 +195,6 @@ public sealed class DatabaseService : IDatabaseService
                 DataType = reader.GetString(2),
                 IsNullable = isNullableStr.Equals("YES", StringComparison.OrdinalIgnoreCase),
                 DefaultValue = reader.IsDBNull(4) ? null : reader.GetString(4),
-                // INFORMATION_SCHEMA.COLUMNS in engine currently provides generated columns metadata,
-                // but UI ColumnInfo only needs PK which is resolved via separate query if needed.
                 IsPrimaryKey = false
             });
         }
@@ -283,7 +282,6 @@ public sealed class DatabaseService : IDatabaseService
         }
     }
 
-    // Legacy helper used by older UI code paths; keep but route to INFORMATION_SCHEMA version.
     public Task<IReadOnlyList<ColumnInfo>> GetTableColumnsAsync(string tableName, CancellationToken ct = default) =>
         GetColumnsAsync(tableName, ct);
 
@@ -305,65 +303,41 @@ public sealed class DatabaseService : IDatabaseService
 
             using var reader = await command.ExecuteReaderAsync(ct);
 
-            // Manually build DataTable instead of using Load() 
-            // which may have issues with our custom DbDataReader
-            var table = new DataTable();
-
-            // Add columns from schema - use object type for complex types
-            for (int i = 0; i < reader.FieldCount; i++)
+            // Build header row with column names
+            var columnNames = new string[reader.FieldCount];
+            for (var i = 0; i < reader.FieldCount; i++)
             {
-                var columnName = reader.GetName(i);
-                var columnType = reader.GetFieldType(i);
-                
-                // Map complex types to simpler ones for DataGrid display
-                var displayType = columnType switch
-                {
-                    Type t when t == typeof(DateOnly) => typeof(string),
-                    Type t when t == typeof(TimeOnly) => typeof(string),
-                    Type t when t == typeof(TimeSpan) => typeof(string),
-                    Type t when t == typeof(DateTimeOffset) => typeof(string),
-                    Type t when t == typeof(byte[]) => typeof(string),
-                    _ => columnType
-                };
-                
-                table.Columns.Add(columnName, displayType);
+                columnNames[i] = reader.GetName(i);
             }
 
-            // Read rows manually
+            var headerRow = new TableViewRow(0, 0, columnNames, DbTableRowType.Header);
+            var tableView = new TableView("Query Result", "", headerRow);
+            var page = new TableViewPage(0);
+
+            // Read rows
+            var rowIndex = 0;
             while (await reader.ReadAsync(ct))
             {
-                var row = table.NewRow();
-                for (int i = 0; i < reader.FieldCount; i++)
+                var values = new string[reader.FieldCount];
+                for (var i = 0; i < reader.FieldCount; i++)
                 {
-                    if (reader.IsDBNull(i))
-                    {
-                        row[i] = DBNull.Value;
-                    }
-                    else
-                    {
-                        var value = reader.GetValue(i);
-                        
-                        // Convert complex types to strings for display
-                        row[i] = value switch
-                        {
-                            DateOnly d => d.ToString("yyyy-MM-dd"),
-                            TimeOnly t => t.ToString("HH:mm:ss"),
-                            TimeSpan ts => ts.ToString(),
-                            DateTimeOffset dto => dto.ToString("yyyy-MM-dd HH:mm:ss zzz"),
-                            byte[] bytes => $"0x{BitConverter.ToString(bytes).Replace("-", "")}",
-                            _ => value
-                        };
-                    }
+                    values[i] = reader.IsDBNull(i) ? "" : FormatValue(reader.GetValue(i));
                 }
-                table.Rows.Add(row);
+
+                var rowType = rowIndex % 2 == 0 ? DbTableRowType.BodyEven : DbTableRowType.BodyOdd;
+                var row = new TableViewRow(0, rowIndex, values, rowType);
+                page.Add(row);
+                rowIndex++;
             }
 
-            result.ResultTable = table;
-            result.RowsAffected = table.Rows.Count;
+            tableView.Add(page);
+
+            result.Data = tableView;
+            result.RowsAffected = rowIndex;
             result.ExecutionTimeMs = sw.Elapsed.TotalMilliseconds;
 
             m_logger.LogInformation("Query executed successfully in {Time}ms, {Rows} rows, {Columns} columns",
-                result.ExecutionTimeMs, result.RowsAffected, table.Columns.Count);
+                result.ExecutionTimeMs, result.RowsAffected, reader.FieldCount);
         }
         catch (Exception ex)
         {
@@ -409,15 +383,33 @@ public sealed class DatabaseService : IDatabaseService
             throw new InvalidOperationException("Not connected to a database");
     }
 
+    private static string FormatValue(object value)
+    {
+        return value switch
+        {
+            DateTime dt => dt.ToString("yyyy-MM-dd HH:mm:ss"),
+            DateOnly d => d.ToString("yyyy-MM-dd"),
+            TimeOnly t => t.ToString("HH:mm:ss"),
+            TimeSpan ts => ts.ToString(@"hh\:mm\:ss"),
+            DateTimeOffset dto => dto.ToString("yyyy-MM-dd HH:mm:ss zzz"),
+            byte[] bytes => bytes.Length <= 32 
+                ? $"0x{BitConverter.ToString(bytes).Replace("-", "")}" 
+                : $"0x{BitConverter.ToString(bytes, 0, 32).Replace("-", "")}...",
+            bool b => b ? "true" : "false",
+            decimal dec => dec.ToString("G"),
+            double dbl => dbl.ToString("G"),
+            float flt => flt.ToString("G"),
+            _ => value.ToString() ?? string.Empty
+        };
+    }
+
     private static string FormatErrorMessage(Exception ex)
     {
-        // Check for parsing errors - they have a specific format
         if (ex.Message.StartsWith("Line ", StringComparison.Ordinal))
         {
             return $"SQL Syntax Error: {ex.Message}";
         }
 
-        // Check for inner exceptions
         if (ex.InnerException != null)
         {
             var innerMessage = ex.InnerException.Message;

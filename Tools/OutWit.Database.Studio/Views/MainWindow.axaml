@@ -5,6 +5,7 @@
         xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:query="clr-namespace:OutWit.Database.Studio.Views.Query"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="OutWit.Database.Studio.Views.MainWindow"
         x:DataType="vm:ApplicationViewModel"
@@ -273,7 +274,7 @@
 					
 					<!-- Query Editor Tab -->
 					<TabItem Header="Query">
-						<views:QueryTabs DataContext="{Binding QueryTabsVm}"/>
+						<query:QueryTabs DataContext="{Binding QueryTabsVm}"/>
 					</TabItem>
 
 					<!-- Table Structure Tab -->
