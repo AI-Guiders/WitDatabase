@@ -1,9 +1,7 @@
 using System.Data;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Data;
-using Avalonia.Styling;
 using OutWit.Database.Studio.Converters;
 using OutWit.Database.Studio.Models;
 
@@ -13,12 +11,9 @@ namespace OutWit.Database.Studio.Controls;
 /// Custom DataGrid for editing table data.
 /// Supports inline editing, type validation, and NULL handling.
 /// </summary>
-public class EditableDataGrid : DataGrid
+public class EditableDataGrid : DataGridBase
 {
     #region Styled Properties
-
-    public static readonly StyledProperty<DataView?> ResultViewProperty =
-        AvaloniaProperty.Register<EditableDataGrid, DataView?>(nameof(ResultView));
 
     public static readonly StyledProperty<IList<ColumnInfo>?> ColumnInfosProperty =
         AvaloniaProperty.Register<EditableDataGrid, IList<ColumnInfo>?>(nameof(ColumnInfos));
@@ -32,16 +27,8 @@ public class EditableDataGrid : DataGrid
 
     static EditableDataGrid()
     {
-        ResultViewProperty.Changed.AddClassHandler<EditableDataGrid>((grid, e) => grid.OnResultViewChanged(e));
         ColumnInfosProperty.Changed.AddClassHandler<EditableDataGrid>((grid, e) => grid.OnColumnInfosChanged(e));
     }
-
-    #endregion
-
-    #region Fields
-
-    private readonly List<IStyle> m_dynamicStyles = [];
-    private readonly SqlValueBrushConverter m_valueBrushConverter = new();
 
     #endregion
 
@@ -49,27 +36,9 @@ public class EditableDataGrid : DataGrid
 
     public EditableDataGrid()
     {
-        InitDefaults();
-        InitEvents();
-    }
-
-    #endregion
-
-    #region Initialization
-
-    private void InitDefaults()
-    {
-        AutoGenerateColumns = false;
         IsReadOnly = false;
-        GridLinesVisibility = DataGridGridLinesVisibility.All;
-        CanUserResizeColumns = true;
-        CanUserReorderColumns = true;
-        CanUserSortColumns = true;
         SelectionMode = DataGridSelectionMode.Single;
-    }
-
-    private void InitEvents()
-    {
+        
         SelectionChanged += OnSelectionChanged;
         CellEditEnding += OnCellEditEnding;
     }
@@ -78,76 +47,31 @@ public class EditableDataGrid : DataGrid
 
     #region Functions
 
-    private void ClearDynamicStyles()
+    protected override DataGridTextColumn CreateColumn(DataColumn dataColumn, int ordinal, string className)
     {
-        foreach (var s in m_dynamicStyles)
-            Styles.Remove(s);
+        var columnInfo = ColumnInfos?.FirstOrDefault(c => c.Name == dataColumn.ColumnName);
+        var columnCount = ResultView?.Table?.Columns.Count ?? 1;
 
-        m_dynamicStyles.Clear();
-    }
-
-    private void RebuildColumns()
-    {
-        Columns.Clear();
-        ClearDynamicStyles();
-
-        if (ResultView?.Table == null)
+        return new DataGridTextColumn
         {
-            ItemsSource = null;
-            return;
-        }
-
-        var columnCount = ResultView.Table.Columns.Count;
-
-        foreach (DataColumn col in ResultView.Table.Columns)
-        {
-            var ordinal = col.Ordinal;
-            var columnName = col.ColumnName;
-            var className = $"edit-col-{ordinal}";
-            var columnInfo = ColumnInfos?.FirstOrDefault(c => c.Name == columnName);
-
-            // Use Row.ItemArray[ordinal] for display (read-only binding)
-            // Editing is handled manually in OnCellEditEnding
-            var dataGridColumn = new DataGridTextColumn
+            Header = dataColumn.ColumnName,
+            Binding = new Binding($"Row.ItemArray[{ordinal}]")
             {
-                Header = columnName,
-                Binding = new Binding($"Row.ItemArray[{ordinal}]")
-                {
-                    Converter = new SqlValueConverter(),
-                    Mode = BindingMode.OneWay // Display only, editing handled manually
-                },
-                // Use SizeToCells for reasonable default width, then Star for remaining space
-                Width = columnCount <= 5 
-                    ? new DataGridLength(1, DataGridLengthUnitType.Star)
-                    : new DataGridLength(120, DataGridLengthUnitType.Pixel),
-                MinWidth = 60,
-                MaxWidth = 400,
-                CanUserSort = true,
-                IsReadOnly = columnInfo?.IsPrimaryKey == true || columnInfo?.IsAutoIncrement == true,
-                Tag = ordinal
-            };
-
-            dataGridColumn.CellStyleClasses.Add(className);
-            Columns.Add(dataGridColumn);
-
-            // Apply cell styles for NULL values
-            var cellStyle = new Style(x => x.OfType<DataGridCell>().Class(className));
-            var foregroundBinding = new Binding($"Row.ItemArray[{ordinal}]")
-            {
-                Converter = m_valueBrushConverter,
-            };
-            cellStyle.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, foregroundBinding));
-            Styles.Add(cellStyle);
-            m_dynamicStyles.Add(cellStyle);
-        }
-
-        ItemsSource = ResultView;
+                Converter = new SqlValueConverter(),
+                Mode = BindingMode.OneWay // Display only, editing handled manually
+            },
+            Width = columnCount <= 5
+                ? new DataGridLength(1, DataGridLengthUnitType.Star)
+                : new DataGridLength(120, DataGridLengthUnitType.Pixel),
+            MinWidth = 60,
+            MaxWidth = 400,
+            CanUserSort = true,
+            IsReadOnly = columnInfo?.IsPrimaryKey == true || columnInfo?.IsAutoIncrement == true,
+            Tag = ordinal
+        };
     }
 
-    private void OnResultViewChanged(AvaloniaPropertyChangedEventArgs e)
-    {
-        RebuildColumns();
-    }
+    protected override string GetColumnClassName(int ordinal) => $"edit-col-{ordinal}";
 
     private void OnColumnInfosChanged(AvaloniaPropertyChangedEventArgs e)
     {
@@ -157,14 +81,7 @@ public class EditableDataGrid : DataGrid
 
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (SelectedItem is DataRowView rowView)
-        {
-            SetValue(SelectedRowViewProperty, rowView);
-        }
-        else
-        {
-            SetValue(SelectedRowViewProperty, null);
-        }
+        SetValue(SelectedRowViewProperty, SelectedItem as DataRowView);
     }
 
     private void OnCellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)
@@ -207,8 +124,8 @@ public class EditableDataGrid : DataGrid
             }
             else
             {
-                // Convert the text to the appropriate type
-                newValue = ConvertValue(newText, column.DataType);
+                // Use SqlValueParser for type-safe conversion based on WitSqlType
+                newValue = SqlValueParser.Parse(newText, column.DataType);
             }
 
             // Apply the value directly to the DataRow
@@ -224,57 +141,6 @@ public class EditableDataGrid : DataGrid
         }
     }
 
-    private static object? ConvertValue(string text, Type targetType)
-    {
-        if (string.IsNullOrEmpty(text))
-            return DBNull.Value;
-
-        // Handle nullable types
-        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-
-        if (underlyingType == typeof(string))
-            return text;
-
-        if (underlyingType == typeof(int))
-            return int.Parse(text);
-
-        if (underlyingType == typeof(long))
-            return long.Parse(text);
-
-        if (underlyingType == typeof(short))
-            return short.Parse(text);
-
-        if (underlyingType == typeof(byte))
-            return byte.Parse(text);
-
-        if (underlyingType == typeof(decimal))
-            return decimal.Parse(text);
-
-        if (underlyingType == typeof(double))
-            return double.Parse(text);
-
-        if (underlyingType == typeof(float))
-            return float.Parse(text);
-
-        if (underlyingType == typeof(bool))
-            return bool.Parse(text);
-
-        if (underlyingType == typeof(DateTime))
-            return DateTime.Parse(text);
-
-        if (underlyingType == typeof(DateOnly))
-            return DateOnly.Parse(text);
-
-        if (underlyingType == typeof(TimeOnly))
-            return TimeOnly.Parse(text);
-
-        if (underlyingType == typeof(Guid))
-            return Guid.Parse(text);
-
-        // Fallback: use Convert.ChangeType
-        return Convert.ChangeType(text, underlyingType);
-    }
-
     #endregion
 
     #region Events
@@ -287,15 +153,6 @@ public class EditableDataGrid : DataGrid
     #endregion
 
     #region Properties
-
-    /// <summary>
-    /// The DataView to display and edit.
-    /// </summary>
-    public DataView? ResultView
-    {
-        get => GetValue(ResultViewProperty);
-        set => SetValue(ResultViewProperty, value);
-    }
 
     /// <summary>
     /// Column information for validation and editing rules.
@@ -315,8 +172,6 @@ public class EditableDataGrid : DataGrid
         set => SetValue(SelectedRowViewProperty, value);
     }
 
-    protected override Type StyleKeyOverride => typeof(DataGrid);
-
     #endregion
 }
 
@@ -325,8 +180,6 @@ public class EditableDataGrid : DataGrid
 /// </summary>
 public class CellEditedEventArgs : EventArgs
 {
-    #region Constructors
-
     public CellEditedEventArgs(DataRowView rowView, string columnName, object? newValue)
     {
         RowView = rowView;
@@ -334,15 +187,7 @@ public class CellEditedEventArgs : EventArgs
         NewValue = newValue;
     }
 
-    #endregion
-
-    #region Properties
-
     public DataRowView RowView { get; }
-    
     public string ColumnName { get; }
-    
     public object? NewValue { get; }
-
-    #endregion
 }
