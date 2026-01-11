@@ -33,17 +33,21 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             foreach (var view in m_views.Values)
             {
-                yield return new WitSqlRow([
+                results.Add(new WitSqlRow([
                     WitSqlValue.FromText("WitDB"),                     // TABLE_CATALOG
                     WitSqlValue.FromText("public"),                    // TABLE_SCHEMA
                     WitSqlValue.FromText(view.Name),                   // TABLE_NAME
                     WitSqlValue.FromText(view.SelectSql),              // VIEW_DEFINITION
                     WitSqlValue.FromText("NONE"),                      // CHECK_OPTION
                     WitSqlValue.FromText("NO"),                        // IS_UPDATABLE
-                ], VIEWS_COLUMNS);
+                ], VIEWS_COLUMNS));
             }
+            
+            return results;
         }
         finally
         {

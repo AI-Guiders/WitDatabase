@@ -38,9 +38,11 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             foreach (var sequence in m_sequences.Values)
             {
-                yield return new WitSqlRow([
+                results.Add(new WitSqlRow([
                     WitSqlValue.FromText("WitDB"),                                       // SEQUENCE_CATALOG
                     WitSqlValue.FromText("public"),                                      // SEQUENCE_SCHEMA
                     WitSqlValue.FromText(sequence.Name),                                 // SEQUENCE_NAME
@@ -57,8 +59,10 @@ public sealed partial class SchemaCatalog
                     WitSqlValue.FromInt(sequence.IncrementBy),                           // INCREMENT
                     WitSqlValue.FromText(sequence.Cycle ? "YES" : "NO"),                 // CYCLE_OPTION
                     WitSqlValue.FromInt(sequence.CurrentValue),                          // CURRENT_VALUE
-                ], SEQUENCES_COLUMNS);
+                ], SEQUENCES_COLUMNS));
             }
+            
+            return results;
         }
         finally
         {

@@ -34,6 +34,8 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             foreach (var index in m_indexes.Values)
             {
                 // Skip implicit indexes (auto-created for PRIMARY KEY)
@@ -44,7 +46,7 @@ public sealed partial class SchemaCatalog
                 int position = 1;
                 foreach (var columnName in index.Columns)
                 {
-                    yield return new WitSqlRow([
+                    results.Add(new WitSqlRow([
                         WitSqlValue.FromText("WitDB"),                                     // TABLE_CATALOG
                         WitSqlValue.FromText("public"),                                    // TABLE_SCHEMA
                         WitSqlValue.FromText(index.TableName),                             // TABLE_NAME
@@ -56,9 +58,11 @@ public sealed partial class SchemaCatalog
                         index.WhereExpression != null
                             ? WitSqlValue.FromText(index.WhereExpression)
                             : WitSqlValue.Null,                                            // FILTER_CONDITION
-                    ], INDEXES_COLUMNS);
+                    ], INDEXES_COLUMNS));
                 }
             }
+            
+            return results;
         }
         finally
         {

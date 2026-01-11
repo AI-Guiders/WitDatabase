@@ -28,29 +28,33 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             // Add tables
             foreach (var table in m_tables.Values)
             {
-                yield return new WitSqlRow([
+                results.Add(new WitSqlRow([
                     WitSqlValue.FromText("WitDB"),          // TABLE_CATALOG
                     WitSqlValue.FromText("public"),         // TABLE_SCHEMA
                     WitSqlValue.FromText(table.Name),       // TABLE_NAME
                     WitSqlValue.FromText("BASE TABLE"),     // TABLE_TYPE
                     WitSqlValue.Null,                       // TABLE_COMMENT
-                ], TABLES_COLUMNS);
+                ], TABLES_COLUMNS));
             }
 
             // Add views
             foreach (var view in m_views.Values)
             {
-                yield return new WitSqlRow([
+                results.Add(new WitSqlRow([
                     WitSqlValue.FromText("WitDB"),          // TABLE_CATALOG
                     WitSqlValue.FromText("public"),         // TABLE_SCHEMA
                     WitSqlValue.FromText(view.Name),        // TABLE_NAME
                     WitSqlValue.FromText("VIEW"),           // TABLE_TYPE
                     WitSqlValue.Null,                       // TABLE_COMMENT
-                ], TABLES_COLUMNS);
+                ], TABLES_COLUMNS));
             }
+            
+            return results;
         }
         finally
         {

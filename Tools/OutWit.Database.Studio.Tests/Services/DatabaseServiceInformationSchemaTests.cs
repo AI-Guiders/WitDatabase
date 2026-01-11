@@ -89,6 +89,114 @@ public sealed class DatabaseServiceInformationSchemaTests
         Assert.That(cols.Single(c => c.Name == "Name").IsPrimaryKey, Is.False);
     }
 
+    [Test]
+    public async Task GetColumnsAsync_MarksAutoIncrementColumnsTest()
+    {
+        await using var harness = await StudioDbHarness.CreateAsync();
+        await harness.ExecAsync(@"
+            CREATE TABLE Users (
+                Id BIGINT PRIMARY KEY AUTOINCREMENT,
+                Name VARCHAR(100)
+            )");
+
+        var cols = (await harness.Service.GetColumnsAsync("Users"))
+            .OrderBy(c => c.OrdinalPosition)
+            .ToList();
+
+        Assert.That(cols.Single(c => c.Name == "Id").IsAutoIncrement, Is.True);
+        Assert.That(cols.Single(c => c.Name == "Name").IsAutoIncrement, Is.False);
+    }
+
+    [Test]
+    public async Task GetColumnsAsync_MarksUniqueColumnsTest()
+    {
+        await using var harness = await StudioDbHarness.CreateAsync();
+        await harness.ExecAsync(@"
+            CREATE TABLE Users (
+                Id BIGINT PRIMARY KEY,
+                Email VARCHAR(255) UNIQUE,
+                Name VARCHAR(100)
+            )");
+
+        var cols = await harness.Service.GetColumnsAsync("Users");
+
+        Assert.That(cols.Single(c => c.Name == "Email").IsUnique, Is.True);
+        Assert.That(cols.Single(c => c.Name == "Name").IsUnique, Is.False);
+    }
+
+    [Test]
+    public async Task GetColumnsAsync_GetsCheckExpressionTest()
+    {
+        await using var harness = await StudioDbHarness.CreateAsync();
+        await harness.ExecAsync(@"
+            CREATE TABLE Products (
+                Id BIGINT PRIMARY KEY,
+                Price DECIMAL(10,2) CHECK (Price > 0)
+            )");
+
+        var cols = await harness.Service.GetColumnsAsync("Products");
+        var priceCol = cols.Single(c => c.Name == "Price");
+
+        Assert.That(priceCol.CheckExpression, Is.Not.Null);
+        Assert.That(priceCol.CheckExpression, Does.Contain("Price"));
+    }
+
+    [Test]
+    public async Task GetTableDefinitionAsync_IncludesAutoIncrementTest()
+    {
+        await using var harness = await StudioDbHarness.CreateAsync();
+        await harness.ExecAsync(@"
+            CREATE TABLE Users (
+                Id BIGINT PRIMARY KEY AUTOINCREMENT,
+                Name VARCHAR(100) NOT NULL
+            )");
+
+        var definition = await harness.Service.GetTableDefinitionAsync("Users");
+
+        Assert.That(definition, Is.Not.Null);
+        Assert.That(definition, Does.Contain("PRIMARY KEY AUTOINCREMENT"));
+    }
+
+    [Test]
+    public async Task GetTableDefinitionAsync_IncludesUniqueConstraintTest()
+    {
+        await using var harness = await StudioDbHarness.CreateAsync();
+        await harness.ExecAsync(@"
+            CREATE TABLE Users (
+                Id BIGINT PRIMARY KEY,
+                Email VARCHAR(255) UNIQUE
+            )");
+
+        var definition = await harness.Service.GetTableDefinitionAsync("Users");
+
+        Assert.That(definition, Is.Not.Null);
+        Assert.That(definition, Does.Contain("UNIQUE"));
+    }
+
+    [Test]
+    public async Task GetTableDefinitionAsync_IncludesCheckConstraintTest()
+    {
+        await using var harness = await StudioDbHarness.CreateAsync();
+        await harness.ExecAsync(@"
+            CREATE TABLE Products (
+                Id BIGINT PRIMARY KEY,
+                Price DECIMAL(10,2) CHECK (Price > 0)
+            )");
+
+        var definition = await harness.Service.GetTableDefinitionAsync("Products");
+
+        Assert.That(definition, Is.Not.Null);
+        Assert.That(definition, Does.Contain("CHECK"));
+    }
+
+    // Note: Tests for VARCHAR(n) length and DECIMAL(p,s) precision/scale are skipped
+    // because the parser/engine doesn't currently preserve type parameters in DefinitionColumn.
+    // The INFORMATION_SCHEMA.COLUMNS.CHARACTER_MAXIMUM_LENGTH and NUMERIC_PRECISION/SCALE
+    // will be NULL until this is implemented.
+
+    // Note: Tests for COLLATE column constraint are skipped because column-level COLLATE
+    // is not currently supported in CREATE TABLE parsing.
+
     private sealed class StudioDbHarness : IAsyncDisposable
     {
         private readonly string _filePath;

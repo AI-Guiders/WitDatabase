@@ -137,6 +137,80 @@ public sealed class WitSqlEngineInformationSchemaTests : WitSqlEngineTestsBase
         Assert.That(rows[0]["GENERATION_EXPRESSION"].AsString(), Does.Contain("Quantity"));
     }
 
+    [Test]
+    public void InformationSchemaColumnsShowsAutoIncrementTest()
+    {
+        m_engine.Execute(@"
+            CREATE TABLE Users (
+                Id BIGINT PRIMARY KEY AUTOINCREMENT,
+                Name VARCHAR(100) NOT NULL
+            )");
+        
+        var rows = m_engine.Query(@"
+            SELECT COLUMN_NAME, IS_AUTOINCREMENT FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'Users' 
+            ORDER BY ORDINAL_POSITION");
+        
+        Assert.That(rows, Has.Count.EqualTo(2));
+        Assert.That(rows[0]["COLUMN_NAME"].AsString(), Is.EqualTo("Id"));
+        Assert.That(rows[0]["IS_AUTOINCREMENT"].AsString(), Is.EqualTo("YES"));
+        Assert.That(rows[1]["COLUMN_NAME"].AsString(), Is.EqualTo("Name"));
+        Assert.That(rows[1]["IS_AUTOINCREMENT"].AsString(), Is.EqualTo("NO"));
+    }
+
+    [Test]
+    public void InformationSchemaColumnsShowsUniqueConstraintTest()
+    {
+        m_engine.Execute(@"
+            CREATE TABLE Users (
+                Id BIGINT PRIMARY KEY,
+                Email VARCHAR(255) UNIQUE,
+                Name VARCHAR(100)
+            )");
+        
+        var rows = m_engine.Query(@"
+            SELECT COLUMN_NAME, IS_UNIQUE FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'Users' 
+            ORDER BY ORDINAL_POSITION");
+        
+        Assert.That(rows, Has.Count.EqualTo(3));
+        Assert.That(rows[0]["COLUMN_NAME"].AsString(), Is.EqualTo("Id"));
+        Assert.That(rows[0]["IS_UNIQUE"].AsString(), Is.EqualTo("NO")); // PK is not marked as UNIQUE separately
+        Assert.That(rows[1]["COLUMN_NAME"].AsString(), Is.EqualTo("Email"));
+        Assert.That(rows[1]["IS_UNIQUE"].AsString(), Is.EqualTo("YES"));
+        Assert.That(rows[2]["COLUMN_NAME"].AsString(), Is.EqualTo("Name"));
+        Assert.That(rows[2]["IS_UNIQUE"].AsString(), Is.EqualTo("NO"));
+    }
+
+    [Test]
+    public void InformationSchemaColumnsShowsCheckExpressionTest()
+    {
+        m_engine.Execute(@"
+            CREATE TABLE Products (
+                Id BIGINT PRIMARY KEY,
+                Price DECIMAL(10,2) CHECK (Price > 0),
+                Quantity INTEGER
+            )");
+        
+        var rows = m_engine.Query(@"
+            SELECT COLUMN_NAME, CHECK_EXPRESSION FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'Products' AND CHECK_EXPRESSION IS NOT NULL");
+        
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["COLUMN_NAME"].AsString(), Is.EqualTo("Price"));
+        Assert.That(rows[0]["CHECK_EXPRESSION"].AsString(), Does.Contain("Price"));
+        Assert.That(rows[0]["CHECK_EXPRESSION"].AsString(), Does.Contain("0"));
+    }
+
+    // Note: COLLATE as a column constraint in CREATE TABLE is not currently supported.
+    // COLLATE is supported in expressions (e.g., WHERE Name COLLATE NOCASE = 'value')
+    // and ORDER BY clauses. The COLLATION_NAME column will be NULL for columns
+    // until column-level COLLATE constraint parsing is implemented.
+
+    // Note: CHARACTER_MAXIMUM_LENGTH and NUMERIC_PRECISION/SCALE from INFORMATION_SCHEMA.COLUMNS
+    // may return NULL if the parser/engine doesn't preserve these type details.
+    // These features require parser support for storing type parameters in DefinitionColumn.
+
     #endregion
 
     #region INFORMATION_SCHEMA.KEY_COLUMN_USAGE Tests

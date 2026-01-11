@@ -16,13 +16,15 @@ public sealed partial class SchemaCatalog
         "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME",
         "ORDINAL_POSITION", "COLUMN_DEFAULT", "IS_NULLABLE", "DATA_TYPE",
         "CHARACTER_MAXIMUM_LENGTH", "NUMERIC_PRECISION", "NUMERIC_SCALE",
-        "GENERATION_EXPRESSION", "IS_GENERATED"
+        "GENERATION_EXPRESSION", "IS_GENERATED", "IS_AUTOINCREMENT",
+        "IS_UNIQUE", "CHECK_EXPRESSION", "COLLATION_NAME"
     ];
     private static readonly WitSqlType[] COLUMNS_TYPES = [
         WitSqlType.Text, WitSqlType.Text, WitSqlType.Text, WitSqlType.Text,
         WitSqlType.Integer, WitSqlType.Text, WitSqlType.Text, WitSqlType.Text,
         WitSqlType.Integer, WitSqlType.Integer, WitSqlType.Integer,
-        WitSqlType.Text, WitSqlType.Text
+        WitSqlType.Text, WitSqlType.Text, WitSqlType.Text,
+        WitSqlType.Text, WitSqlType.Text, WitSqlType.Text
     ];
 
     #endregion
@@ -38,6 +40,8 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             foreach (var table in m_tables.Values)
             {
                 foreach (var column in table.Columns)
@@ -45,7 +49,7 @@ public sealed partial class SchemaCatalog
                     // PK columns are implicitly NOT NULL
                     var isNullable = column.Nullable && !column.IsPrimaryKey;
 
-                    yield return new WitSqlRow([
+                    results.Add(new WitSqlRow([
                         WitSqlValue.FromText("WitDB"),                                    // TABLE_CATALOG
                         WitSqlValue.FromText("public"),                                   // TABLE_SCHEMA
                         WitSqlValue.FromText(table.Name),                                 // TABLE_NAME
@@ -71,9 +75,19 @@ public sealed partial class SchemaCatalog
                         WitSqlValue.FromText(column.IsComputed
                             ? (column.IsStored ? "STORED" : "VIRTUAL")
                             : "NEVER"),                                                   // IS_GENERATED
-                    ], COLUMNS_COLUMNS);
+                        WitSqlValue.FromText(column.IsAutoIncrement ? "YES" : "NO"),      // IS_AUTOINCREMENT
+                        WitSqlValue.FromText(column.IsUnique ? "YES" : "NO"),             // IS_UNIQUE
+                        column.CheckExpression != null
+                            ? WitSqlValue.FromText(column.CheckExpression)
+                            : WitSqlValue.Null,                                           // CHECK_EXPRESSION
+                        column.Collation != null
+                            ? WitSqlValue.FromText(column.Collation)
+                            : WitSqlValue.Null,                                           // COLLATION_NAME
+                    ], COLUMNS_COLUMNS));
                 }
             }
+            
+            return results;
         }
         finally
         {

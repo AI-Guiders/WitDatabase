@@ -186,7 +186,15 @@ public sealed class DatabaseService : IDatabaseService
                 DATA_TYPE,
                 IS_NULLABLE,
                 COLUMN_DEFAULT,
-                IS_GENERATED
+                CHARACTER_MAXIMUM_LENGTH,
+                NUMERIC_PRECISION,
+                NUMERIC_SCALE,
+                IS_GENERATED,
+                GENERATION_EXPRESSION,
+                IS_AUTOINCREMENT,
+                IS_UNIQUE,
+                CHECK_EXPRESSION,
+                COLLATION_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = @tableName
             ORDER BY ORDINAL_POSITION";
@@ -201,6 +209,8 @@ public sealed class DatabaseService : IDatabaseService
         while (await reader.ReadAsync(ct))
         {
             var isNullableStr = reader.IsDBNull(3) ? "YES" : reader.GetString(3);
+            var isAutoIncrementStr = reader.IsDBNull(10) ? "NO" : reader.GetString(10);
+            var isUniqueStr = reader.IsDBNull(11) ? "NO" : reader.GetString(11);
 
             columns.Add(new ColumnInfo
             {
@@ -209,7 +219,16 @@ public sealed class DatabaseService : IDatabaseService
                 DataType = reader.GetString(2),
                 IsNullable = isNullableStr.Equals("YES", StringComparison.OrdinalIgnoreCase),
                 DefaultValue = reader.IsDBNull(4) ? null : reader.GetString(4),
-                IsPrimaryKey = false
+                MaxLength = reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                NumericPrecision = reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                NumericScale = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+                IsGenerated = reader.IsDBNull(8) ? "NEVER" : reader.GetString(8),
+                GenerationExpression = reader.IsDBNull(9) ? null : reader.GetString(9),
+                IsAutoIncrement = isAutoIncrementStr.Equals("YES", StringComparison.OrdinalIgnoreCase),
+                IsUnique = isUniqueStr.Equals("YES", StringComparison.OrdinalIgnoreCase),
+                CheckExpression = reader.IsDBNull(12) ? null : reader.GetString(12),
+                Collation = reader.IsDBNull(13) ? null : reader.GetString(13),
+                IsPrimaryKey = false // Will be set in TryMarkPrimaryKeysAsync
             });
         }
 
@@ -321,31 +340,77 @@ public sealed class DatabaseService : IDatabaseService
             if (columns.Count == 0)
                 return null;
 
+            // Get foreign key info
+            var foreignKeys = await GetForeignKeysAsync(tableName, ct);
+
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"CREATE TABLE \"{tableName}\" (");
 
             var columnDefs = new List<string>();
             var pkColumns = new List<string>();
+            var hasAutoIncrementPk = false;
 
             foreach (var col in columns)
             {
-                var colDef = $"    \"{col.Name}\" {col.DataType}";
+                var colDef = $"    \"{col.Name}\" {FormatDataType(col)}";
                 
-                if (!col.IsNullable)
-                    colDef += " NOT NULL";
-                
+                // For single-column auto-increment primary key, use inline PRIMARY KEY AUTOINCREMENT
+                if (col.IsPrimaryKey && col.IsAutoIncrement)
+                {
+                    colDef += " PRIMARY KEY AUTOINCREMENT";
+                    hasAutoIncrementPk = true;
+                }
+                else
+                {
+                    if (!col.IsNullable)
+                        colDef += " NOT NULL";
+                    
+                    if (col.IsPrimaryKey)
+                        pkColumns.Add($"\"{col.Name}\"");
+                }
+
+                // UNIQUE constraint (inline)
+                if (col.IsUnique && !col.IsPrimaryKey)
+                    colDef += " UNIQUE";
+
+                // DEFAULT value
                 if (!string.IsNullOrEmpty(col.DefaultValue))
                     colDef += $" DEFAULT {col.DefaultValue}";
 
-                columnDefs.Add(colDef);
+                // CHECK constraint (inline)
+                if (!string.IsNullOrEmpty(col.CheckExpression))
+                    colDef += $" CHECK ({col.CheckExpression})";
 
-                if (col.IsPrimaryKey)
-                    pkColumns.Add($"\"{col.Name}\"");
+                // COLLATE
+                if (!string.IsNullOrEmpty(col.Collation))
+                    colDef += $" COLLATE {col.Collation}";
+
+                // Computed column
+                if (col.IsComputed && !string.IsNullOrEmpty(col.GenerationExpression))
+                {
+                    colDef = $"    \"{col.Name}\" AS ({col.GenerationExpression})";
+                    if (col.IsGenerated == "STORED")
+                        colDef += " STORED";
+                }
+
+                // Foreign key reference (inline for single column)
+                var fk = foreignKeys.FirstOrDefault(f => f.ColumnName == col.Name);
+                if (fk != null)
+                {
+                    colDef += $" REFERENCES \"{fk.ReferencedTable}\"(\"{fk.ReferencedColumn}\")";
+                    if (!string.IsNullOrEmpty(fk.OnDelete) && fk.OnDelete != "NO ACTION")
+                        colDef += $" ON DELETE {fk.OnDelete}";
+                    if (!string.IsNullOrEmpty(fk.OnUpdate) && fk.OnUpdate != "NO ACTION")
+                        colDef += $" ON UPDATE {fk.OnUpdate}";
+                }
+
+                columnDefs.Add(colDef);
             }
 
             sb.AppendLine(string.Join(",\n", columnDefs));
 
-            if (pkColumns.Count > 0)
+            // Only add separate PRIMARY KEY constraint if not already defined inline
+            if (pkColumns.Count > 0 && !hasAutoIncrementPk)
             {
                 sb.AppendLine($"    ,PRIMARY KEY ({string.Join(", ", pkColumns)})");
             }
@@ -361,9 +426,81 @@ public sealed class DatabaseService : IDatabaseService
         }
     }
 
+    private static string FormatDataType(ColumnInfo col)
+    {
+        var dataType = col.DataType;
+        
+        // Add length for string/binary types
+        if (col.MaxLength.HasValue && (
+            dataType.Equals("VARCHAR", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("CHAR", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("NVARCHAR", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("NCHAR", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("VARBINARY", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("BINARY", StringComparison.OrdinalIgnoreCase)))
+        {
+            dataType += $"({col.MaxLength.Value})";
+        }
+        // Add precision and scale for decimal types
+        else if (col.NumericPrecision.HasValue && (
+            dataType.Equals("DECIMAL", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("NUMERIC", StringComparison.OrdinalIgnoreCase)))
+        {
+            dataType += col.NumericScale.HasValue 
+                ? $"({col.NumericPrecision.Value},{col.NumericScale.Value})"
+                : $"({col.NumericPrecision.Value})";
+        }
+
+        return dataType;
+    }
+
+    private async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string tableName, CancellationToken ct)
+    {
+        var foreignKeys = new List<ForeignKeyInfo>();
+
+        try
+        {
+            const string sql = @"
+                SELECT 
+                    kcu.COLUMN_NAME,
+                    kcu.REFERENCED_TABLE_NAME,
+                    kcu.REFERENCED_COLUMN_NAME,
+                    rc.DELETE_RULE,
+                    rc.UPDATE_RULE
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+                    ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                WHERE kcu.TABLE_NAME = @tableName
+                  AND kcu.REFERENCED_TABLE_NAME IS NOT NULL";
+
+            using var command = m_connection!.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@tableName", tableName);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                foreignKeys.Add(new ForeignKeyInfo
+                {
+                    ColumnName = reader.GetString(0),
+                    ReferencedTable = reader.GetString(1),
+                    ReferencedColumn = reader.GetString(2),
+                    OnDelete = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    OnUpdate = reader.IsDBNull(4) ? null : reader.GetString(4)
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            m_logger.LogDebug(ex, "Unable to read foreign key metadata for table {TableName}", tableName);
+        }
+
+        return foreignKeys;
+    }
+
     private async Task TryMarkPrimaryKeysAsync(string tableName, List<ColumnInfo> columns, CancellationToken ct)
     {
-        // 1) Prefer INFORMATION_SCHEMA for PK metadata
+        // Get PRIMARY KEY columns from INFORMATION_SCHEMA
         try
         {
             const string sql = @"
@@ -375,68 +512,37 @@ public sealed class DatabaseService : IDatabaseService
                 WHERE kcu.TABLE_NAME = @tableName
                   AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'";
 
-            using (var command = m_connection!.CreateCommand())
-            {
-                command.CommandText = sql;
-                command.Parameters.AddWithValue("@tableName", tableName);
-
-                var pkColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                using var reader = await command.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
-                {
-                    if (!reader.IsDBNull(0))
-                        pkColumns.Add(reader.GetString(0));
-                }
-
-                if (pkColumns.Count > 0)
-                {
-                    for (var i = 0; i < columns.Count; i++)
-                    {
-                        var c = columns[i];
-                        if (pkColumns.Contains(c.Name))
-                            c.IsPrimaryKey = true;
-                    }
-                    return;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            m_logger.LogDebug(ex, "Unable to read INFORMATION_SCHEMA primary key metadata");
-        }
-
-        // 2) Fallback: PRAGMA table_info exposes PK flag reliably
-        try
-        {
-            const string pragmaSql = "PRAGMA table_info(@tableName)";
-
             using var command = m_connection!.CreateCommand();
-            command.CommandText = pragmaSql;
+            command.CommandText = sql;
             command.Parameters.AddWithValue("@tableName", tableName);
 
             var pkColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                // PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
-                if (!reader.IsDBNull(1) && !reader.IsDBNull(5) && reader.GetInt32(5) > 0)
-                    pkColumns.Add(reader.GetString(1));
+                if (!reader.IsDBNull(0))
+                    pkColumns.Add(reader.GetString(0));
             }
 
-            if (pkColumns.Count == 0)
-                return;
-
-            for (var i = 0; i < columns.Count; i++)
+            foreach (var col in columns)
             {
-                var c = columns[i];
-                if (pkColumns.Contains(c.Name))
-                    c.IsPrimaryKey = true;
+                if (pkColumns.Contains(col.Name))
+                    col.IsPrimaryKey = true;
             }
         }
         catch (Exception ex)
         {
-            m_logger.LogDebug(ex, "Unable to read PRAGMA table_info for PK metadata");
+            m_logger.LogDebug(ex, "Unable to read INFORMATION_SCHEMA primary key metadata");
         }
+    }
+
+    private sealed class ForeignKeyInfo
+    {
+        public string ColumnName { get; init; } = string.Empty;
+        public string ReferencedTable { get; init; } = string.Empty;
+        public string ReferencedColumn { get; init; } = string.Empty;
+        public string? OnDelete { get; init; }
+        public string? OnUpdate { get; init; }
     }
 
     #endregion

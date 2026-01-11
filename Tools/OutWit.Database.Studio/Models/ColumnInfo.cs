@@ -18,10 +18,18 @@ public sealed class ColumnInfo : ModelBase
         return Name.Is(other.Name)
                && OrdinalPosition.Is(other.OrdinalPosition)
                && DataType.Is(other.DataType)
+               && MaxLength.Is(other.MaxLength)
+               && NumericPrecision.Is(other.NumericPrecision)
+               && NumericScale.Is(other.NumericScale)
                && IsNullable.Is(other.IsNullable)
                && IsPrimaryKey.Is(other.IsPrimaryKey)
                && IsAutoIncrement.Is(other.IsAutoIncrement)
-               && DefaultValue.Is(other.DefaultValue);
+               && IsUnique.Is(other.IsUnique)
+               && DefaultValue.Is(other.DefaultValue)
+               && CheckExpression.Is(other.CheckExpression)
+               && Collation.Is(other.Collation)
+               && GenerationExpression.Is(other.GenerationExpression)
+               && IsGenerated.Is(other.IsGenerated);
     }
 
     public override ColumnInfo Clone()
@@ -31,10 +39,18 @@ public sealed class ColumnInfo : ModelBase
             Name = Name,
             OrdinalPosition = OrdinalPosition,
             DataType = DataType,
+            MaxLength = MaxLength,
+            NumericPrecision = NumericPrecision,
+            NumericScale = NumericScale,
             IsNullable = IsNullable,
             IsPrimaryKey = IsPrimaryKey,
             IsAutoIncrement = IsAutoIncrement,
-            DefaultValue = DefaultValue
+            IsUnique = IsUnique,
+            DefaultValue = DefaultValue,
+            CheckExpression = CheckExpression,
+            Collation = Collation,
+            GenerationExpression = GenerationExpression,
+            IsGenerated = IsGenerated
         };
     }
 
@@ -58,6 +74,21 @@ public sealed class ColumnInfo : ModelBase
     public string DataType { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the maximum length for string/binary types.
+    /// </summary>
+    public int? MaxLength { get; set; }
+
+    /// <summary>
+    /// Gets or sets the numeric precision for decimal types.
+    /// </summary>
+    public int? NumericPrecision { get; set; }
+
+    /// <summary>
+    /// Gets or sets the numeric scale for decimal types.
+    /// </summary>
+    public int? NumericScale { get; set; }
+
+    /// <summary>
     /// Gets or sets whether the column is nullable.
     /// </summary>
     public bool IsNullable { get; set; }
@@ -73,9 +104,39 @@ public sealed class ColumnInfo : ModelBase
     public bool IsAutoIncrement { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the column has a UNIQUE constraint.
+    /// </summary>
+    public bool IsUnique { get; set; }
+
+    /// <summary>
     /// Gets or sets the default value expression.
     /// </summary>
     public string? DefaultValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the CHECK constraint expression.
+    /// </summary>
+    public string? CheckExpression { get; set; }
+
+    /// <summary>
+    /// Gets or sets the collation name.
+    /// </summary>
+    public string? Collation { get; set; }
+
+    /// <summary>
+    /// Gets or sets the generation expression for computed columns.
+    /// </summary>
+    public string? GenerationExpression { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the column is generated (STORED, VIRTUAL, or NEVER).
+    /// </summary>
+    public string? IsGenerated { get; set; }
+
+    /// <summary>
+    /// Gets whether this is a computed column.
+    /// </summary>
+    public bool IsComputed => IsGenerated != null && IsGenerated != "NEVER";
 
     #endregion
 }

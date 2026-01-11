@@ -39,10 +39,12 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
             var order = 1;
+            
             foreach (var trigger in m_triggers.Values)
             {
-                yield return new WitSqlRow([
+                results.Add(new WitSqlRow([
                     WitSqlValue.FromText("WitDB"),                                      // TRIGGER_CATALOG
                     WitSqlValue.FromText("public"),                                     // TRIGGER_SCHEMA
                     WitSqlValue.FromText(trigger.Name),                                 // TRIGGER_NAME
@@ -59,8 +61,10 @@ public sealed partial class SchemaCatalog
                     WitSqlValue.FromText(GetActionTiming(trigger.Time)),                // ACTION_TIMING
                     WitSqlValue.Null,                                                   // ACTION_REFERENCE_OLD_TABLE
                     WitSqlValue.Null,                                                   // ACTION_REFERENCE_NEW_TABLE
-                ], TRIGGERS_COLUMNS);
+                ], TRIGGERS_COLUMNS));
             }
+            
+            return results;
         }
         finally
         {

@@ -37,6 +37,8 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             foreach (var table in m_tables.Values)
             {
                 // Primary key columns
@@ -45,7 +47,7 @@ public sealed partial class SchemaCatalog
                     int position = 1;
                     foreach (var columnName in table.PrimaryKey)
                     {
-                        yield return new WitSqlRow([
+                        results.Add(new WitSqlRow([
                             WitSqlValue.FromText("WitDB"),                               // CONSTRAINT_CATALOG
                             WitSqlValue.FromText("public"),                              // CONSTRAINT_SCHEMA
                             WitSqlValue.FromText($"PK_{table.Name}"),                    // CONSTRAINT_NAME
@@ -58,7 +60,7 @@ public sealed partial class SchemaCatalog
                             WitSqlValue.Null,                                            // REFERENCED_TABLE_SCHEMA
                             WitSqlValue.Null,                                            // REFERENCED_TABLE_NAME
                             WitSqlValue.Null,                                            // REFERENCED_COLUMN_NAME
-                        ], KEY_COLUMN_USAGE_COLUMNS);
+                        ], KEY_COLUMN_USAGE_COLUMNS));
                     }
                 }
 
@@ -71,7 +73,7 @@ public sealed partial class SchemaCatalog
                         int position = 1;
                         foreach (var columnName in uniqueColumns)
                         {
-                            yield return new WitSqlRow([
+                            results.Add(new WitSqlRow([
                                 WitSqlValue.FromText("WitDB"),
                                 WitSqlValue.FromText("public"),
                                 WitSqlValue.FromText($"UQ_{table.Name}_{constraintIndex}"),
@@ -84,7 +86,7 @@ public sealed partial class SchemaCatalog
                                 WitSqlValue.Null,
                                 WitSqlValue.Null,
                                 WitSqlValue.Null,
-                            ], KEY_COLUMN_USAGE_COLUMNS);
+                            ], KEY_COLUMN_USAGE_COLUMNS));
                         }
                         constraintIndex++;
                     }
@@ -95,7 +97,7 @@ public sealed partial class SchemaCatalog
                 {
                     if (column.IsUnique && !column.IsPrimaryKey)
                     {
-                        yield return new WitSqlRow([
+                        results.Add(new WitSqlRow([
                             WitSqlValue.FromText("WitDB"),
                             WitSqlValue.FromText("public"),
                             WitSqlValue.FromText($"UQ_{table.Name}_{column.Name}"),
@@ -108,7 +110,7 @@ public sealed partial class SchemaCatalog
                             WitSqlValue.Null,
                             WitSqlValue.Null,
                             WitSqlValue.Null,
-                        ], KEY_COLUMN_USAGE_COLUMNS);
+                        ], KEY_COLUMN_USAGE_COLUMNS));
                     }
                 }
 
@@ -126,7 +128,7 @@ public sealed partial class SchemaCatalog
                                 ? fk.ForeignColumns[i]
                                 : localColumn;
 
-                            yield return new WitSqlRow([
+                            results.Add(new WitSqlRow([
                                 WitSqlValue.FromText("WitDB"),
                                 WitSqlValue.FromText("public"),
                                 WitSqlValue.FromText($"FK_{table.Name}_{fk.ForeignTable}_{fkIndex}"),
@@ -139,7 +141,7 @@ public sealed partial class SchemaCatalog
                                 WitSqlValue.FromText("public"),
                                 WitSqlValue.FromText(fk.ForeignTable),
                                 WitSqlValue.FromText(foreignColumn),
-                            ], KEY_COLUMN_USAGE_COLUMNS);
+                            ], KEY_COLUMN_USAGE_COLUMNS));
                         }
                         fkIndex++;
                     }
@@ -155,7 +157,7 @@ public sealed partial class SchemaCatalog
                             ? fk.ForeignColumns[0]
                             : column.Name;
 
-                        yield return new WitSqlRow([
+                        results.Add(new WitSqlRow([
                             WitSqlValue.FromText("WitDB"),
                             WitSqlValue.FromText("public"),
                             WitSqlValue.FromText($"FK_{table.Name}_{fk.ForeignTable}_{column.Name}"),
@@ -168,10 +170,12 @@ public sealed partial class SchemaCatalog
                             WitSqlValue.FromText("public"),
                             WitSqlValue.FromText(fk.ForeignTable),
                             WitSqlValue.FromText(foreignColumn),
-                        ], KEY_COLUMN_USAGE_COLUMNS);
+                        ], KEY_COLUMN_USAGE_COLUMNS));
                     }
                 }
             }
+            
+            return results;
         }
         finally
         {

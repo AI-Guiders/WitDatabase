@@ -36,6 +36,8 @@ public sealed partial class SchemaCatalog
         m_lock.EnterReadLock();
         try
         {
+            var results = new List<WitSqlRow>();
+            
             foreach (var table in m_tables.Values)
             {
                 // Table-level foreign keys
@@ -44,7 +46,7 @@ public sealed partial class SchemaCatalog
                     int fkIndex = 1;
                     foreach (var fk in table.ForeignKeys)
                     {
-                        yield return new WitSqlRow([
+                        results.Add(new WitSqlRow([
                             WitSqlValue.FromText("WitDB"),                                              // CONSTRAINT_CATALOG
                             WitSqlValue.FromText("public"),                                             // CONSTRAINT_SCHEMA
                             WitSqlValue.FromText($"FK_{table.Name}_{fk.ForeignTable}_{fkIndex++}"),     // CONSTRAINT_NAME
@@ -54,7 +56,7 @@ public sealed partial class SchemaCatalog
                             WitSqlValue.FromText("NONE"),                                               // MATCH_OPTION
                             WitSqlValue.FromText(GetReferenceActionName(fk.OnUpdate)),                  // UPDATE_RULE
                             WitSqlValue.FromText(GetReferenceActionName(fk.OnDelete)),                  // DELETE_RULE
-                        ], REFERENTIAL_CONSTRAINTS_COLUMNS);
+                        ], REFERENTIAL_CONSTRAINTS_COLUMNS));
                     }
                 }
 
@@ -64,7 +66,7 @@ public sealed partial class SchemaCatalog
                     if (column.ForeignKey != null)
                     {
                         var fk = column.ForeignKey;
-                        yield return new WitSqlRow([
+                        results.Add(new WitSqlRow([
                             WitSqlValue.FromText("WitDB"),                                              // CONSTRAINT_CATALOG
                             WitSqlValue.FromText("public"),                                             // CONSTRAINT_SCHEMA
                             WitSqlValue.FromText($"FK_{table.Name}_{fk.ForeignTable}_{column.Name}"),   // CONSTRAINT_NAME
@@ -74,10 +76,12 @@ public sealed partial class SchemaCatalog
                             WitSqlValue.FromText("NONE"),                                               // MATCH_OPTION
                             WitSqlValue.FromText(GetReferenceActionName(fk.OnUpdate)),                  // UPDATE_RULE
                             WitSqlValue.FromText(GetReferenceActionName(fk.OnDelete)),                  // DELETE_RULE
-                        ], REFERENTIAL_CONSTRAINTS_COLUMNS);
+                        ], REFERENTIAL_CONSTRAINTS_COLUMNS));
                     }
                 }
             }
+            
+            return results;
         }
         finally
         {
