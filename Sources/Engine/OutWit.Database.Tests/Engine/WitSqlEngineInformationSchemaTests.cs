@@ -395,4 +395,148 @@ public sealed class WitSqlEngineInformationSchemaTests : WitSqlEngineTestsBase
     }
 
     #endregion
+
+    #region INFORMATION_SCHEMA.TRIGGERS Tests
+
+    [Test]
+    public void InformationSchemaTriggersShowsAllTriggersTest()
+    {
+        m_engine.Execute("CREATE TABLE Users (Id BIGINT PRIMARY KEY, Name VARCHAR(100))");
+        m_engine.Execute(@"
+            CREATE TRIGGER trg_users_insert 
+            AFTER INSERT ON Users 
+            FOR EACH ROW 
+            BEGIN 
+                SELECT 1; 
+            END");
+        m_engine.Execute(@"
+            CREATE TRIGGER trg_users_update 
+            BEFORE UPDATE ON Users 
+            FOR EACH ROW 
+            BEGIN 
+                SELECT 2; 
+            END");
+
+        var rows = m_engine.Query("SELECT * FROM INFORMATION_SCHEMA.TRIGGERS ORDER BY TRIGGER_NAME");
+
+        Assert.That(rows, Has.Count.EqualTo(2));
+        Assert.That(rows.Select(r => r["TRIGGER_NAME"].AsString()), Does.Contain("trg_users_insert"));
+        Assert.That(rows.Select(r => r["TRIGGER_NAME"].AsString()), Does.Contain("trg_users_update"));
+    }
+
+    [Test]
+    public void InformationSchemaTriggersShowsTimingAndEventTest()
+    {
+        m_engine.Execute("CREATE TABLE Users (Id BIGINT PRIMARY KEY, Name VARCHAR(100))");
+        m_engine.Execute(@"
+            CREATE TRIGGER trg_test 
+            BEFORE DELETE ON Users 
+            FOR EACH ROW 
+            BEGIN 
+                SELECT 1; 
+            END");
+
+        var rows = m_engine.Query(@"
+            SELECT TRIGGER_NAME, ACTION_TIMING, EVENT_MANIPULATION, EVENT_OBJECT_TABLE 
+            FROM INFORMATION_SCHEMA.TRIGGERS 
+            WHERE TRIGGER_NAME = 'trg_test'");
+
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["ACTION_TIMING"].AsString(), Is.EqualTo("BEFORE"));
+        Assert.That(rows[0]["EVENT_MANIPULATION"].AsString(), Is.EqualTo("DELETE"));
+        Assert.That(rows[0]["EVENT_OBJECT_TABLE"].AsString(), Is.EqualTo("Users"));
+    }
+
+    [Test]
+    public void InformationSchemaTriggersShowsBodyTest()
+    {
+        m_engine.Execute("CREATE TABLE Users (Id BIGINT PRIMARY KEY, Name VARCHAR(100))");
+        m_engine.Execute(@"
+            CREATE TRIGGER trg_test 
+            AFTER INSERT ON Users 
+            FOR EACH ROW 
+            BEGIN 
+                SELECT NEW.Name; 
+            END");
+
+        var rows = m_engine.Query(@"
+            SELECT ACTION_STATEMENT 
+            FROM INFORMATION_SCHEMA.TRIGGERS 
+            WHERE TRIGGER_NAME = 'trg_test'");
+
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["ACTION_STATEMENT"].AsString(), Does.Contain("SELECT"));
+    }
+
+    [Test]
+    public void InformationSchemaTriggersEmptyWhenNoTriggersTest()
+    {
+        m_engine.Execute("CREATE TABLE Users (Id BIGINT PRIMARY KEY)");
+
+        var rows = m_engine.Query("SELECT * FROM INFORMATION_SCHEMA.TRIGGERS");
+
+        Assert.That(rows, Is.Empty);
+    }
+
+    #endregion
+
+    #region INFORMATION_SCHEMA.SEQUENCES Tests
+
+    [Test]
+    public void InformationSchemaSequencesShowsAllSequencesTest()
+    {
+        m_engine.Execute("CREATE SEQUENCE seq_orders START WITH 1000");
+        m_engine.Execute("CREATE SEQUENCE seq_users START WITH 1");
+
+        var rows = m_engine.Query("SELECT * FROM INFORMATION_SCHEMA.SEQUENCES ORDER BY SEQUENCE_NAME");
+
+        Assert.That(rows, Has.Count.EqualTo(2));
+        Assert.That(rows.Select(r => r["SEQUENCE_NAME"].AsString()), Does.Contain("seq_orders"));
+        Assert.That(rows.Select(r => r["SEQUENCE_NAME"].AsString()), Does.Contain("seq_users"));
+    }
+
+    [Test]
+    public void InformationSchemaSequencesShowsStartValueTest()
+    {
+        m_engine.Execute("CREATE SEQUENCE seq_test START WITH 5000");
+
+        var rows = m_engine.Query(@"
+            SELECT SEQUENCE_NAME, START_VALUE 
+            FROM INFORMATION_SCHEMA.SEQUENCES 
+            WHERE SEQUENCE_NAME = 'seq_test'");
+
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["START_VALUE"].AsInt64(), Is.EqualTo(5000));
+    }
+
+    [Test]
+    public void InformationSchemaSequencesShowsCurrentValueTest()
+    {
+        m_engine.Execute("CREATE SEQUENCE seq_test START WITH 100");
+
+        // Get next value a few times to increment the sequence
+        m_engine.ExecuteScalar("SELECT NEXTVAL('seq_test')");
+        m_engine.ExecuteScalar("SELECT NEXTVAL('seq_test')");
+        m_engine.ExecuteScalar("SELECT NEXTVAL('seq_test')");
+
+        var rows = m_engine.Query(@"
+            SELECT CURRENT_VALUE 
+            FROM INFORMATION_SCHEMA.SEQUENCES 
+            WHERE SEQUENCE_NAME = 'seq_test'");
+
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["CURRENT_VALUE"].AsInt64(), Is.EqualTo(102)); // 100, 101, 102
+    }
+
+    [Test]
+    public void InformationSchemaSequencesEmptyWhenNoSequencesTest()
+    {
+        m_engine.Execute("CREATE TABLE Users (Id BIGINT PRIMARY KEY)");
+
+        var rows = m_engine.Query("SELECT * FROM INFORMATION_SCHEMA.SEQUENCES");
+
+        Assert.That(rows, Is.Empty);
+    }
+
+    #endregion
 }

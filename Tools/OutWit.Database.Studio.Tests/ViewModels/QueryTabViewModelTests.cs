@@ -5,7 +5,7 @@ using OutWit.Database.Studio.Tests.Helpers;
 namespace OutWit.Database.Studio.Tests.ViewModels;
 
 /// <summary>
-/// Tests for QueryTabViewModel pagination and copy functionality.
+/// Tests for QueryTabViewModel functionality.
 /// </summary>
 [TestFixture]
 public class QueryTabViewModelTests
@@ -40,8 +40,6 @@ public class QueryTabViewModelTests
         var viewModel = new QueryTabViewModel(m_applicationVm);
 
         // Assert
-        Assert.That(viewModel.PageSize, Is.EqualTo(100));
-        Assert.That(viewModel.CurrentPage, Is.EqualTo(0));
         Assert.That(viewModel.TotalRowCount, Is.EqualTo(0));
         Assert.That(viewModel.HasResults, Is.False);
         Assert.That(viewModel.SelectedRows, Is.Null);
@@ -109,7 +107,6 @@ public class QueryTabViewModelTests
         Assert.That(viewModel.ResultData, Is.Null);
         Assert.That(viewModel.CurrentView, Is.Null);
         Assert.That(viewModel.TotalRowCount, Is.EqualTo(0));
-        Assert.That(viewModel.CurrentPage, Is.EqualTo(1));
         Assert.That(viewModel.ErrorMessage, Is.Null);
         Assert.That(viewModel.RowsAffected, Is.EqualTo(0));
         Assert.That(viewModel.ExecutionTimeMs, Is.EqualTo(0));
@@ -206,44 +203,94 @@ public class QueryTabViewModelTests
         Assert.That(viewModel.CopyAllRowsAsInsertCommand, Is.Not.Null);
     }
 
+    #endregion
+
+    #region SetResultData Tests
+
     [Test]
-    public void FirstPageCommandIsNotNullTest()
+    public void SetResultDataWithEmptyTableSetsZeroRowCountTest()
     {
         // Arrange
         var viewModel = new QueryTabViewModel(m_applicationVm);
+        var dataTable = new System.Data.DataTable();
+        dataTable.Columns.Add("Id", typeof(int));
+
+        // Act
+        viewModel.SetResultData(dataTable);
 
         // Assert
-        Assert.That(viewModel.FirstPageCommand, Is.Not.Null);
+        Assert.That(viewModel.TotalRowCount, Is.EqualTo(0));
+        Assert.That(viewModel.HasResults, Is.False);
+        Assert.That(viewModel.CurrentView, Is.Null);
     }
 
     [Test]
-    public void PreviousPageCommandIsNotNullTest()
+    public void SetResultDataWithRowsSetsCorrectCountTest()
     {
         // Arrange
         var viewModel = new QueryTabViewModel(m_applicationVm);
+        var dataTable = new System.Data.DataTable();
+        dataTable.Columns.Add("Id", typeof(int));
+        dataTable.Rows.Add(1);
+        dataTable.Rows.Add(2);
+        dataTable.Rows.Add(3);
+
+        // Act
+        viewModel.SetResultData(dataTable);
 
         // Assert
-        Assert.That(viewModel.PreviousPageCommand, Is.Not.Null);
+        Assert.That(viewModel.TotalRowCount, Is.EqualTo(3));
+        Assert.That(viewModel.HasResults, Is.True);
+        Assert.That(viewModel.CurrentView, Is.Not.Null);
+        Assert.That(viewModel.ResultData, Is.SameAs(dataTable));
+    }
+
+    #endregion
+
+    #region Status Tests
+
+    [Test]
+    public void IsSuccessIsTrueWhenNoErrorMessageTest()
+    {
+        // Arrange
+        var viewModel = new QueryTabViewModel(m_applicationVm);
+        viewModel.ErrorMessage = null;
+
+        // Assert
+        Assert.That(viewModel.IsSuccess, Is.True);
     }
 
     [Test]
-    public void NextPageCommandIsNotNullTest()
+    public void IsSuccessIsFalseWhenErrorMessageExistsTest()
     {
         // Arrange
         var viewModel = new QueryTabViewModel(m_applicationVm);
+        viewModel.ErrorMessage = "Error occurred";
 
         // Assert
-        Assert.That(viewModel.NextPageCommand, Is.Not.Null);
+        Assert.That(viewModel.IsSuccess, Is.False);
     }
 
     [Test]
-    public void LastPageCommandIsNotNullTest()
+    public void HasMessagesIsTrueWhenRowsAffectedGreaterThanZeroTest()
     {
         // Arrange
         var viewModel = new QueryTabViewModel(m_applicationVm);
+        viewModel.RowsAffected = 5;
 
         // Assert
-        Assert.That(viewModel.LastPageCommand, Is.Not.Null);
+        Assert.That(viewModel.HasMessages, Is.True);
+    }
+
+    [Test]
+    public void HasMessagesIsTrueWhenErrorMessageExistsTest()
+    {
+        // Arrange
+        var viewModel = new QueryTabViewModel(m_applicationVm);
+        viewModel.ErrorMessage = "Error";
+
+        // Assert
+        Assert.That(viewModel.HasMessages, Is.True);
     }
 
     #endregion

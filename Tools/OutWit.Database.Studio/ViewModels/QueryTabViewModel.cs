@@ -1,8 +1,6 @@
 using System.Collections;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Data;
-using System.Text;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
@@ -11,6 +9,7 @@ using OutWit.Common.Locker;
 using OutWit.Common.MVVM.Commands;
 using OutWit.Common.MVVM.ViewModels;
 using OutWit.Common.Utils;
+using OutWit.Database.Studio.Services;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -19,19 +18,11 @@ namespace OutWit.Database.Studio.ViewModels;
 /// </summary>
 public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 {
-    #region Constants
-
-    private const int DEFAULT_PAGE_SIZE = 100;
-    private const string NULL_DISPLAY = "NULL";
-
-    #endregion
-
     #region Constructors
 
     public QueryTabViewModel(ApplicationViewModel applicationViewModel)
         : base(applicationViewModel)
     {
-        InitDefaults();
         InitCommands();
         InitEvents();
     }
@@ -40,18 +31,8 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 
     #region Initialization
 
-    private void InitDefaults()
-    {
-        PageSize = DEFAULT_PAGE_SIZE;
-    }
-
     private void InitCommands()
     {
-        FirstPageCommand = new RelayCommand(GoToFirstPage);
-        PreviousPageCommand = new RelayCommand(GoToPreviousPage);
-        NextPageCommand = new RelayCommand(GoToNextPage);
-        LastPageCommand = new RelayCommand(GoToLastPage);
-        
         CopyRowsCommand = new RelayCommandAsync(CopyRowsAsync);
         CopyRowsAsInsertCommand = new RelayCommandAsync(CopyRowsAsInsertAsync);
         CopyRowsAsCsvCommand = new RelayCommandAsync(CopyRowsAsCsvAsync);
@@ -66,59 +47,48 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
-    #region Pagination Handlers
+    #region Functions
 
-    private void GoToFirstPage()
+    /// <summary>
+    /// Sets the result data for display.
+    /// </summary>
+    public void SetResultData(DataTable? data)
     {
-        if (!CanGoToPreviousPage) 
-            return;
-
         using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
 
-        CurrentPage = 1;
-        ApplyPagination();
+        ResultData = data;
+
+        if (data == null || data.Rows.Count == 0)
+        {
+            TotalRowCount = 0;
+            CurrentView = null;
+            return;
+        }
+
+        TotalRowCount = data.Rows.Count;
+        CurrentView = new DataView(data);
+
         UpdateStatus();
     }
 
-    private void GoToPreviousPage()
+    /// <summary>
+    /// Clears all results.
+    /// </summary>
+    public void ClearResults()
     {
-        if (!CanGoToPreviousPage) 
-            return;
-
         using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
 
-        CurrentPage--;
-        ApplyPagination();
+        ResultData?.Dispose();
+        ResultData = null;
+        CurrentView = null;
+        TotalRowCount = 0;
+        RowsAffected = 0;
+        ExecutionTimeMs = 0;
+        ErrorMessage = null;
+        SelectedRows = null;
+
         UpdateStatus();
     }
-
-    private void GoToNextPage()
-    {
-        if (!CanGoToNextPage)
-            return;
-
-        using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
-
-        CurrentPage++;
-        ApplyPagination();
-        UpdateStatus();
-    }
-
-    private void GoToLastPage()
-    {
-        if (!CanGoToNextPage) 
-            return;
-
-        using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
-
-        CurrentPage = TotalPages;
-        ApplyPagination();
-        UpdateStatus();
-    }
-
-    #endregion
-
-    #region Copy Handlers
 
     private async Task CopyRowsAsync()
     {
@@ -126,7 +96,7 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
             return;
 
         var rows = GetSelectedOrVisibleRows();
-        var csv = RowsToCsv(rows, includeHeaders: false);
+        var csv = Export.RowsToCsv(rows, ResultData!, includeHeaders: false);
         await SetClipboardTextAsync(csv);
     }
 
@@ -136,7 +106,7 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
             return;
 
         var rows = GetSelectedOrVisibleRows();
-        var csv = RowsToCsv(rows, includeHeaders: true);
+        var csv = Export.RowsToCsv(rows, ResultData!, includeHeaders: true);
         await SetClipboardTextAsync(csv);
     }
 
@@ -146,7 +116,7 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
             return;
 
         var rows = GetSelectedOrVisibleRows();
-        var sql = RowsToInsertStatements(rows);
+        var sql = Export.RowsToInsertStatements(rows, ResultData!, "TableName");
         await SetClipboardTextAsync(sql);
     }
 
@@ -155,7 +125,7 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         if (!HasResults || ResultData == null)
             return;
 
-        var csv = RowsToCsv(ResultData.Rows.Cast<DataRow>().ToList(), includeHeaders: true);
+        var csv = Export.ToCsv(ResultData, includeHeaders: true);
         await SetClipboardTextAsync(csv);
     }
 
@@ -164,7 +134,7 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         if (!HasResults || ResultData == null)
             return;
 
-        var sql = RowsToInsertStatements(ResultData.Rows.Cast<DataRow>().ToList());
+        var sql = Export.ToInsertStatements(ResultData, "TableName");
         await SetClipboardTextAsync(sql);
     }
 
@@ -181,198 +151,15 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    #endregion
-
-    #region Functions
-
-    /// <summary>
-    /// Sets the full result data and applies pagination.
-    /// </summary>
-    public void SetResultData(DataTable? data)
-    {
-        using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
-
-        ResultData = data;
-
-        if (data == null || data.Rows.Count == 0)
-        {
-            TotalRowCount = 0;
-            CurrentPage = 1;
-            CurrentView = null;
-            return;
-        }
-
-        TotalRowCount = data.Rows.Count;
-
-        ResetPagination();
-        UpdateStatus();
-    }
-
-    /// <summary>
-    /// Applies pagination to show the current page of results.
-    /// </summary>
-    private void ApplyPagination()
-    {
-        if (ResultData == null || ResultData.Rows.Count == 0)
-        {
-            CurrentView = null;
-            return;
-        }
-
-        // Create a DataView for the current page
-        var view = new DataView(ResultData);
-        
-        // We'll handle pagination in the grid by showing all and letting user scroll
-        // For very large datasets, we could implement virtual scrolling
-        CurrentView = view;
-    }
-
-    /// <summary>
-    /// Clears all results and resets pagination.
-    /// </summary>
-    public void ClearResults()
-    {
-        using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
-
-        ResultData?.Dispose();
-        ResultData = null;
-        CurrentView = null;
-        TotalRowCount = 0;
-        CurrentPage = 1;
-        RowsAffected = 0;
-        ExecutionTimeMs = 0;
-        ErrorMessage = null;
-        SelectedRows = null;
-
-        UpdateStatus();
-    }
-
-    private IReadOnlyList<DataRow> GetSelectedOrVisibleRows()
+    private IEnumerable<DataRowView> GetSelectedOrVisibleRows()
     {
         if (SelectedRows != null && SelectedRows.Count > 0)
-            return SelectedRows.Cast<DataRowView>().Select(rv => rv.Row).ToList();
+            return SelectedRows.Cast<DataRowView>();
 
         if (CurrentView != null)
-            return CurrentView.Cast<DataRowView>().Select(rv => rv.Row).ToList();
+            return CurrentView.Cast<DataRowView>();
 
         return [];
-    }
-
-    private void ResetPagination()
-    {
-        using var locker = GlobalLocker.Lock(nameof(QueryTabViewModel));
-
-        CurrentPage = 1;
-        ApplyPagination();
-    }
-
-    #endregion
-
-    #region Export Functions
-
-    private string RowsToCsv(IReadOnlyList<DataRow> rows, bool includeHeaders)
-    {
-        if (rows.Count == 0 || ResultData == null)
-            return string.Empty;
-
-        var sb = new StringBuilder();
-
-        // Headers
-        if (includeHeaders)
-        {
-            var headers = ResultData.Columns.Cast<DataColumn>().Select(c => EscapeCsvField(c.ColumnName));
-            sb.AppendLine(string.Join(",", headers));
-        }
-
-        // Rows
-        foreach (var row in rows)
-        {
-            var values = row.ItemArray.Select(v => EscapeCsvField(FormatValue(v)));
-            sb.AppendLine(string.Join(",", values));
-        }
-
-        return sb.ToString();
-    }
-
-    private string RowsToInsertStatements(IReadOnlyList<DataRow> rows)
-    {
-        if (rows.Count == 0 || ResultData == null)
-            return string.Empty;
-
-        var sb = new StringBuilder();
-        var tableName = "TableName";
-        var columns = string.Join(", ", ResultData.Columns.Cast<DataColumn>().Select(c => c.ColumnName));
-
-        foreach (var row in rows)
-        {
-            var values = new List<string>();
-            for (var i = 0; i < ResultData.Columns.Count; i++)
-            {
-                values.Add(FormatSqlValue(row[i], ResultData.Columns[i].DataType));
-            }
-            sb.AppendLine($"INSERT INTO {tableName} ({columns}) VALUES ({string.Join(", ", values)});");
-        }
-
-        return sb.ToString();
-    }
-
-    private static string FormatValue(object? value)
-    {
-        if (value == null || value == DBNull.Value)
-            return string.Empty;
-
-        return value switch
-        {
-            DateTime dt => dt.ToString("yyyy-MM-dd HH:mm:ss"),
-            DateOnly d => d.ToString("yyyy-MM-dd"),
-            TimeOnly t => t.ToString("HH:mm:ss"),
-            byte[] bytes => bytes.Length <= 32
-                ? $"0x{BitConverter.ToString(bytes).Replace("-", "")}"
-                : $"0x{BitConverter.ToString(bytes, 0, 32).Replace("-", "")}...",
-            bool b => b ? "true" : "false",
-            _ => value.ToString() ?? string.Empty
-        };
-    }
-
-    private static string EscapeCsvField(string? field)
-    {
-        if (string.IsNullOrEmpty(field))
-            return string.Empty;
-
-        if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
-        {
-            return $"\"{field.Replace("\"", "\"\"")}\"";
-        }
-
-        return field;
-    }
-
-    private static string FormatSqlValue(object? value, Type dataType)
-    {
-        if (value == null || value == DBNull.Value)
-            return NULL_DISPLAY;
-
-        // Numbers don't need quotes
-        if (IsNumericType(dataType))
-            return value.ToString() ?? NULL_DISPLAY;
-
-        // Boolean
-        if (dataType == typeof(bool))
-            return ((bool)value) ? "TRUE" : "FALSE";
-
-        // Escape single quotes and wrap in quotes
-        var str = FormatValue(value);
-        return $"'{str.Replace("'", "''")}'";
-    }
-
-    private static bool IsNumericType(Type type)
-    {
-        return type == typeof(byte) || type == typeof(sbyte) ||
-               type == typeof(short) || type == typeof(ushort) ||
-               type == typeof(int) || type == typeof(uint) ||
-               type == typeof(long) || type == typeof(ulong) ||
-               type == typeof(float) || type == typeof(double) ||
-               type == typeof(decimal);
     }
 
     #endregion
@@ -381,20 +168,6 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 
     private void UpdateStatus()
     {
-        TotalPages = TotalRowCount > 0 
-            ? (int)Math.Ceiling((double)TotalRowCount / PageSize) : 1;
-
-        CanGoToPreviousPage = CurrentPage > 1;
-        CanGoToNextPage = CurrentPage < TotalPages;
-
-        DisplayedRowStart = TotalRowCount > 0 
-            ? (CurrentPage - 1) * PageSize + 1
-            : 0;
-
-        DisplayedRowEnd = TotalRowCount > 0 
-            ? Math.Min(CurrentPage * PageSize, TotalRowCount) 
-            : 0;
-
         HasResults = TotalRowCount > 0;
         IsSuccess = string.IsNullOrEmpty(ErrorMessage);
         HasMessages = !string.IsNullOrEmpty(ErrorMessage) || RowsAffected > 0;
@@ -411,11 +184,8 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 
     private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if(GlobalLocker.IsLocked(nameof(QueryTabViewModel)))
+        if (GlobalLocker.IsLocked(nameof(QueryTabViewModel)))
             return;
-
-        if (e.IsProperty((QueryTabViewModel vm)=>vm.CurrentPage))
-            UpdateStatus();
 
         if (e.IsProperty((QueryTabViewModel vm) => vm.TotalRowCount))
             UpdateStatus();
@@ -437,12 +207,6 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 
         if (e.IsProperty((QueryTabViewModel vm) => vm.SelectedRows))
             UpdateStatus();
-
-        if (e.IsProperty((QueryTabViewModel vm) => vm.PageSize))
-        {
-            ResetPagination();
-            UpdateStatus();
-        }
     }
 
     #endregion
@@ -516,6 +280,12 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
     public double ExecutionTimeMs { get; set; }
 
     /// <summary>
+    /// Total number of rows in the result set.
+    /// </summary>
+    [Notify]
+    public int TotalRowCount { get; set; }
+
+    /// <summary>
     /// Gets whether the tab has results to display.
     /// </summary>
     [Notify]
@@ -547,68 +317,8 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
-    #region Pagination Properties
-
-    /// <summary>
-    /// Current page number (1-based).
-    /// </summary>
-    [Notify]
-    public int CurrentPage { get; set; }
-
-    /// <summary>
-    /// Number of rows per page.
-    /// </summary>
-    [Notify]
-    public int PageSize { get; set; }
-
-    /// <summary>
-    /// Total number of rows in the result set.
-    /// </summary>
-    [Notify]
-    public int TotalRowCount { get; set; }
-
-    /// <summary>
-    /// Total number of pages.
-    /// </summary>
-    [Notify]
-    public int TotalPages { get; private set; }
-
-    /// <summary>
-    /// First row number displayed (1-based).
-    /// </summary>
-    [Notify]
-    public int DisplayedRowStart { get; private set; }
-
-    /// <summary>
-    /// Last row number displayed (1-based).
-    /// </summary>
-    [Notify]
-    public int DisplayedRowEnd { get; private set; }
-
-    /// <summary>
-    /// Whether navigation to previous page is available.
-    /// </summary>
-    [Notify]
-    public bool CanGoToPreviousPage { get; private set; }
-
-    /// <summary>
-    /// Whether navigation to next page is available.
-    /// </summary>
-    [Notify]
-    public bool CanGoToNextPage { get; private set; }
-
-    #endregion
-
     #region Commands
 
-    public ICommand FirstPageCommand { get; private set; } = null!;
-
-    public ICommand PreviousPageCommand { get; private set; } = null!;
-
-    public ICommand NextPageCommand { get; private set; } = null!;
-
-    public ICommand LastPageCommand { get; private set; } = null!;
-    
     public ICommand CopyRowsCommand { get; private set; } = null!;
     
     public ICommand CopyRowsAsCsvCommand { get; private set; } = null!;
@@ -618,6 +328,12 @@ public class QueryTabViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand CopyAllRowsCommand { get; private set; } = null!;
     
     public ICommand CopyAllRowsAsInsertCommand { get; private set; } = null!;
+
+    #endregion
+
+    #region Services
+
+    private IExportService Export => ApplicationVm.Export;
 
     #endregion
 }

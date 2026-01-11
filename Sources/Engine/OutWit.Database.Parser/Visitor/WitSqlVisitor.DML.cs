@@ -86,11 +86,11 @@ internal sealed partial class WitSqlVisitor
 
     private ClauseCteDefinition VisitCteDefinition(WitSqlParser.CteDefinitionContext context)
     {
-        var columnNames = context.columnName()?.Select(c => c.GetText()).ToList();
+        var columnNames = context.columnName()?.Select(c => GetColumnName(c)).ToList();
 
         return new ClauseCteDefinition
         {
-            Name = context.IDENTIFIER().GetText(),
+            Name = NormalizeIdentifier(context.IDENTIFIER().GetText()),
             ColumnNames = columnNames,
             Query = VisitQueryExpression(context.queryExpression())
         };
@@ -171,12 +171,12 @@ internal sealed partial class WitSqlVisitor
             WitSqlParser.SelectTableAllContext tableAll => new ClauseSelectItem
             {
                 IsStar = true,
-                TableName = tableAll.tableName().GetText()
+                TableName = GetTableName(tableAll.tableName())
             },
             WitSqlParser.SelectExpressionContext expr => new ClauseSelectItem
             {
                 Expression = VisitExpression(expr.expression()),
-                Alias = expr.alias()?.GetText()
+                Alias = GetAlias(expr.alias())
             },
             _ => throw new InvalidOperationException($"Unknown select item type: {context.GetType()}")
         };
@@ -193,8 +193,8 @@ internal sealed partial class WitSqlVisitor
         {
             WitSqlParser.SimpleTableSourceContext simple => new TableSourceSimple
             {
-                TableName = simple.tableName().GetText(),
-                Alias = simple.alias()?.GetText()
+                TableName = GetTableName(simple.tableName()),
+                Alias = GetAlias(simple.alias())
             },
             WitSqlParser.JoinTableSourceContext join => new TableSourceJoin
             {
@@ -207,7 +207,7 @@ internal sealed partial class WitSqlVisitor
             WitSqlParser.SubqueryTableSourceContext sub => new TableSourceSubquery
             {
                 Subquery = VisitSelectStatement(sub.selectStatement()),
-                Alias = sub.alias().GetText()
+                Alias = NormalizeIdentifier(sub.alias().GetText())
             },
             _ => throw new InvalidOperationException($"Unknown table source type: {context.GetType()}")
         };
@@ -240,7 +240,7 @@ internal sealed partial class WitSqlVisitor
 
     public override WitSqlStatementInsert VisitInsertStatement(WitSqlParser.InsertStatementContext context)
     {
-        var columns = context.columnName()?.Select(c => c.GetText()).ToList();
+        var columns = context.columnName()?.Select(c => GetColumnName(c)).ToList();
 
         List<List<WitSqlExpression>>? values = null;
         if (context.valuesList() is { } valuesList)
@@ -270,7 +270,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText(),
+            TableName = GetTableName(context.tableName()),
             ColumnNames = columns,
             Values = values,
             SelectSource = context.selectStatement() is { } select ? VisitSelectStatement(select) : null,
@@ -284,7 +284,7 @@ internal sealed partial class WitSqlVisitor
 
     private ClauseOnConflict VisitOnConflictClause(WitSqlParser.OnConflictClauseContext context)
     {
-        var conflictColumns = context.columnName()?.Select(c => c.GetText()).ToList();
+        var conflictColumns = context.columnName()?.Select(c => GetColumnName(c)).ToList();
         var conflictAction = context.conflictAction();
 
         var actionType = conflictAction.NOTHING() != null
@@ -299,7 +299,7 @@ internal sealed partial class WitSqlVisitor
             updateClauses = conflictAction.setClause()
                 .Select(s => new ClauseSet
                 {
-                    ColumnName = s.columnName().GetText(),
+                    ColumnName = GetColumnName(s.columnName()),
                     Value = VisitExpression(s.expression())
                 })
                 .ToList();
@@ -329,11 +329,11 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText(),
-            TableAlias = context.alias()?.GetText(),
+            TableName = GetTableName(context.tableName()),
+            TableAlias = GetAlias(context.alias()),
             SetClauses = context.setClause().Select(s => new ClauseSet
             {
-                ColumnName = s.columnName().GetText(),
+                ColumnName = GetColumnName(s.columnName()),
                 Value = VisitExpression(s.expression())
             }).ToList(),
             FromClause = context.tableSource()?.Select(VisitTableSource).ToList(),
@@ -354,8 +354,8 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText(),
-            TableAlias = context.alias()?.GetText(),
+            TableName = GetTableName(context.tableName()),
+            TableAlias = GetAlias(context.alias()),
             UsingClause = context.tableSource()?.Select(VisitTableSource).ToList(),
             WhereClause = context.whereClause() is { } where ? VisitExpression(where.expression()) : null,
             ReturningClause = context.returningClause() is { } returning
@@ -371,8 +371,8 @@ internal sealed partial class WitSqlVisitor
     public override WitSqlStatementMerge VisitMergeStatement(WitSqlParser.MergeStatementContext context)
     {
         var aliases = context.alias();
-        var targetAlias = aliases.Length > 0 ? aliases[0]?.GetText() : null;
-        var sourceAlias = aliases.Length > 1 ? aliases[1]?.GetText() : null;
+        var targetAlias = aliases.Length > 0 ? GetAlias(aliases[0]) : null;
+        var sourceAlias = aliases.Length > 1 ? GetAlias(aliases[1]) : null;
 
         var mergeSource = context.mergeSource();
         string? sourceTable = null;
@@ -380,7 +380,7 @@ internal sealed partial class WitSqlVisitor
 
         if (mergeSource.tableName() is { } sourceTableCtx)
         {
-            sourceTable = sourceTableCtx.GetText();
+            sourceTable = GetTableName(sourceTableCtx);
         }
         else if (mergeSource.selectStatement() is { } selectCtx)
         {
@@ -393,7 +393,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TargetTable = context.tableName().GetText(),
+            TargetTable = GetTableName(context.tableName()),
             TargetAlias = targetAlias,
             SourceTable = sourceTable,
             SourceSelect = sourceSelect,
@@ -427,12 +427,12 @@ internal sealed partial class WitSqlVisitor
                     var colRef = s.columnRef();
                     var colName = colRef switch
                     {
-                        WitSqlParser.SimpleColumnRefContext simple => simple.columnName().GetText(),
-                        WitSqlParser.ExcludedColumnRefContext excluded => excluded.columnName().GetText(),
-                        _ => colRef.GetText()
+                        WitSqlParser.SimpleColumnRefContext simple => GetColumnName(simple.columnName()),
+                        WitSqlParser.ExcludedColumnRefContext excluded => GetColumnName(excluded.columnName()),
+                        _ => NormalizeIdentifier(colRef.GetText())
                     };
-                    var tableName = colRef is WitSqlParser.SimpleColumnRefContext simpleRef
-                        ? simpleRef.tableName()?.GetText()
+                    var tableName = colRef is WitSqlParser.SimpleColumnRefContext simpleRef && simpleRef.tableName() != null
+                        ? GetTableName(simpleRef.tableName())
                         : null;
 
                     return new ClauseSet
@@ -456,7 +456,7 @@ internal sealed partial class WitSqlVisitor
     private ClauseMergeWhen VisitMergeNotMatchedClause(WitSqlParser.MergeNotMatchedClauseContext context)
     {
         var insertClause = context.mergeInsertClause();
-        var columns = insertClause.columnName()?.Select(c => c.GetText()).ToList();
+        var columns = insertClause.columnName()?.Select(c => GetColumnName(c)).ToList();
         var values = insertClause.expression().Select(VisitExpression).ToList<WitSqlExpression>();
 
         return new ClauseMergeWhen

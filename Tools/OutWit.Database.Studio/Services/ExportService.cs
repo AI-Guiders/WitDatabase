@@ -49,6 +49,13 @@ public interface IExportService
 /// </summary>
 public class ExportService : IExportService
 {
+    #region Constants
+
+    private const string NULL_SQL = "NULL";
+    private const int MAX_BLOB_DISPLAY_LENGTH = 32;
+
+    #endregion
+
     #region IExportService
 
     public async Task ExportToCsvAsync(DataTable data, string filePath)
@@ -73,7 +80,6 @@ public class ExportService : IExportService
     {
         var sb = new StringBuilder();
 
-        // Headers
         if (includeHeaders)
         {
             var headers = data.Columns.Cast<DataColumn>()
@@ -81,7 +87,6 @@ public class ExportService : IExportService
             sb.AppendLine(string.Join(",", headers));
         }
 
-        // Rows
         foreach (DataRow row in data.Rows)
         {
             var values = row.ItemArray.Select(v => EscapeCsvField(FormatValue(v)));
@@ -101,7 +106,11 @@ public class ExportService : IExportService
 
         foreach (DataRow row in data.Rows)
         {
-            var values = row.ItemArray.Select(v => FormatSqlValue(v));
+            var values = new List<string>();
+            for (var i = 0; i < data.Columns.Count; i++)
+            {
+                values.Add(FormatSqlValue(row[i], data.Columns[i].DataType));
+            }
             sb.AppendLine($"INSERT INTO {QuoteIdentifier(tableName)} ({columns}) VALUES ({string.Join(", ", values)});");
         }
 
@@ -116,7 +125,6 @@ public class ExportService : IExportService
         if (rowList.Count == 0)
             return string.Empty;
 
-        // Headers
         if (includeHeaders)
         {
             var headers = schema.Columns.Cast<DataColumn>()
@@ -124,7 +132,6 @@ public class ExportService : IExportService
             sb.AppendLine(string.Join(",", headers));
         }
 
-        // Rows
         foreach (var rowView in rowList)
         {
             var values = rowView.Row.ItemArray.Select(v => EscapeCsvField(FormatValue(v)));
@@ -146,7 +153,11 @@ public class ExportService : IExportService
 
         foreach (var rowView in rowList)
         {
-            var values = rowView.Row.ItemArray.Select(v => FormatSqlValue(v));
+            var values = new List<string>();
+            for (var i = 0; i < schema.Columns.Count; i++)
+            {
+                values.Add(FormatSqlValue(rowView.Row[i], schema.Columns[i].DataType));
+            }
             sb.AppendLine($"INSERT INTO {QuoteIdentifier(tableName)} ({columns}) VALUES ({string.Join(", ", values)});");
         }
 
@@ -200,7 +211,6 @@ public class ExportService : IExportService
         if (string.IsNullOrEmpty(field))
             return string.Empty;
 
-        // If field contains comma, quote, or newline, wrap in quotes and escape quotes
         if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
         {
             return $"\"{field.Replace("\"", "\"\"")}\"";
@@ -214,36 +224,45 @@ public class ExportService : IExportService
         if (value == null || value == DBNull.Value)
             return string.Empty;
 
-        if (value is DateTime dt)
-            return dt.ToString("yyyy-MM-dd HH:mm:ss");
-
-        if (value is byte[] bytes)
-            return $"0x{BitConverter.ToString(bytes).Replace("-", "")}";
-
-        return value.ToString() ?? string.Empty;
+        return value switch
+        {
+            DateTime dt => dt.ToString("yyyy-MM-dd HH:mm:ss"),
+            DateOnly d => d.ToString("yyyy-MM-dd"),
+            TimeOnly t => t.ToString("HH:mm:ss"),
+            DateTimeOffset dto => dto.ToString("yyyy-MM-dd HH:mm:ss zzz"),
+            TimeSpan ts => ts.ToString(@"hh\:mm\:ss"),
+            byte[] bytes => bytes.Length <= MAX_BLOB_DISPLAY_LENGTH
+                ? $"0x{BitConverter.ToString(bytes).Replace("-", "")}"
+                : $"0x{BitConverter.ToString(bytes, 0, MAX_BLOB_DISPLAY_LENGTH).Replace("-", "")}...",
+            bool b => b ? "true" : "false",
+            _ => value.ToString() ?? string.Empty
+        };
     }
 
-    private static string FormatSqlValue(object? value)
+    private static string FormatSqlValue(object? value, Type dataType)
     {
         if (value == null || value == DBNull.Value)
-            return "NULL";
+            return NULL_SQL;
 
-        if (value is string str)
-            return $"'{str.Replace("'", "''")}'";
+        // Numbers don't need quotes
+        if (IsNumericType(dataType))
+            return value.ToString() ?? NULL_SQL;
 
-        if (value is DateTime dt)
-            return $"'{dt:yyyy-MM-dd HH:mm:ss}'";
+        // Boolean
+        if (dataType == typeof(bool))
+            return (bool)value ? "TRUE" : "FALSE";
 
-        if (value is bool b)
-            return b ? "1" : "0";
-
+        // Binary
         if (value is byte[] bytes)
             return $"X'{BitConverter.ToString(bytes).Replace("-", "")}'";
 
+        // GUID
         if (value is Guid guid)
             return $"'{guid}'";
 
-        return value.ToString() ?? "NULL";
+        // Escape single quotes and wrap in quotes
+        var str = FormatValue(value);
+        return $"'{str.Replace("'", "''")}'";
     }
 
     private static string FormatJsonValue(object? value)
@@ -251,25 +270,21 @@ public class ExportService : IExportService
         if (value == null || value == DBNull.Value)
             return "null";
 
-        if (value is string str)
-            return $"\"{EscapeJsonString(str)}\"";
-
-        if (value is bool b)
-            return b ? "true" : "false";
-
-        if (value is DateTime dt)
-            return $"\"{dt:yyyy-MM-ddTHH:mm:ss}\"";
-
-        if (value is byte[] bytes)
-            return $"\"{Convert.ToBase64String(bytes)}\"";
-
-        if (value is Guid guid)
-            return $"\"{guid}\"";
-
-        if (value is int or long or short or byte or float or double or decimal)
-            return value.ToString() ?? "null";
-
-        return $"\"{EscapeJsonString(value.ToString() ?? string.Empty)}\"";
+        return value switch
+        {
+            string str => $"\"{EscapeJsonString(str)}\"",
+            bool b => b ? "true" : "false",
+            DateTime dt => $"\"{dt:yyyy-MM-ddTHH:mm:ss}\"",
+            DateOnly d => $"\"{d:yyyy-MM-dd}\"",
+            TimeOnly t => $"\"{t:HH:mm:ss}\"",
+            DateTimeOffset dto => $"\"{dto:yyyy-MM-ddTHH:mm:sszzz}\"",
+            TimeSpan ts => $"\"{ts:hh\\:mm\\:ss}\"",
+            byte[] bytes => $"\"{Convert.ToBase64String(bytes)}\"",
+            Guid guid => $"\"{guid}\"",
+            int or long or short or byte or sbyte or uint or ulong or ushort => value.ToString() ?? "null",
+            float or double or decimal => value.ToString() ?? "null",
+            _ => $"\"{EscapeJsonString(value.ToString() ?? string.Empty)}\""
+        };
     }
 
     private static string EscapeJsonString(string str)
@@ -285,6 +300,16 @@ public class ExportService : IExportService
     private static string QuoteIdentifier(string identifier)
     {
         return $"[{identifier.Replace("]", "]]")}]";
+    }
+
+    private static bool IsNumericType(Type type)
+    {
+        return type == typeof(byte) || type == typeof(sbyte) ||
+               type == typeof(short) || type == typeof(ushort) ||
+               type == typeof(int) || type == typeof(uint) ||
+               type == typeof(long) || type == typeof(ulong) ||
+               type == typeof(float) || type == typeof(double) ||
+               type == typeof(decimal);
     }
 
     #endregion

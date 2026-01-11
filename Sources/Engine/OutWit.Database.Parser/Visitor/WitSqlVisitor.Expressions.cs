@@ -341,8 +341,8 @@ internal sealed partial class WitSqlVisitor
             {
                 Line = context.Start.Line,
                 Column = context.Start.Column,
-                TableName = simple.tableName()?.GetText(),
-                ColumnName = simple.columnName().GetText(),
+                TableName = simple.tableName() != null ? GetTableName(simple.tableName()) : null,
+                ColumnName = GetColumnName(simple.columnName()),
                 IsExcluded = false
             },
             WitSqlParser.ExcludedColumnRefContext excluded => new WitSqlExpressionColumnRef
@@ -350,7 +350,7 @@ internal sealed partial class WitSqlVisitor
                 Line = context.Start.Line,
                 Column = context.Start.Column,
                 TableName = null,
-                ColumnName = excluded.columnName().GetText(),
+                ColumnName = GetColumnName(excluded.columnName()),
                 IsExcluded = true
             },
             _ => throw new InvalidOperationException($"Unknown column ref type: {context.GetType()}")

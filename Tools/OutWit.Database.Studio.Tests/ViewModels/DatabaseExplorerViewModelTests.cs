@@ -1,8 +1,7 @@
 using OutWit.Database.Studio.ViewModels;
 using OutWit.Database.Studio.Models;
-using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using OutWit.Database.Studio.Tests.Helpers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OutWit.Database.Studio.Tests.ViewModels;
 
@@ -21,23 +20,15 @@ public class DatabaseExplorerViewModelTests
 
     #region Setup
 
-    [OneTimeSetUp]
-    public void OneTimeSetup()
+    [SetUp]
+    public void Setup()
     {
-        var services = new ServiceCollection();
+        m_appVm = new ApplicationViewModel(
+            new FakeDatabaseService(),
+            new FakeSettingsService(),
+            new FakeExportService(),
+            NullLogger<ApplicationViewModel>.Instance);
 
-        services.AddLogging(builder =>
-        {
-            builder.SetMinimumLevel(LogLevel.Warning);
-        });
-
-        services.AddSingleton<IDatabaseService, DatabaseService>();
-        services.AddSingleton<ISettingsService, SettingsService>();
-        services.AddSingleton<ApplicationViewModel>();
-
-        var serviceProvider = services.BuildServiceProvider();
-
-        m_appVm = serviceProvider.GetRequiredService<ApplicationViewModel>();
         m_explorerVm = m_appVm.DatabaseExplorerVm;
     }
 
@@ -71,10 +62,10 @@ public class DatabaseExplorerViewModelTests
 
     #endregion
 
-    #region CanExecute Tests
+    #region CanBrowseData Tests
 
     [Test]
-    public void BrowseDataCanExecuteWithTableNodeTest()
+    public void CanBrowseDataWithTableNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -82,13 +73,11 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.Table
         };
 
-        var canExecute = m_explorerVm.BrowseDataCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.True);
+        Assert.That(m_explorerVm.CanBrowseData, Is.True);
     }
 
     [Test]
-    public void BrowseDataCanExecuteWithViewNodeTest()
+    public void CanBrowseDataWithViewNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -96,13 +85,11 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.View
         };
 
-        var canExecute = m_explorerVm.BrowseDataCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.True);
+        Assert.That(m_explorerVm.CanBrowseData, Is.True);
     }
 
     [Test]
-    public void BrowseDataCannotExecuteWithIndexNodeTest()
+    public void CannotBrowseDataWithIndexNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -110,13 +97,23 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.Index
         };
 
-        var canExecute = m_explorerVm.BrowseDataCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.False);
+        Assert.That(m_explorerVm.CanBrowseData, Is.False);
     }
 
     [Test]
-    public void ViewDefinitionCanExecuteWithViewNodeTest()
+    public void CannotBrowseDataWithNullNodeTest()
+    {
+        m_explorerVm.SelectedNode = null;
+
+        Assert.That(m_explorerVm.CanBrowseData, Is.False);
+    }
+
+    #endregion
+
+    #region CanViewDefinition Tests
+
+    [Test]
+    public void CanViewDefinitionWithViewNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -124,13 +121,11 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.View
         };
 
-        var canExecute = m_explorerVm.ViewDefinitionCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.True);
+        Assert.That(m_explorerVm.CanViewDefinition, Is.True);
     }
 
     [Test]
-    public void ViewDefinitionCanExecuteWithTriggerNodeTest()
+    public void CanViewDefinitionWithTriggerNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -138,13 +133,23 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.Trigger
         };
 
-        var canExecute = m_explorerVm.ViewDefinitionCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.True);
+        Assert.That(m_explorerVm.CanViewDefinition, Is.True);
     }
 
     [Test]
-    public void ViewDefinitionCannotExecuteWithTableNodeTest()
+    public void CanViewDefinitionWithIndexNodeTest()
+    {
+        m_explorerVm.SelectedNode = new DatabaseNode
+        {
+            Name = "TestIndex",
+            NodeType = DatabaseNodeType.Index
+        };
+
+        Assert.That(m_explorerVm.CanViewDefinition, Is.True);
+    }
+
+    [Test]
+    public void CannotViewDefinitionWithTableNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -152,13 +157,23 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.Table
         };
 
-        var canExecute = m_explorerVm.ViewDefinitionCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.False);
+        Assert.That(m_explorerVm.CanViewDefinition, Is.False);
     }
 
     [Test]
-    public void DropObjectCanExecuteWithTableNodeTest()
+    public void CannotViewDefinitionWithNullNodeTest()
+    {
+        m_explorerVm.SelectedNode = null;
+
+        Assert.That(m_explorerVm.CanViewDefinition, Is.False);
+    }
+
+    #endregion
+
+    #region CanDropObject Tests
+
+    [Test]
+    public void CanDropObjectWithTableNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -166,13 +181,35 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.Table
         };
 
-        var canExecute = m_explorerVm.DropObjectCommand.CanExecute(null);
-
-        Assert.That(canExecute, Is.True);
+        Assert.That(m_explorerVm.CanDropObject, Is.True);
     }
 
     [Test]
-    public void DropObjectCannotExecuteWithDatabaseNodeTest()
+    public void CanDropObjectWithViewNodeTest()
+    {
+        m_explorerVm.SelectedNode = new DatabaseNode
+        {
+            Name = "TestView",
+            NodeType = DatabaseNodeType.View
+        };
+
+        Assert.That(m_explorerVm.CanDropObject, Is.True);
+    }
+
+    [Test]
+    public void CanDropObjectWithIndexNodeTest()
+    {
+        m_explorerVm.SelectedNode = new DatabaseNode
+        {
+            Name = "TestIndex",
+            NodeType = DatabaseNodeType.Index
+        };
+
+        Assert.That(m_explorerVm.CanDropObject, Is.True);
+    }
+
+    [Test]
+    public void CannotDropObjectWithDatabaseNodeTest()
     {
         m_explorerVm.SelectedNode = new DatabaseNode
         {
@@ -180,9 +217,27 @@ public class DatabaseExplorerViewModelTests
             NodeType = DatabaseNodeType.Database
         };
 
-        var canExecute = m_explorerVm.DropObjectCommand.CanExecute(null);
+        Assert.That(m_explorerVm.CanDropObject, Is.False);
+    }
 
-        Assert.That(canExecute, Is.False);
+    [Test]
+    public void CannotDropObjectWithFolderNodeTest()
+    {
+        m_explorerVm.SelectedNode = new DatabaseNode
+        {
+            Name = "Tables",
+            NodeType = DatabaseNodeType.TablesFolder
+        };
+
+        Assert.That(m_explorerVm.CanDropObject, Is.False);
+    }
+
+    [Test]
+    public void CannotDropObjectWithNullNodeTest()
+    {
+        m_explorerVm.SelectedNode = null;
+
+        Assert.That(m_explorerVm.CanDropObject, Is.False);
     }
 
     #endregion

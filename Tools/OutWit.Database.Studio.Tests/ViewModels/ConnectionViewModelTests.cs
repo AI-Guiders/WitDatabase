@@ -1,8 +1,6 @@
 using OutWit.Database.Studio.ViewModels;
-using OutWit.Database.Studio.Services;
-using OutWit.Database.Studio.Models;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using OutWit.Database.Studio.Tests.Helpers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OutWit.Database.Studio.Tests.ViewModels;
 
@@ -21,29 +19,17 @@ public class ConnectionViewModelTests
 
     #region Setup
 
-    [OneTimeSetUp]
-    public void OneTimeSetup()
-    {
-        var services = new ServiceCollection();
-
-        services.AddLogging(builder =>
-        {
-            builder.SetMinimumLevel(LogLevel.Warning);
-        });
-
-        services.AddSingleton<IDatabaseService, DatabaseService>();
-        services.AddSingleton<ISettingsService, SettingsService>();
-        services.AddSingleton<ApplicationViewModel>();
-
-        var serviceProvider = services.BuildServiceProvider();
-
-        m_appVm = serviceProvider.GetRequiredService<ApplicationViewModel>();
-        m_connectionVm = m_appVm.ConnectionVm;
-    }
-
     [SetUp]
     public void Setup()
     {
+        m_appVm = new ApplicationViewModel(
+            new FakeDatabaseService(),
+            new FakeSettingsService(),
+            new FakeExportService(),
+            NullLogger<ApplicationViewModel>.Instance);
+
+        m_connectionVm = m_appVm.ConnectionVm;
+
         // Reset to default values before each test
         m_connectionVm.SelectedPageSize = 4096;
         m_connectionVm.CacheSize = 1000;

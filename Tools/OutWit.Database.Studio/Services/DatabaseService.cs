@@ -147,21 +147,36 @@ public sealed class DatabaseService : IDatabaseService
     {
         EnsureConnected();
 
-        // Not implemented in INFORMATION_SCHEMA yet
-        return Array.Empty<string>();
+        try
+        {
+            const string sql = "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS";
+            return await ExecuteStringListQueryAsync(sql, ct);
+        }
+        catch (Exception ex)
+        {
+            m_logger.LogDebug(ex, "INFORMATION_SCHEMA.TRIGGERS not available, triggers list will be empty");
+            return [];
+        }
     }
 
     public async Task<IReadOnlyList<string>> GetSequencesAsync(CancellationToken ct = default)
     {
         EnsureConnected();
 
-        // Not implemented in INFORMATION_SCHEMA yet
-        return Array.Empty<string>();
+        try
+        {
+            const string sql = "SELECT SEQUENCE_NAME FROM INFORMATION_SCHEMA.SEQUENCES";
+            return await ExecuteStringListQueryAsync(sql, ct);
+        }
+        catch (Exception ex)
+        {
+            m_logger.LogDebug(ex, "INFORMATION_SCHEMA.SEQUENCES not available, sequences list will be empty");
+            return [];
+        }
     }
 
     public async Task<IReadOnlyList<ColumnInfo>> GetColumnsAsync(string tableName, CancellationToken ct = default)
     {
-        // Prefer INFORMATION_SCHEMA.COLUMNS (see WitSqlEngineInformationSchemaTests)
         EnsureConnected();
 
         const string sql = @"
@@ -201,6 +216,98 @@ public sealed class DatabaseService : IDatabaseService
         await TryMarkPrimaryKeysAsync(tableName, columns, ct);
 
         return columns;
+    }
+
+    public Task<IReadOnlyList<ColumnInfo>> GetTableColumnsAsync(string tableName, CancellationToken ct = default) =>
+        GetColumnsAsync(tableName, ct);
+
+    public async Task<string?> GetViewDefinitionAsync(string viewName, CancellationToken ct = default)
+    {
+        EnsureConnected();
+
+        try
+        {
+            const string sql = "SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = @viewName";
+
+            using var command = m_connection!.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@viewName", viewName);
+
+            var result = await command.ExecuteScalarAsync(ct);
+            return result as string;
+        }
+        catch (Exception ex)
+        {
+            m_logger.LogDebug(ex, "Failed to get view definition for {ViewName}", viewName);
+            return null;
+        }
+    }
+
+    public async Task<string?> GetTriggerDefinitionAsync(string triggerName, CancellationToken ct = default)
+    {
+        EnsureConnected();
+
+        try
+        {
+            const string sql = "SELECT ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = @triggerName";
+
+            using var command = m_connection!.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@triggerName", triggerName);
+
+            var result = await command.ExecuteScalarAsync(ct);
+            return result as string;
+        }
+        catch (Exception ex)
+        {
+            m_logger.LogDebug(ex, "Failed to get trigger definition for {TriggerName}", triggerName);
+            return null;
+        }
+    }
+
+    public async Task<string?> GetIndexDefinitionAsync(string indexName, CancellationToken ct = default)
+    {
+        EnsureConnected();
+
+        try
+        {
+            // Build index definition from INFORMATION_SCHEMA.INDEXES
+            const string sql = @"
+                SELECT TABLE_NAME, COLUMN_NAME, IS_UNIQUE, FILTER_CONDITION
+                FROM INFORMATION_SCHEMA.INDEXES 
+                WHERE INDEX_NAME = @indexName
+                ORDER BY ORDINAL_POSITION";
+
+            using var command = m_connection!.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@indexName", indexName);
+
+            string? tableName = null;
+            var columns = new List<string>();
+            var isUnique = false;
+            string? filter = null;
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                tableName ??= reader.GetString(0);
+                columns.Add(reader.GetString(1));
+                isUnique = !reader.IsDBNull(2) && reader.GetBoolean(2);
+                filter ??= reader.IsDBNull(3) ? null : reader.GetString(3);
+            }
+
+            if (tableName == null || columns.Count == 0)
+                return null;
+
+            var uniqueStr = isUnique ? "UNIQUE " : "";
+            var filterStr = string.IsNullOrEmpty(filter) ? "" : $" WHERE {filter}";
+            return $"CREATE {uniqueStr}INDEX {indexName} ON {tableName} ({string.Join(", ", columns)}){filterStr}";
+        }
+        catch (Exception ex)
+        {
+            m_logger.LogDebug(ex, "Failed to get index definition for {IndexName}", indexName);
+            return null;
+        }
     }
 
     private async Task TryMarkPrimaryKeysAsync(string tableName, List<ColumnInfo> columns, CancellationToken ct)
@@ -280,9 +387,6 @@ public sealed class DatabaseService : IDatabaseService
             m_logger.LogDebug(ex, "Unable to read PRAGMA table_info for PK metadata");
         }
     }
-
-    public Task<IReadOnlyList<ColumnInfo>> GetTableColumnsAsync(string tableName, CancellationToken ct = default) =>
-        GetColumnsAsync(tableName, ct);
 
     #endregion
 

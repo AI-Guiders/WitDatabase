@@ -16,6 +16,8 @@ public interface IDatabaseService : IDisposable
 
     #endregion
 
+    #region Connection
+
     /// <summary>
     /// Connects to a database.
     /// </summary>
@@ -35,6 +37,10 @@ public interface IDatabaseService : IDisposable
     /// Gets the current connection information.
     /// </summary>
     ConnectionInfo? CurrentConnection { get; }
+
+    #endregion
+
+    #region Schema
 
     /// <summary>
     /// Gets all tables in the database.
@@ -69,9 +75,26 @@ public interface IDatabaseService : IDisposable
     /// <summary>
     /// Get table columns information with extended details.
     /// </summary>
-    /// <param name="tableName">The table name.</param>
-    /// <returns>List of column information.</returns>
     Task<IReadOnlyList<ColumnInfo>> GetTableColumnsAsync(string tableName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the definition (DDL) for a view.
+    /// </summary>
+    Task<string?> GetViewDefinitionAsync(string viewName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the definition (DDL) for a trigger.
+    /// </summary>
+    Task<string?> GetTriggerDefinitionAsync(string triggerName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the definition (DDL) for an index.
+    /// </summary>
+    Task<string?> GetIndexDefinitionAsync(string indexName, CancellationToken ct = default);
+
+    #endregion
+
+    #region Query
 
     /// <summary>
     /// Executes a SQL query and returns the result.
@@ -87,4 +110,6 @@ public interface IDatabaseService : IDisposable
     /// Executes a scalar query.
     /// </summary>
     Task<object?> ExecuteScalarAsync(string sql, CancellationToken ct = default);
+
+    #endregion
 }

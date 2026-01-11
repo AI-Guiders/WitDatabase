@@ -69,21 +69,21 @@
                                 <MenuItem Header="Create Table..."
                                           Command="{Binding DatabaseExplorerVm.CreateTableCommand}">
                                     <MenuItem.Icon>
-                                        <PathIcon Data="M5,4H19A2,2 0 0,1 21,6V18A2,2 0 0,1 19,20H5A2,2 0 0,1 3,18V6A2,2 0 0,1 5,4M5,8V12H11V8H5M13,8V12H19V8H13M5,14V18H11V14H5M13,14V18H19V14H13Z"/>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 
                                 <MenuItem Header="Create View..."
                                           Command="{Binding DatabaseExplorerVm.CreateViewCommand}">
                                     <MenuItem.Icon>
-                                        <PathIcon Data="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17Z"/>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.DB_VIEW}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 
                                 <MenuItem Header="Create Index..."
                                           Command="{Binding DatabaseExplorerVm.CreateIndexCommand}">
                                     <MenuItem.Icon>
-                                        <PathIcon Data="M3,4H7V8H3V4M9,5V7H21V5H9M3,10H7V14H3V10M9,11V13H21V11H9M3,16H7V20H3V16M9,17V19H21V17H9"/>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.DB_INDEX}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
                             </MenuItem>
@@ -91,16 +91,18 @@
                             <Separator/>
                             
                             <MenuItem Header="Browse Data"
-                                      Command="{Binding DatabaseExplorerVm.BrowseDataCommand}">
+                                      Command="{Binding DatabaseExplorerVm.BrowseDataCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanBrowseData}">
                                 <MenuItem.Icon>
-                                    <PathIcon Data="M5,4H19A2,2 0 0,1 21,6V18A2,2 0 0,1 19,20H5A2,2 0 0,1 3,18V6A2,2 0 0,1 5,4M5,8V12H11V8H5M13,8V12H19V8H13M5,14V18H11V14H5M13,14V18H19V14H13Z"/>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
                             
                             <MenuItem Header="View Definition"
-                                      Command="{Binding DatabaseExplorerVm.ViewDefinitionCommand}">
+                                      Command="{Binding DatabaseExplorerVm.ViewDefinitionCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanViewDefinition}">
                                 <MenuItem.Icon>
-                                    <PathIcon Data="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.DB_VIEW}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
                             
@@ -109,16 +111,17 @@
                             <MenuItem Header="Refresh"
                                       Command="{Binding DatabaseExplorerVm.RefreshCommand}">
                                 <MenuItem.Icon>
-                                    <PathIcon Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}"/>
                                 </MenuItem.Icon>
                             </MenuItem>
                             
                             <Separator/>
                             
                             <MenuItem Header="Drop..."
-                                      Command="{Binding DatabaseExplorerVm.DropObjectCommand}">
+                                      Command="{Binding DatabaseExplorerVm.DropObjectCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanDropObject}">
                                 <MenuItem.Icon>
-                                    <PathIcon Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" 
+                                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_DELETE}" 
                                              Foreground="Red"/>
                                 </MenuItem.Icon>
                             </MenuItem>
@@ -179,12 +182,9 @@
                         Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
                         CornerRadius="24"
                         HorizontalAlignment="Center">
-                    <TextBlock Text="DB"
-                               FontSize="18"
-                               FontWeight="Bold"
-                               Foreground="Gray"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
+                    <PathIcon Data="{x:Static ui:StudioIcons.DB_DATABASE}"
+                              Width="24" Height="24"
+                              Foreground="Gray"/>
                 </Border>
                 <TextBlock Text="Not Connected"
                            FontSize="14"

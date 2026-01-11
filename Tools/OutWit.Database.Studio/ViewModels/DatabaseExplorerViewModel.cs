@@ -38,12 +38,12 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
     private void InitCommands()
     {
         RefreshCommand = new RelayCommandAsync(RefreshAsync);
-        BrowseDataCommand = new RelayCommand(BrowseData, CanBrowseData);
-        ViewDefinitionCommand = new RelayCommand(ViewDefinition, CanViewDefinition);
-        DropObjectCommand = new RelayCommandAsync(DropObjectAsync, CanDropObject);
-        CreateTableCommand = new RelayCommandAsync(CreateTableAsync, () => Database.IsConnected);
-        CreateViewCommand = new RelayCommandAsync(CreateViewAsync, () => Database.IsConnected);
-        CreateIndexCommand = new RelayCommandAsync(CreateIndexAsync, () => Database.IsConnected);
+        BrowseDataCommand = new RelayCommand(BrowseData);
+        ViewDefinitionCommand = new RelayCommandAsync(ViewDefinitionAsync);
+        DropObjectCommand = new RelayCommandAsync(DropObjectAsync);
+        CreateTableCommand = new RelayCommandAsync(CreateTableAsync);
+        CreateViewCommand = new RelayCommandAsync(CreateViewAsync);
+        CreateIndexCommand = new RelayCommandAsync(CreateIndexAsync);
     }
 
     private void InitEvents()
@@ -57,11 +57,11 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private void BrowseData()
     {
-        if (SelectedNode == null)
+        if (SelectedNode == null || !CanBrowseData)
             return;
 
         var tableName = SelectedNode.Name;
-        var sql = $"SELECT * FROM {tableName} LIMIT 100";
+        var sql = $"SELECT * FROM [{tableName}] LIMIT 100";
         
         // Create a new tab or use the selected one
         var tab = ApplicationVm.QueryTabsVm.SelectedTab;
@@ -80,52 +80,53 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         Logger.LogInformation("Browse data for {ObjectName}", SelectedNode.Name);
     }
 
-    private bool CanBrowseData()
+    private async Task ViewDefinitionAsync()
     {
-        return SelectedNode?.NodeType == DatabaseNodeType.Table 
-            || SelectedNode?.NodeType == DatabaseNodeType.View;
-    }
-
-    private void ViewDefinition()
-    {
-        if (SelectedNode == null)
+        if (SelectedNode == null || !CanViewDefinition)
             return;
 
-        var sql = SelectedNode.NodeType switch
-        {
-            DatabaseNodeType.View => $"SELECT sql FROM sqlite_master WHERE type='view' AND name='{SelectedNode.Name}'",
-            DatabaseNodeType.Trigger => $"SELECT sql FROM sqlite_master WHERE type='trigger' AND name='{SelectedNode.Name}'",
-            _ => string.Empty
-        };
+        string? definition = null;
+        var objectType = SelectedNode.NodeType;
 
-        if (string.IsNullOrEmpty(sql))
-            return;
-
-        var tab = ApplicationVm.QueryTabsVm.SelectedTab;
-        if (tab == null)
+        try
         {
-            ApplicationVm.QueryTabsVm.NewTabCommand.Execute(null);
-            tab = ApplicationVm.QueryTabsVm.SelectedTab;
+            definition = objectType switch
+            {
+                DatabaseNodeType.View => await Database.GetViewDefinitionAsync(SelectedNode.Name),
+                DatabaseNodeType.Trigger => await Database.GetTriggerDefinitionAsync(SelectedNode.Name),
+                DatabaseNodeType.Index => await Database.GetIndexDefinitionAsync(SelectedNode.Name),
+                _ => null
+            };
         }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to get definition for {ObjectName}", SelectedNode.Name);
+            ApplicationVm.MainWindowVm.StatusText = $"Failed to get definition: {ex.Message}";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(definition))
+        {
+            ApplicationVm.MainWindowVm.StatusText = $"No definition found for {SelectedNode.Name}";
+            return;
+        }
+
+        // Open definition in a new query tab
+        ApplicationVm.QueryTabsVm.NewTabCommand.Execute(null);
+        var tab = ApplicationVm.QueryTabsVm.SelectedTab;
 
         if (tab != null)
         {
-            tab.SqlText = sql;
-            ApplicationVm.QueryTabsVm.ExecuteQueryCommand.Execute(tab);
+            tab.Title = $"{SelectedNode.Name} - Definition";
+            tab.SqlText = $"-- Definition for {objectType}: {SelectedNode.Name}\n\n{definition}";
         }
 
-        Logger.LogInformation("View definition for {ObjectName}", SelectedNode.Name);
-    }
-
-    private bool CanViewDefinition()
-    {
-        return SelectedNode?.NodeType == DatabaseNodeType.View 
-            || SelectedNode?.NodeType == DatabaseNodeType.Trigger;
+        Logger.LogInformation("Viewed definition for {ObjectName}", SelectedNode.Name);
     }
 
     private async Task DropObjectAsync()
     {
-        if (SelectedNode == null)
+        if (SelectedNode == null || !CanDropObject)
             return;
 
         var objectType = SelectedNode.NodeType switch
@@ -141,7 +142,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         if (objectType == null)
             return;
 
-        var sql = $"DROP {objectType} IF EXISTS {SelectedNode.Name}";
+        var sql = $"DROP {objectType} IF EXISTS [{SelectedNode.Name}]";
 
         try
         {
@@ -158,17 +159,11 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
-    private bool CanDropObject()
-    {
-        return SelectedNode?.NodeType == DatabaseNodeType.Table
-            || SelectedNode?.NodeType == DatabaseNodeType.View
-            || SelectedNode?.NodeType == DatabaseNodeType.Index
-            || SelectedNode?.NodeType == DatabaseNodeType.Trigger
-            || SelectedNode?.NodeType == DatabaseNodeType.Sequence;
-    }
-
     private async Task CreateTableAsync()
     {
+        if (!Database.IsConnected)
+            return;
+
         var createTableVm = new CreateTableViewModel(ApplicationVm);
 
         var dialog = new CreateTableDialog { DataContext = createTableVm };
@@ -183,6 +178,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateViewAsync()
     {
+        if (!Database.IsConnected)
+            return;
+
         var createViewVm = new CreateViewViewModel(ApplicationVm);
 
         var dialog = new CreateViewDialog { DataContext = createViewVm };
@@ -197,6 +195,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     private async Task CreateIndexAsync()
     {
+        if (!Database.IsConnected)
+            return;
+
         var createIndexVm = new CreateIndexViewModel(ApplicationVm);
         
         // Load tables on dialog open
@@ -311,6 +312,19 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
                 Name = "Triggers",
                 NodeType = DatabaseNodeType.TriggersFolder
             };
+
+            Logger.LogInformation("Loading triggers...");
+            var triggers = await Database.GetTriggersAsync();
+            Logger.LogInformation("Loaded {Count} triggers", triggers.Count);
+
+            foreach (var trigger in triggers)
+            {
+                triggersFolder.Children.Add(new DatabaseNode
+                {
+                    Name = trigger,
+                    NodeType = DatabaseNodeType.Trigger
+                });
+            }
             rootNode.Children.Add(triggersFolder);
 
             // Sequences folder
@@ -319,6 +333,19 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
                 Name = "Sequences",
                 NodeType = DatabaseNodeType.SequencesFolder
             };
+
+            Logger.LogInformation("Loading sequences...");
+            var sequences = await Database.GetSequencesAsync();
+            Logger.LogInformation("Loaded {Count} sequences", sequences.Count);
+
+            foreach (var sequence in sequences)
+            {
+                sequencesFolder.Children.Add(new DatabaseNode
+                {
+                    Name = sequence,
+                    NodeType = DatabaseNodeType.Sequence
+                });
+            }
             rootNode.Children.Add(sequencesFolder);
 
             Nodes.Clear();
@@ -326,10 +353,10 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             
             Logger.LogInformation("Nodes updated. Count: {Count}", Nodes.Count);
 
-            ApplicationVm.MainWindowVm.StatusText = $"Loaded: {tables.Count} tables, {views.Count} views, {indexes.Count} indexes";
+            ApplicationVm.MainWindowVm.StatusText = $"Loaded: {tables.Count} tables, {views.Count} views, {indexes.Count} indexes, {triggers.Count} triggers, {sequences.Count} sequences";
 
-            Logger.LogInformation("Database explorer refreshed: {Tables} tables, {Views} views, {Indexes} indexes",
-                tables.Count, views.Count, indexes.Count);
+            Logger.LogInformation("Database explorer refreshed: {Tables} tables, {Views} views, {Indexes} indexes, {Triggers} triggers, {Sequences} sequences",
+                tables.Count, views.Count, indexes.Count, triggers.Count, sequences.Count);
         }
         catch (Exception ex)
         {
@@ -347,12 +374,42 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     #endregion
 
+    #region Tools
+
+    /// <summary>
+    /// Quotes an identifier using double quotes (SQL standard).
+    /// WitSql also supports square brackets [] and backticks ``.
+    /// </summary>
+    private static string QuoteIdentifier(string identifier)
+    {
+        return $"\"{identifier.Replace("\"", "\"\"")}\"";
+    }
+
+    private void UpdateCommandStates()
+    {
+        var nodeType = SelectedNode?.NodeType;
+
+        CanBrowseData = nodeType == DatabaseNodeType.Table || nodeType == DatabaseNodeType.View;
+        CanViewDefinition = nodeType == DatabaseNodeType.View 
+                         || nodeType == DatabaseNodeType.Trigger 
+                         || nodeType == DatabaseNodeType.Index;
+        CanDropObject = nodeType == DatabaseNodeType.Table
+                     || nodeType == DatabaseNodeType.View
+                     || nodeType == DatabaseNodeType.Index
+                     || nodeType == DatabaseNodeType.Trigger
+                     || nodeType == DatabaseNodeType.Sequence;
+    }
+
+    #endregion
+
     #region Event Handlers
 
     private void OnPropertyChangedInternal(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(SelectedNode))
             return;
+
+        UpdateCommandStates();
 
         if (SelectedNode == null)
         {
@@ -387,6 +444,15 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
     [Notify]
     public string? ErrorMessage { get; set; }
+
+    [Notify]
+    public bool CanBrowseData { get; private set; }
+
+    [Notify]
+    public bool CanViewDefinition { get; private set; }
+
+    [Notify]
+    public bool CanDropObject { get; private set; }
 
     #endregion
 

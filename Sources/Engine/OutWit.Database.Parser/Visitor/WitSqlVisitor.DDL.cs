@@ -35,7 +35,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText(),
+            TableName = GetTableName(context.tableName()),
             IfNotExists = context.EXISTS() != null,
             Columns = columns,
             Constraints = constraints.Count > 0 ? constraints : null
@@ -48,13 +48,13 @@ internal sealed partial class WitSqlVisitor
         {
             WitSqlParser.RegularColumnContext regular => new WitSqlColumn
             {
-                Name = regular.columnName().GetText(),
+                Name = GetColumnName(regular.columnName()),
                 DataType = VisitDataType(regular.dataType()),
                 Constraints = regular.columnConstraint()?.Select(VisitColumnConstraint).ToList()
             },
             WitSqlParser.ComputedColumnContext computed => new WitSqlColumn
             {
-                Name = computed.columnName().GetText(),
+                Name = GetColumnName(computed.columnName()),
                 ComputedExpression = VisitExpression(computed.expression()),
                 ComputedType = computed.STORED() != null ? ComputedColumnType.Stored
                              : computed.VIRTUAL() != null ? ComputedColumnType.Virtual
@@ -121,8 +121,8 @@ internal sealed partial class WitSqlVisitor
             },
             WitSqlParser.ReferencesConstraintContext refs => new ColumnConstraintReferences
             {
-                ForeignTable = refs.tableName().GetText(),
-                ForeignColumn = refs.columnName()?.GetText(),
+                ForeignTable = GetTableName(refs.tableName()),
+                ForeignColumn = refs.columnName() != null ? GetColumnName(refs.columnName()) : null,
                 OnDelete = GetReferenceAction(refs.referenceOption(), isDelete: true),
                 OnUpdate = GetReferenceAction(refs.referenceOption(), isDelete: false)
             },
@@ -152,18 +152,18 @@ internal sealed partial class WitSqlVisitor
         {
             WitSqlParser.TablePrimaryKeyContext pk => new TableConstraintPrimaryKey
             {
-                Name = pk.constraintName()?.GetText(),
-                Columns = pk.columnName().Select(c => c.GetText()).ToList()
+                Name = pk.constraintName() != null ? NormalizeIdentifier(pk.constraintName().GetText()) : null,
+                Columns = pk.columnName().Select(c => GetColumnName(c)).ToList()
             },
             WitSqlParser.TableUniqueContext uniq => new TableConstraintUnique
             {
-                Name = uniq.constraintName()?.GetText(),
-                Columns = uniq.columnName().Select(c => c.GetText()).ToList()
+                Name = uniq.constraintName() != null ? NormalizeIdentifier(uniq.constraintName().GetText()) : null,
+                Columns = uniq.columnName().Select(c => GetColumnName(c)).ToList()
             },
             WitSqlParser.TableForeignKeyContext fk => ParseTableForeignKey(fk),
             WitSqlParser.TableCheckContext check => new TableConstraintCheck
             {
-                Name = check.constraintName()?.GetText(),
+                Name = check.constraintName() != null ? NormalizeIdentifier(check.constraintName().GetText()) : null,
                 Condition = VisitExpression(check.expression())
             },
             _ => throw new InvalidOperationException($"Unknown table constraint: {context.GetType()}")
@@ -172,7 +172,7 @@ internal sealed partial class WitSqlVisitor
 
     private TableConstraintForeignKey ParseTableForeignKey(WitSqlParser.TableForeignKeyContext fk)
     {
-        var constraintName = fk.constraintName()?.GetText();
+        var constraintName = fk.constraintName() != null ? NormalizeIdentifier(fk.constraintName().GetText()) : null;
 
         var allColumnNames = fk.columnName();
         var referencesToken = fk.REFERENCES();
@@ -186,11 +186,11 @@ internal sealed partial class WitSqlVisitor
         {
             if (col.Stop.StopIndex < referencesPos)
             {
-                localColumns.Add(col.GetText());
+                localColumns.Add(GetColumnName(col));
             }
             else
             {
-                foreignColumns.Add(col.GetText());
+                foreignColumns.Add(GetColumnName(col));
             }
         }
 
@@ -198,7 +198,7 @@ internal sealed partial class WitSqlVisitor
         {
             Name = constraintName,
             Columns = localColumns,
-            ForeignTable = fk.tableName().GetText(),
+            ForeignTable = GetTableName(fk.tableName()),
             ForeignColumns = foreignColumns.Count > 0 ? foreignColumns : null,
             OnDelete = GetReferenceAction(fk.referenceOption(), isDelete: true),
             OnUpdate = GetReferenceAction(fk.referenceOption(), isDelete: false)
@@ -215,7 +215,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText(),
+            TableName = GetTableName(context.tableName()),
             IfExists = context.EXISTS() != null
         };
     }
@@ -230,7 +230,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText(),
+            TableName = GetTableName(context.tableName()),
             Action = VisitAlterAction(context.alterAction())
         };
     }
@@ -246,20 +246,20 @@ internal sealed partial class WitSqlVisitor
             WitSqlParser.AlterAddConstraintContext addCons => ParseAlterAddConstraint(addCons),
             WitSqlParser.AlterDropColumnContext drop => new AlterActionDropColumn
             {
-                ColumnName = drop.columnName().GetText()
+                ColumnName = GetColumnName(drop.columnName())
             },
             WitSqlParser.AlterDropConstraintContext dropCons => new AlterActionDropConstraint
             {
-                ConstraintName = dropCons.constraintName().GetText()
+                ConstraintName = NormalizeIdentifier(dropCons.constraintName().GetText())
             },
             WitSqlParser.AlterRenameTableContext rename => new AlterActionRenameTable
             {
-                NewName = rename.tableName().GetText()
+                NewName = GetTableName(rename.tableName())
             },
             WitSqlParser.AlterRenameColumnContext renameCol => new AlterActionRenameColumn
             {
-                OldName = renameCol.columnName(0).GetText(),
-                NewName = renameCol.columnName(1).GetText()
+                OldName = GetColumnName(renameCol.columnName(0)),
+                NewName = GetColumnName(renameCol.columnName(1))
             },
             WitSqlParser.AlterAlterColumnContext alterCol => ParseAlterColumnAction(alterCol),
             _ => throw new InvalidOperationException($"Unknown alter action: {context.GetType()}")
@@ -274,22 +274,23 @@ internal sealed partial class WitSqlVisitor
         // use the one from alterAction
         if (constraint.Name == null && context.constraintName() != null)
         {
+            var constraintName = NormalizeIdentifier(context.constraintName().GetText());
             // We need to create a new constraint with the name set
             constraint = constraint switch
             {
                 TableConstraintPrimaryKey pk => new TableConstraintPrimaryKey
                 {
-                    Name = context.constraintName().GetText(),
+                    Name = constraintName,
                     Columns = pk.Columns
                 },
                 TableConstraintUnique uniq => new TableConstraintUnique
                 {
-                    Name = context.constraintName().GetText(),
+                    Name = constraintName,
                     Columns = uniq.Columns
                 },
                 TableConstraintForeignKey fk => new TableConstraintForeignKey
                 {
-                    Name = context.constraintName().GetText(),
+                    Name = constraintName,
                     Columns = fk.Columns,
                     ForeignTable = fk.ForeignTable,
                     ForeignColumns = fk.ForeignColumns,
@@ -298,7 +299,7 @@ internal sealed partial class WitSqlVisitor
                 },
                 TableConstraintCheck check => new TableConstraintCheck
                 {
-                    Name = context.constraintName().GetText(),
+                    Name = constraintName,
                     Condition = check.Condition
                 },
                 _ => constraint
@@ -313,7 +314,7 @@ internal sealed partial class WitSqlVisitor
 
     private AlterActionAlterColumn ParseAlterColumnAction(WitSqlParser.AlterAlterColumnContext context)
     {
-        var columnName = context.columnName().GetText();
+        var columnName = GetColumnName(context.columnName());
         var actionContext = context.alterColumnAction();
 
         return actionContext switch
@@ -356,7 +357,7 @@ internal sealed partial class WitSqlVisitor
         var elements = context.indexElement().Select(VisitIndexElement).ToList();
 
         var includeColumns = context.includeClause()?.columnName()
-            .Select(c => c.GetText())
+            .Select(c => GetColumnName(c))
             .ToList();
 
         WitSqlExpression? whereClause = null;
@@ -369,8 +370,8 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            IndexName = context.indexName().GetText(),
-            TableName = context.tableName().GetText(),
+            IndexName = NormalizeIdentifier(context.indexName().GetText()),
+            TableName = GetTableName(context.tableName()),
             IsUnique = context.UNIQUE() != null,
             IfNotExists = context.EXISTS() != null,
             Elements = elements,
@@ -385,7 +386,7 @@ internal sealed partial class WitSqlVisitor
         {
             WitSqlParser.IndexColumnElementContext col => new ClauseIndexElement
             {
-                ColumnName = col.columnName().GetText(),
+                ColumnName = GetColumnName(col.columnName()),
                 Descending = col.DESC() != null
             },
             WitSqlParser.IndexExpressionElementContext expr => new ClauseIndexElement
@@ -408,7 +409,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            IndexName = context.indexName().GetText(),
+            IndexName = NormalizeIdentifier(context.indexName().GetText()),
             IfExists = context.EXISTS() != null
         };
     }
@@ -419,13 +420,13 @@ internal sealed partial class WitSqlVisitor
 
     public override WitSqlStatementCreateView VisitCreateViewStatement(WitSqlParser.CreateViewStatementContext context)
     {
-        var columnNames = context.columnName()?.Select(c => c.GetText()).ToList();
+        var columnNames = context.columnName()?.Select(c => GetColumnName(c)).ToList();
 
         return new WitSqlStatementCreateView
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            ViewName = context.viewName().GetText(),
+            ViewName = NormalizeIdentifier(context.viewName().GetText()),
             IfNotExists = context.EXISTS() != null,
             ColumnNames = columnNames,
             Query = VisitQueryExpression(context.queryExpression())
@@ -438,7 +439,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            ViewName = context.viewName().GetText(),
+            ViewName = NormalizeIdentifier(context.viewName().GetText()),
             IfExists = context.EXISTS() != null
         };
     }
@@ -458,7 +459,7 @@ internal sealed partial class WitSqlVisitor
                   TriggerEventType.Update;
 
         var updateColumns = context.triggerEvent().UPDATE() != null && context.triggerEvent().columnName().Length > 0
-            ? context.triggerEvent().columnName().Select(c => c.GetText()).ToList()
+            ? context.triggerEvent().columnName().Select(c => GetColumnName(c)).ToList()
             : null;
 
         var body = new List<WitSqlStatement>();
@@ -474,12 +475,12 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TriggerName = context.triggerName().GetText(),
+            TriggerName = NormalizeIdentifier(context.triggerName().GetText()),
             IfNotExists = context.EXISTS() != null,
             Time = timing,
             Event = evt,
             UpdateColumns = updateColumns,
-            TableName = context.tableName().GetText(),
+            TableName = GetTableName(context.tableName()),
             ForEachRow = context.ROW() != null,
             WhenCondition = context.expression() != null ? VisitExpression(context.expression()) : null,
             Body = body
@@ -492,7 +493,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TriggerName = context.triggerName().GetText(),
+            TriggerName = NormalizeIdentifier(context.triggerName().GetText()),
             IfExists = context.EXISTS() != null
         };
     }
@@ -513,7 +514,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            SequenceName = context.sequenceName().GetText(),
+            SequenceName = NormalizeIdentifier(context.sequenceName().GetText()),
             IfNotExists = context.EXISTS() != null,
             StartWith = startWith
         };
@@ -525,7 +526,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            SequenceName = context.sequenceName().GetText(),
+            SequenceName = NormalizeIdentifier(context.sequenceName().GetText()),
             IfExists = context.EXISTS() != null
         };
     }
@@ -542,7 +543,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            SequenceName = context.sequenceName().GetText(),
+            SequenceName = NormalizeIdentifier(context.sequenceName().GetText()),
             RestartWith = restartWith
         };
     }
@@ -557,7 +558,7 @@ internal sealed partial class WitSqlVisitor
         {
             Line = context.Start.Line,
             Column = context.Start.Column,
-            TableName = context.tableName().GetText()
+            TableName = GetTableName(context.tableName())
         };
     }
 

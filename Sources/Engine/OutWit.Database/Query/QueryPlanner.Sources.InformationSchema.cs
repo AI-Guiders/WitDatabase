@@ -69,6 +69,16 @@ public sealed partial class QueryPlanner
                 SchemaCatalog.GetInformationSchemaViewsColumns(),
                 SchemaCatalog.GetInformationSchemaViewsColumnTypes()),
                 
+            "TRIGGERS" => new IteratorInformationSchema(
+                catalog.GetInformationSchemaTriggers(),
+                SchemaCatalog.GetInformationSchemaTriggersColumns(),
+                SchemaCatalog.GetInformationSchemaTriggersColumnTypes()),
+                
+            "SEQUENCES" => new IteratorInformationSchema(
+                catalog.GetInformationSchemaSequences(),
+                SchemaCatalog.GetInformationSchemaSequencesColumns(),
+                SchemaCatalog.GetInformationSchemaSequencesColumnTypes()),
+                
             _ => throw new InvalidOperationException($"Unknown INFORMATION_SCHEMA view: {viewName}")
         };
     }

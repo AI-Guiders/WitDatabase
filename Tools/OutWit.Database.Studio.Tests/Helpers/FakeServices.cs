@@ -9,6 +9,8 @@ namespace OutWit.Database.Studio.Tests.Helpers;
 /// </summary>
 internal class FakeDatabaseService : IDatabaseService
 {
+    #region IDatabaseService
+
     public bool IsConnected => false;
     public ConnectionInfo? CurrentConnection => null;
 
@@ -48,8 +50,19 @@ internal class FakeDatabaseService : IDatabaseService
     
     public Task<IReadOnlyList<ColumnInfo>> GetTableColumnsAsync(string tableName, CancellationToken ct = default) => 
         Task.FromResult<IReadOnlyList<ColumnInfo>>(Array.Empty<ColumnInfo>());
-    
+
+    public Task<string?> GetViewDefinitionAsync(string viewName, CancellationToken ct = default) =>
+        Task.FromResult<string?>(null);
+
+    public Task<string?> GetTriggerDefinitionAsync(string triggerName, CancellationToken ct = default) =>
+        Task.FromResult<string?>(null);
+
+    public Task<string?> GetIndexDefinitionAsync(string indexName, CancellationToken ct = default) =>
+        Task.FromResult<string?>(null);
+
     public void Dispose() { }
+
+    #endregion
 }
 
 /// <summary>
@@ -57,13 +70,17 @@ internal class FakeDatabaseService : IDatabaseService
 /// </summary>
 internal class FakeSettingsService : ISettingsService
 {
-    public List<string> RecentFiles { get; } = new();
+    #region ISettingsService
+
+    public List<string> RecentFiles { get; } = [];
     
     public Task<Settings> LoadAsync() => Task.FromResult(new Settings());
     public Task SaveAsync(Settings settings) => Task.CompletedTask;
     public Task AddRecentFileAsync(string filePath) { RecentFiles.Add(filePath); return Task.CompletedTask; }
     public Task RemoveRecentFileAsync(string filePath) { RecentFiles.Remove(filePath); return Task.CompletedTask; }
     public Task ClearRecentFilesAsync() { RecentFiles.Clear(); return Task.CompletedTask; }
+
+    #endregion
 }
 
 /// <summary>
@@ -71,6 +88,8 @@ internal class FakeSettingsService : ISettingsService
 /// </summary>
 internal class FakeExportService : IExportService
 {
+    #region IExportService
+
     public Task ExportToCsvAsync(DataTable data, string filePath) => Task.CompletedTask;
     public Task ExportToJsonAsync(DataTable data, string filePath) => Task.CompletedTask;
     public Task ExportToSqlAsync(DataTable data, string tableName, string filePath) => Task.CompletedTask;
@@ -78,4 +97,6 @@ internal class FakeExportService : IExportService
     public string ToInsertStatements(DataTable data, string tableName) => string.Empty;
     public string RowsToCsv(IEnumerable<DataRowView> rows, DataTable schema, bool includeHeaders = true) => string.Empty;
     public string RowsToInsertStatements(IEnumerable<DataRowView> rows, DataTable schema, string tableName) => string.Empty;
+
+    #endregion
 }

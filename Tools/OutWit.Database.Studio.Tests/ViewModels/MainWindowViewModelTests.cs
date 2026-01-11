@@ -1,7 +1,6 @@
 using OutWit.Database.Studio.ViewModels;
-using OutWit.Database.Studio.Services;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using OutWit.Database.Studio.Tests.Helpers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OutWit.Database.Studio.Tests.ViewModels;
 
@@ -20,23 +19,15 @@ public class MainWindowViewModelTests
 
     #region Setup
 
-    [OneTimeSetUp]
-    public void OneTimeSetup()
+    [SetUp]
+    public void Setup()
     {
-        var services = new ServiceCollection();
+        m_appVm = new ApplicationViewModel(
+            new FakeDatabaseService(),
+            new FakeSettingsService(),
+            new FakeExportService(),
+            NullLogger<ApplicationViewModel>.Instance);
 
-        services.AddLogging(builder =>
-        {
-            builder.SetMinimumLevel(LogLevel.Warning);
-        });
-
-        services.AddSingleton<IDatabaseService, DatabaseService>();
-        services.AddSingleton<ISettingsService, SettingsService>();
-        services.AddSingleton<ApplicationViewModel>();
-
-        var serviceProvider = services.BuildServiceProvider();
-
-        m_appVm = serviceProvider.GetRequiredService<ApplicationViewModel>();
         m_mainWindowVm = m_appVm.MainWindowVm;
     }
 

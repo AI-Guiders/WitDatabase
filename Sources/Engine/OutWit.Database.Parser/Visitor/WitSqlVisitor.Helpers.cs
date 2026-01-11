@@ -35,6 +35,79 @@ internal sealed partial class WitSqlVisitor
 
     #endregion
 
+    #region Identifier Normalization
+
+    /// <summary>
+    /// Normalizes an identifier by removing quotes.
+    /// Supports: "identifier", [identifier], `identifier`
+    /// </summary>
+    /// <param name="text">Raw identifier text from parser.</param>
+    /// <returns>Unquoted identifier name.</returns>
+    internal static string NormalizeIdentifier(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        // Double-quoted: "identifier" or "escaped""quote"
+        if (text.StartsWith('"') && text.EndsWith('"') && text.Length >= 2)
+        {
+            var inner = text.Substring(1, text.Length - 2);
+            return inner.Replace("\"\"", "\"");
+        }
+
+        // Square brackets: [identifier]
+        if (text.StartsWith('[') && text.EndsWith(']') && text.Length >= 2)
+        {
+            return text.Substring(1, text.Length - 2);
+        }
+
+        // Backticks: `identifier`
+        if (text.StartsWith('`') && text.EndsWith('`') && text.Length >= 2)
+        {
+            return text.Substring(1, text.Length - 2);
+        }
+
+        // Unquoted identifier - return as-is
+        return text;
+    }
+
+    /// <summary>
+    /// Gets normalized table name from tableName context.
+    /// Handles schema.table format: schema.table -> schema.table (both parts normalized).
+    /// </summary>
+    internal static string GetTableName(WitSqlParser.TableNameContext context)
+    {
+        var schemaName = context.schemaName();
+        var simpleTableName = context.simpleTableName();
+
+        if (schemaName != null)
+        {
+            var schema = NormalizeIdentifier(schemaName.GetText());
+            var table = NormalizeIdentifier(simpleTableName.GetText());
+            return $"{schema}.{table}";
+        }
+
+        return NormalizeIdentifier(simpleTableName.GetText());
+    }
+
+    /// <summary>
+    /// Gets normalized column name from columnName context.
+    /// </summary>
+    internal static string GetColumnName(WitSqlParser.ColumnNameContext context)
+    {
+        return NormalizeIdentifier(context.GetText());
+    }
+
+    /// <summary>
+    /// Gets normalized alias from alias context.
+    /// </summary>
+    internal static string? GetAlias(WitSqlParser.AliasContext? context)
+    {
+        return context != null ? NormalizeIdentifier(context.GetText()) : null;
+    }
+
+    #endregion
+
     #region String/Blob Literal Parsing
 
     private static string ParseStringLiteral(string text)
