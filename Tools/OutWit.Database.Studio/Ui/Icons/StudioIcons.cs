@@ -50,6 +50,12 @@ public static class StudioIcons
     public const string PATH_EXPORT = "M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z";
     public const string PATH_COPY_AS_INSERT = "M17,9H7V7H17M17,13H7V11H17M14,17H7V15H14M12,3A9,9 0 0,1 21,12A9,9 0 0,1 12,21A9,9 0 0,1 3,12A9,9 0 0,1 12,3Z";
 
+    // Table Editor icons
+    public const string PATH_TABLE_EDITOR_ADD_ROW = "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z";
+    public const string PATH_TABLE_EDITOR_DELETE_ROW = "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z";
+    public const string PATH_TABLE_EDITOR_COMMIT = "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z";
+    public const string PATH_TABLE_EDITOR_ROLLBACK = "M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z";
+
     #endregion
 
     #region Menu
@@ -124,6 +130,15 @@ public static class StudioIcons
     public static StreamGeometry COPY => StreamGeometry.Parse(PATH_COPY);
     public static StreamGeometry EXPORT => StreamGeometry.Parse(PATH_EXPORT);
     public static StreamGeometry COPY_AS_INSERT => StreamGeometry.Parse(PATH_COPY_AS_INSERT);
+
+    #endregion
+
+    #region Table Editor
+
+    public static StreamGeometry TABLE_EDITOR_ADD_ROW => StreamGeometry.Parse(PATH_TABLE_EDITOR_ADD_ROW);
+    public static StreamGeometry TABLE_EDITOR_DELETE_ROW => StreamGeometry.Parse(PATH_TABLE_EDITOR_DELETE_ROW);
+    public static StreamGeometry TABLE_EDITOR_COMMIT => StreamGeometry.Parse(PATH_TABLE_EDITOR_COMMIT);
+    public static StreamGeometry TABLE_EDITOR_ROLLBACK => StreamGeometry.Parse(PATH_TABLE_EDITOR_ROLLBACK);
 
     #endregion
 

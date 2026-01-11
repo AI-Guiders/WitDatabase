@@ -89,8 +89,8 @@
 				<Separator />
 
 				<MenuItem Header="E_xit"
-                          Command="{Binding MainWindowVm.ExitCommand}"
-                          InputGesture="Alt+F4">
+						  Command="{Binding MainWindowVm.ExitCommand}"
+						  InputGesture="Alt+F4">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
 					</MenuItem.Icon>
@@ -157,8 +157,8 @@
 
 			<MenuItem Header="_View">
 				<MenuItem Header="_Refresh"
-                          Command="{Binding MainWindowVm.RefreshCommand}"
-                          InputGesture="F5">
+						  Command="{Binding MainWindowVm.RefreshCommand}"
+						  InputGesture="F5">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}" />
 					</MenuItem.Icon>
@@ -270,6 +270,11 @@
 					<!-- Query Editor Tab -->
 					<TabItem Header="Query">
 						<query:QueryTabs DataContext="{Binding QueryTabsVm}"/>
+					</TabItem>
+
+					<!-- Table Editor Tab -->
+					<TabItem Header="Data">
+						<views:TableEditor/>
 					</TabItem>
 
 					<!-- Table Structure Tab -->

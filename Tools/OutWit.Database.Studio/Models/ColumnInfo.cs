@@ -20,6 +20,7 @@ public sealed class ColumnInfo : ModelBase
                && DataType.Is(other.DataType)
                && IsNullable.Is(other.IsNullable)
                && IsPrimaryKey.Is(other.IsPrimaryKey)
+               && IsAutoIncrement.Is(other.IsAutoIncrement)
                && DefaultValue.Is(other.DefaultValue);
     }
 
@@ -32,6 +33,7 @@ public sealed class ColumnInfo : ModelBase
             DataType = DataType,
             IsNullable = IsNullable,
             IsPrimaryKey = IsPrimaryKey,
+            IsAutoIncrement = IsAutoIncrement,
             DefaultValue = DefaultValue
         };
     }
@@ -64,6 +66,11 @@ public sealed class ColumnInfo : ModelBase
     /// Gets or sets whether the column is part of the primary key.
     /// </summary>
     public bool IsPrimaryKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the column is auto-increment.
+    /// </summary>
+    public bool IsAutoIncrement { get; set; }
 
     /// <summary>
     /// Gets or sets the default value expression.

@@ -58,6 +58,7 @@ public sealed class ApplicationViewModel
         DatabaseExplorerVm = new DatabaseExplorerViewModel(this);
         QueryTabsVm = new QueryTabsViewModel(this);
         TableStructureVm = new TableStructureViewModel(this);
+        TableEditorVm = new TableEditorViewModel(this);
     }
 
     #endregion
@@ -79,6 +80,7 @@ public sealed class ApplicationViewModel
     public DatabaseExplorerViewModel DatabaseExplorerVm { get; private set; } = null!;
     public QueryTabsViewModel QueryTabsVm { get; private set; } = null!;
     public TableStructureViewModel TableStructureVm { get; private set; } = null!;
+    public TableEditorViewModel TableEditorVm { get; private set; } = null!;
 
     #endregion
 

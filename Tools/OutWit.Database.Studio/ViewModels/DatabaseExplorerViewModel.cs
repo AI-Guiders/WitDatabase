@@ -39,6 +39,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
     {
         RefreshCommand = new RelayCommandAsync(RefreshAsync);
         BrowseDataCommand = new RelayCommand(BrowseData);
+        EditDataCommand = new RelayCommandAsync(EditDataAsync);
         ViewDefinitionCommand = new RelayCommandAsync(ViewDefinitionAsync);
         DropObjectCommand = new RelayCommandAsync(DropObjectAsync);
         CreateTableCommand = new RelayCommandAsync(CreateTableAsync);
@@ -78,6 +79,20 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         }
 
         Logger.LogInformation("Browse data for {ObjectName}", SelectedNode.Name);
+    }
+
+    private async Task EditDataAsync()
+    {
+        if (SelectedNode == null || !CanEditData)
+            return;
+
+        var tableName = SelectedNode.Name;
+        
+        // Load data into Table Editor
+        await ApplicationVm.TableEditorVm.LoadTableAsync(tableName);
+        
+        ApplicationVm.MainWindowVm.StatusText = $"Editing table: {tableName}";
+        Logger.LogInformation("Edit data for table {TableName}", tableName);
     }
 
     private async Task ViewDefinitionAsync()
@@ -391,6 +406,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         var nodeType = SelectedNode?.NodeType;
 
         CanBrowseData = nodeType == DatabaseNodeType.Table || nodeType == DatabaseNodeType.View;
+        CanEditData = nodeType == DatabaseNodeType.Table;
         CanViewDefinition = nodeType == DatabaseNodeType.Table
                          || nodeType == DatabaseNodeType.View 
                          || nodeType == DatabaseNodeType.Trigger 
@@ -451,6 +467,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
     public bool CanBrowseData { get; private set; }
 
     [Notify]
+    public bool CanEditData { get; private set; }
+
+    [Notify]
     public bool CanViewDefinition { get; private set; }
 
     [Notify]
@@ -463,6 +482,8 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand RefreshCommand { get; private set; } = null!;
 
     public ICommand BrowseDataCommand { get; private set; } = null!;
+
+    public ICommand EditDataCommand { get; private set; } = null!;
 
     public ICommand ViewDefinitionCommand { get; private set; } = null!;
 

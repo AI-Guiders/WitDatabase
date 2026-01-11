@@ -98,6 +98,14 @@
                                 </MenuItem.Icon>
                             </MenuItem>
                             
+                            <MenuItem Header="Edit Data..."
+                                      Command="{Binding DatabaseExplorerVm.EditDataCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanEditData}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.TABLE_EDITOR_ADD_ROW}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            
                             <MenuItem Header="View Definition"
                                       Command="{Binding DatabaseExplorerVm.ViewDefinitionCommand}"
                                       IsEnabled="{Binding DatabaseExplorerVm.CanViewDefinition}">

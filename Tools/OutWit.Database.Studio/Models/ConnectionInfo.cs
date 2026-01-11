@@ -66,6 +66,9 @@ public sealed class ConnectionInfo : ModelBase
     /// </summary>
     public string BuildConnectionString()
     {
+        if (string.IsNullOrWhiteSpace(FilePath))
+            throw new InvalidOperationException("FilePath must be specified before building connection string.");
+
         var builder = new System.Text.StringBuilder();
         builder.Append($"Data Source={FilePath}");
 
