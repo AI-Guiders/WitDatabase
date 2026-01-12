@@ -146,6 +146,7 @@
                                 ResultView="{Binding TableEditorVm.CurrentView}"
                                 SelectedRowView="{Binding TableEditorVm.SelectedRowView, Mode=TwoWay}"
                                 ColumnInfos="{Binding TableEditorVm.Columns}"
+                                CellEditedCommand="{Binding TableEditorVm.CellEditedCommand}"
                                 BorderThickness="0"
                                 Background="Transparent"
                                 IsVisible="{Binding TableEditorVm.TableName, Converter={x:Static ObjectConverters.IsNotNull}}"/>

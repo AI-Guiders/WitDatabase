@@ -1,8 +1,8 @@
 using System.Data;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
-using OutWit.Common.Aspects;
 using OutWit.Common.MVVM.Attributes;
 using OutWit.Database.Studio.Converters;
 using OutWit.Database.Studio.Models;
@@ -21,15 +21,6 @@ public partial class EditableDataGrid : DataGridBase
     {
         ColumnInfosProperty.Changed.AddClassHandler<EditableDataGrid>((grid, e) => grid.OnColumnInfosChanged(e));
     }
-
-    #endregion
-
-    #region Events
-
-    /// <summary>
-    /// Raised when a cell value is edited.
-    /// </summary>
-    public event EventHandler<CellEditedEventArgs>? CellEdited = delegate { };
 
     #endregion
 
@@ -132,8 +123,11 @@ public partial class EditableDataGrid : DataGridBase
             // Apply the value directly to the DataRow
             rowView.Row[columnIndex] = newValue;
 
-            // Notify that cell was edited
-            CellEdited?.Invoke(this, new CellEditedEventArgs(rowView, column.ColumnName, newValue));
+            // Execute command if bound
+            if (CellEditedCommand?.CanExecute(rowView) == true)
+            {
+                CellEditedCommand.Execute(rowView);
+            }
         }
         catch
         {
@@ -157,6 +151,12 @@ public partial class EditableDataGrid : DataGridBase
     /// </summary>
     [StyledProperty]
     public DataRowView? SelectedRowView { get; set; }
+
+    /// <summary>
+    /// Command executed when a cell is edited. Parameter is DataRowView.
+    /// </summary>
+    [StyledProperty]
+    public ICommand? CellEditedCommand { get; set; }
 
     #endregion
 }

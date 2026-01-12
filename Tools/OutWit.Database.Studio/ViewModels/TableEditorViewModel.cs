@@ -70,6 +70,7 @@ public class TableEditorViewModel : ViewModelBase<ApplicationViewModel>
         DeleteRowCommand = new RelayCommand(DeleteSelectedRow);
         CommitCommand = new RelayCommandAsync(CommitChangesAsync);
         RollbackCommand = new RelayCommand(RollbackChanges);
+        CellEditedCommand = new RelayCommand<DataRowView>(OnCellEdited);
     }
 
     #endregion
@@ -434,9 +435,9 @@ public class TableEditorViewModel : ViewModelBase<ApplicationViewModel>
     /// <summary>
     /// Called when a cell value is edited in the DataGrid.
     /// </summary>
-    public void OnCellEdited(DataRowView rowView)
+    private void OnCellEdited(DataRowView? rowView)
     {
-        if (EditableData == null)
+        if (EditableData == null || rowView == null)
             return;
 
         var row = rowView.Row;
@@ -731,6 +732,8 @@ public class TableEditorViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand CommitCommand { get; private set; } = null!;
 
     public ICommand RollbackCommand { get; private set; } = null!;
+
+    public ICommand CellEditedCommand { get; private set; } = null!;
 
     #endregion
 
