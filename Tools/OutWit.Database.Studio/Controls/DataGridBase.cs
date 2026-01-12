@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Styling;
+using OutWit.Common.MVVM.Attributes;
 using OutWit.Database.Studio.Converters;
 
 namespace OutWit.Database.Studio.Controls;
@@ -12,15 +13,8 @@ namespace OutWit.Database.Studio.Controls;
 /// Base class for DataGrids that display DataView results.
 /// Provides common functionality for column generation and NULL value styling.
 /// </summary>
-public abstract class DataGridBase : DataGrid
+public abstract partial class DataGridBase : DataGrid
 {
-    #region Styled Properties
-
-    public static readonly StyledProperty<DataView?> ResultViewProperty =
-        AvaloniaProperty.Register<DataGridBase, DataView?>(nameof(ResultView));
-
-    #endregion
-
     #region Static
 
     static DataGridBase()
@@ -30,13 +24,17 @@ public abstract class DataGridBase : DataGrid
 
     #endregion
 
+    #region Converters
+
+    protected static SqlValueConverter m_valueConverter = new();
+
+    private static SqlValueBrushConverter m_brushConverter = new();
+
+    #endregion
+
     #region Fields
 
     private readonly List<IStyle> m_dynamicStyles = [];
-    
-    // Shared converter instances - thread-safe for read-only converters
-    private static readonly SqlValueConverter s_valueConverter = new();
-    private static readonly SqlValueBrushConverter s_brushConverter = new();
 
     #endregion
 
@@ -85,7 +83,7 @@ public abstract class DataGridBase : DataGrid
             Header = dataColumn.ColumnName,
             Binding = new Binding($"Row.ItemArray[{ordinal}]")
             {
-                Converter = s_valueConverter,
+                Converter = m_valueConverter,
                 Mode = BindingMode.OneWay
             },
             Width = new DataGridLength(1, DataGridLengthUnitType.Star),
@@ -103,7 +101,7 @@ public abstract class DataGridBase : DataGrid
         var cellStyle = new Style(x => x.OfType<DataGridCell>().Class(className));
         var foregroundBinding = new Binding($"Row.ItemArray[{ordinal}]")
         {
-            Converter = s_brushConverter,
+            Converter = m_brushConverter,
         };
         cellStyle.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, foregroundBinding));
         return cellStyle;
@@ -143,7 +141,10 @@ public abstract class DataGridBase : DataGrid
     /// <summary>
     /// Gets the CSS class name for a column.
     /// </summary>
-    protected virtual string GetColumnClassName(int ordinal) => $"col-{ordinal}";
+    protected virtual string GetColumnClassName(int ordinal)
+    {
+        return $"col-{ordinal}";
+    }
 
     /// <summary>
     /// Called when ResultView property changes.
@@ -160,11 +161,8 @@ public abstract class DataGridBase : DataGrid
     /// <summary>
     /// The DataView to display.
     /// </summary>
-    public DataView? ResultView
-    {
-        get => GetValue(ResultViewProperty);
-        set => SetValue(ResultViewProperty, value);
-    }
+    [StyledProperty]
+    public DataView? ResultView { get; set; }
 
     protected override Type StyleKeyOverride => typeof(DataGrid);
 

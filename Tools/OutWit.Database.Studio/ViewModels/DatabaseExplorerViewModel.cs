@@ -437,7 +437,13 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
 
         if (SelectedNode.NodeType is DatabaseNodeType.Table or DatabaseNodeType.View or DatabaseNodeType.Index)
         {
-            _ = ApplicationVm.TableStructureVm.LoadObjectStructureAsync(SelectedNode);
+            // Defer the async operation to not block the UI event handling
+            // This allows the TreeView to finish processing the click before we start loading
+            var nodeToLoad = SelectedNode;
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            {
+                await ApplicationVm.TableStructureVm.LoadObjectStructureAsync(nodeToLoad);
+            }, Avalonia.Threading.DispatcherPriority.Background);
             return;
         }
 

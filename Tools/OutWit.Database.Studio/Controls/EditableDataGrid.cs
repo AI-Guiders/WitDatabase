@@ -2,6 +2,8 @@ using System.Data;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
+using OutWit.Common.Aspects;
+using OutWit.Common.MVVM.Attributes;
 using OutWit.Database.Studio.Converters;
 using OutWit.Database.Studio.Models;
 
@@ -11,27 +13,23 @@ namespace OutWit.Database.Studio.Controls;
 /// Custom DataGrid for editing table data.
 /// Supports inline editing, type validation, and NULL handling.
 /// </summary>
-public class EditableDataGrid : DataGridBase
+public partial class EditableDataGrid : DataGridBase
 {
-    #region Styled Properties
-
-    public static readonly StyledProperty<IList<ColumnInfo>?> ColumnInfosProperty =
-        AvaloniaProperty.Register<EditableDataGrid, IList<ColumnInfo>?>(nameof(ColumnInfos));
-
-    public static readonly StyledProperty<DataRowView?> SelectedRowViewProperty =
-        AvaloniaProperty.Register<EditableDataGrid, DataRowView?>(nameof(SelectedRowView));
-
-    #endregion
-
     #region Static
-
-    // Shared converter instance
-    private static readonly SqlValueConverter s_valueConverter = new();
 
     static EditableDataGrid()
     {
         ColumnInfosProperty.Changed.AddClassHandler<EditableDataGrid>((grid, e) => grid.OnColumnInfosChanged(e));
     }
+
+    #endregion
+
+    #region Events
+
+    /// <summary>
+    /// Raised when a cell value is edited.
+    /// </summary>
+    public event EventHandler<CellEditedEventArgs>? CellEdited = delegate { };
 
     #endregion
 
@@ -60,7 +58,7 @@ public class EditableDataGrid : DataGridBase
             Header = dataColumn.ColumnName,
             Binding = new Binding($"Row.ItemArray[{ordinal}]")
             {
-                Converter = s_valueConverter,
+                Converter = m_valueConverter,
                 Mode = BindingMode.OneWay // Display only, editing handled manually
             },
             Width = columnCount <= 5
@@ -146,51 +144,19 @@ public class EditableDataGrid : DataGridBase
 
     #endregion
 
-    #region Events
-
-    /// <summary>
-    /// Raised when a cell value is edited.
-    /// </summary>
-    public event EventHandler<CellEditedEventArgs>? CellEdited;
-
-    #endregion
-
     #region Properties
 
     /// <summary>
     /// Column information for validation and editing rules.
     /// </summary>
-    public IList<ColumnInfo>? ColumnInfos
-    {
-        get => GetValue(ColumnInfosProperty);
-        set => SetValue(ColumnInfosProperty, value);
-    }
+    [StyledProperty]
+    public IList<ColumnInfo>? ColumnInfos { get; set; }
 
     /// <summary>
     /// The currently selected row.
     /// </summary>
-    public DataRowView? SelectedRowView
-    {
-        get => GetValue(SelectedRowViewProperty);
-        set => SetValue(SelectedRowViewProperty, value);
-    }
+    [StyledProperty]
+    public DataRowView? SelectedRowView { get; set; }
 
     #endregion
-}
-
-/// <summary>
-/// Event args for cell edited event.
-/// </summary>
-public class CellEditedEventArgs : EventArgs
-{
-    public CellEditedEventArgs(DataRowView rowView, string columnName, object? newValue)
-    {
-        RowView = rowView;
-        ColumnName = columnName;
-        NewValue = newValue;
-    }
-
-    public DataRowView RowView { get; }
-    public string ColumnName { get; }
-    public object? NewValue { get; }
 }

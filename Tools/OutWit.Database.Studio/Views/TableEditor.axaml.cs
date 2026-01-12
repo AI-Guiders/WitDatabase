@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using OutWit.Database.Studio.Controls;
+using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.ViewModels;
 
 namespace OutWit.Database.Studio.Views;

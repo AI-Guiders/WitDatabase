@@ -2,6 +2,7 @@ using System.Collections;
 using System.Data;
 using Avalonia;
 using Avalonia.Controls;
+using OutWit.Common.MVVM.Attributes;
 
 namespace OutWit.Database.Studio.Controls;
 
@@ -9,15 +10,8 @@ namespace OutWit.Database.Studio.Controls;
 /// Custom DataGrid that displays DataView results in read-only mode.
 /// Supports NULL value display, automatic column generation, and multi-row selection.
 /// </summary>
-public class ResultDataGrid : DataGridBase
+public partial class ResultDataGrid : DataGridBase
 {
-    #region Styled Properties
-
-    public static readonly StyledProperty<IList?> SelectedRowsProperty =
-        AvaloniaProperty.Register<ResultDataGrid, IList?>(nameof(SelectedRows));
-
-    #endregion
-
     #region Constructors
 
     public ResultDataGrid()
@@ -56,11 +50,8 @@ public class ResultDataGrid : DataGridBase
     /// <summary>
     /// The currently selected rows.
     /// </summary>
-    public IList? SelectedRows
-    {
-        get => GetValue(SelectedRowsProperty);
-        set => SetValue(SelectedRowsProperty, value);
-    }
+    [StyledProperty]
+    public IList? SelectedRows { get; set; }
 
     #endregion
 }
