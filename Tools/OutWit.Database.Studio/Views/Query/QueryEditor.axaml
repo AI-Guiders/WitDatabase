@@ -95,6 +95,7 @@
                     <!-- Custom Data Grid for Results -->
                     <c:ResultDataGrid Grid.Row="0"
                                       ResultView="{Binding CurrentView}"
+                                      ColumnSettings="{Binding ResultColumnSettings}"
                                       SelectedRows="{Binding SelectedRows, Mode=OneWayToSource}"
                                       BorderThickness="0"
                                       Background="Transparent"

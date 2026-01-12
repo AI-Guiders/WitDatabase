@@ -258,6 +258,9 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
         IsLoading = true;
         ErrorMessage = null;
 
+        // Save expanded state before refresh
+        var expandedNodes = SaveExpandedState();
+
         try
         {
             Logger.LogInformation("Starting schema load...");
@@ -270,7 +273,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             {
                 Name = dbName,
                 NodeType = DatabaseNodeType.Database,
-                IsExpanded = true
+                IsExpanded = expandedNodes.Contains($"Database:{dbName}") || expandedNodes.Count == 0
             };
 
             // Tables folder
@@ -278,7 +281,7 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             {
                 Name = "Tables",
                 NodeType = DatabaseNodeType.TablesFolder,
-                IsExpanded = true
+                IsExpanded = expandedNodes.Contains("TablesFolder:Tables") || expandedNodes.Count == 0
             };
 
             Logger.LogInformation("Loading tables...");
@@ -299,7 +302,8 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             var viewsFolder = new DatabaseNode
             {
                 Name = "Views",
-                NodeType = DatabaseNodeType.ViewsFolder
+                NodeType = DatabaseNodeType.ViewsFolder,
+                IsExpanded = expandedNodes.Contains("ViewsFolder:Views")
             };
 
             Logger.LogInformation("Loading views...");
@@ -320,7 +324,8 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             var indexesFolder = new DatabaseNode
             {
                 Name = "Indexes",
-                NodeType = DatabaseNodeType.IndexesFolder
+                NodeType = DatabaseNodeType.IndexesFolder,
+                IsExpanded = expandedNodes.Contains("IndexesFolder:Indexes")
             };
 
             Logger.LogInformation("Loading indexes...");
@@ -341,7 +346,8 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             var triggersFolder = new DatabaseNode
             {
                 Name = "Triggers",
-                NodeType = DatabaseNodeType.TriggersFolder
+                NodeType = DatabaseNodeType.TriggersFolder,
+                IsExpanded = expandedNodes.Contains("TriggersFolder:Triggers")
             };
 
             Logger.LogInformation("Loading triggers...");
@@ -362,7 +368,8 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             var sequencesFolder = new DatabaseNode
             {
                 Name = "Sequences",
-                NodeType = DatabaseNodeType.SequencesFolder
+                NodeType = DatabaseNodeType.SequencesFolder,
+                IsExpanded = expandedNodes.Contains("SequencesFolder:Sequences")
             };
 
             Logger.LogInformation("Loading sequences...");
@@ -400,6 +407,28 @@ public class DatabaseExplorerViewModel : ViewModelBase<ApplicationViewModel>
             IsLoading = false;
             Logger.LogInformation("RefreshAsync completed. IsLoading: {IsLoading}, Nodes.Count: {NodesCount}", 
                 IsLoading, Nodes.Count);
+        }
+    }
+
+    /// <summary>
+    /// Saves the expanded state of all nodes before refresh.
+    /// </summary>
+    private HashSet<string> SaveExpandedState()
+    {
+        var expanded = new HashSet<string>();
+        SaveExpandedStateRecursive(Nodes, expanded);
+        return expanded;
+    }
+
+    private static void SaveExpandedStateRecursive(IEnumerable<DatabaseNode> nodes, HashSet<string> expanded)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsExpanded)
+            {
+                expanded.Add($"{node.NodeType}:{node.Name}");
+            }
+            SaveExpandedStateRecursive(node.Children, expanded);
         }
     }
 

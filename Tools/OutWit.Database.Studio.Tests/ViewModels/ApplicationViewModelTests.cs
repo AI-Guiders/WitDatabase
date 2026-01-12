@@ -57,15 +57,9 @@ public class ApplicationViewModelTests
     }
 
     [Test]
-    public void QueryTabsVmIsNotNullTest()
+    public void WorkspaceTabsVmIsNotNullTest()
     {
-        Assert.That(m_appVm.QueryTabsVm, Is.Not.Null);
-    }
-
-    [Test]
-    public void TableStructureVmIsNotNullTest()
-    {
-        Assert.That(m_appVm.TableStructureVm, Is.Not.Null);
+        Assert.That(m_appVm.WorkspaceTabsVm, Is.Not.Null);
     }
 
     #endregion
@@ -80,8 +74,7 @@ public class ApplicationViewModelTests
             Assert.That(m_appVm.MainWindowVm, Is.Not.Null);
             Assert.That(m_appVm.ConnectionVm, Is.Not.Null);
             Assert.That(m_appVm.DatabaseExplorerVm, Is.Not.Null);
-            Assert.That(m_appVm.QueryTabsVm, Is.Not.Null);
-            Assert.That(m_appVm.TableStructureVm, Is.Not.Null);
+            Assert.That(m_appVm.WorkspaceTabsVm, Is.Not.Null);
         });
     }
 

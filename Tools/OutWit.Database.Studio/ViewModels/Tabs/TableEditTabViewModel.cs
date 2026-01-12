@@ -55,6 +55,9 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
     {
         Columns = [];
         PageSize = DEFAULT_PAGE_SIZE;
+        
+        // Initialize column settings for the edit grid
+        EditColumnSettings = new GridColumnSettings();
     }
 
     private void InitEvents()
@@ -713,6 +716,12 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
     /// </summary>
     [Notify]
     public bool CanRefresh { get; private set; }
+
+    /// <summary>
+    /// Settings for edit grid columns (persistence, visibility, order, etc.).
+    /// </summary>
+    [Notify]
+    public GridColumnSettings EditColumnSettings { get; private set; } = null!;
 
     #endregion
 

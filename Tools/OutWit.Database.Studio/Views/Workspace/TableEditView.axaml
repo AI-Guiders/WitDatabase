@@ -119,6 +119,7 @@
         <Grid Grid.Row="1">
             <!-- Editable DataGrid -->
             <c:EditableDataGrid ResultView="{Binding CurrentView}"
+                                ColumnSettings="{Binding EditColumnSettings}"
                                 SelectedRowView="{Binding SelectedRowView, Mode=TwoWay}"
                                 ColumnInfos="{Binding Columns}"
                                 CellEditedCommand="{Binding CellEditedCommand}"

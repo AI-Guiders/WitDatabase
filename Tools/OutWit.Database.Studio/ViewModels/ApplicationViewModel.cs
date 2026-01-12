@@ -57,13 +57,11 @@ public sealed class ApplicationViewModel
         ConnectionVm = new ConnectionViewModel(this);
         DatabaseExplorerVm = new DatabaseExplorerViewModel(this);
         
-        // Legacy ViewModels (will be removed after full migration)
-        QueryTabsVm = new QueryTabsViewModel(this);
-        TableStructureVm = new TableStructureViewModel(this);
-        TableEditorVm = new TableEditorViewModel(this);
-        
-        // New unified tabs system
+        // Unified workspace tabs system
         WorkspaceTabsVm = new WorkspaceTabsViewModel(this);
+        
+        // Legacy ViewModel kept for backward compatibility with old tests
+        QueryTabsVm = new QueryTabsViewModel(this);
     }
 
     #endregion
@@ -85,19 +83,16 @@ public sealed class ApplicationViewModel
     public DatabaseExplorerViewModel DatabaseExplorerVm { get; private set; } = null!;
     
     /// <summary>
-    /// New unified workspace tabs system.
+    /// Unified workspace tabs system for Query, Edit, and Structure tabs.
     /// </summary>
     public WorkspaceTabsViewModel WorkspaceTabsVm { get; private set; } = null!;
     
-    // Legacy ViewModels - kept for backward compatibility during migration
+    /// <summary>
+    /// Legacy query tabs ViewModel - kept for backward compatibility with tests.
+    /// Use WorkspaceTabsVm for new code.
+    /// </summary>
     [Obsolete("Use WorkspaceTabsVm instead")]
     public QueryTabsViewModel QueryTabsVm { get; private set; } = null!;
-    
-    [Obsolete("Use WorkspaceTabsVm.OpenStructureTabAsync instead")]
-    public TableStructureViewModel TableStructureVm { get; private set; } = null!;
-    
-    [Obsolete("Use WorkspaceTabsVm.OpenTableEditTabAsync instead")]
-    public TableEditorViewModel TableEditorVm { get; private set; } = null!;
 
     #endregion
 

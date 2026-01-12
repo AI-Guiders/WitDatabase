@@ -6,6 +6,7 @@ using Avalonia.Data;
 using Avalonia.Styling;
 using OutWit.Common.MVVM.Attributes;
 using OutWit.Database.Studio.Converters;
+using OutWit.Database.Studio.Models;
 
 namespace OutWit.Database.Studio.Controls;
 
@@ -20,6 +21,7 @@ public abstract partial class DataGridBase : DataGrid
     static DataGridBase()
     {
         ResultViewProperty.Changed.AddClassHandler<DataGridBase>((grid, e) => grid.OnResultViewChanged(e));
+        ColumnSettingsProperty.Changed.AddClassHandler<DataGridBase>((grid, e) => grid.OnColumnSettingsChanged(e));
     }
 
     #endregion
@@ -35,6 +37,8 @@ public abstract partial class DataGridBase : DataGrid
     #region Fields
 
     private readonly List<IStyle> m_dynamicStyles = [];
+    private bool m_isUpdatingFromSettings;
+    private bool m_isUpdatingSettings;
 
     #endregion
 
@@ -43,6 +47,7 @@ public abstract partial class DataGridBase : DataGrid
     protected DataGridBase()
     {
         InitDefaults();
+        InitEvents();
     }
 
     #endregion
@@ -56,6 +61,11 @@ public abstract partial class DataGridBase : DataGrid
         CanUserResizeColumns = true;
         CanUserReorderColumns = true;
         CanUserSortColumns = true;
+    }
+
+    private void InitEvents()
+    {
+        ColumnReordered += OnColumnReordered;
     }
 
     #endregion
@@ -78,7 +88,7 @@ public abstract partial class DataGridBase : DataGrid
     /// </summary>
     protected virtual DataGridTextColumn CreateColumn(DataColumn dataColumn, int ordinal, string className)
     {
-        return new DataGridTextColumn
+        var column = new DataGridTextColumn
         {
             Header = dataColumn.ColumnName,
             Binding = new Binding($"Row.ItemArray[{ordinal}]")
@@ -86,11 +96,30 @@ public abstract partial class DataGridBase : DataGrid
                 Converter = m_valueConverter,
                 Mode = BindingMode.OneWay
             },
-            Width = new DataGridLength(1, DataGridLengthUnitType.Star),
             MinWidth = 50,
             CanUserSort = true,
             Tag = ordinal
         };
+
+        // Apply saved width if available
+        if (ColumnSettings != null)
+        {
+            var settings = ColumnSettings.GetOrCreate(dataColumn.ColumnName);
+            if (settings.Width.HasValue && settings.Width.Value > 0)
+            {
+                column.Width = new DataGridLength(settings.Width.Value);
+            }
+            else
+            {
+                column.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
+            }
+        }
+        else
+        {
+            column.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
+        }
+
+        return column;
     }
 
     /// <summary>
@@ -112,6 +141,9 @@ public abstract partial class DataGridBase : DataGrid
     /// </summary>
     protected virtual void RebuildColumns()
     {
+        // Save current column widths before rebuilding
+        SaveCurrentColumnWidths();
+
         Columns.Clear();
         ClearDynamicStyles();
 
@@ -121,21 +153,74 @@ public abstract partial class DataGridBase : DataGrid
             return;
         }
 
-        foreach (DataColumn col in ResultView.Table.Columns)
+        m_isUpdatingFromSettings = true;
+        try
         {
-            var ordinal = col.Ordinal;
-            var className = GetColumnClassName(ordinal);
+            foreach (DataColumn col in ResultView.Table.Columns)
+            {
+                var ordinal = col.Ordinal;
+                var className = GetColumnClassName(ordinal);
 
-            var dataGridColumn = CreateColumn(col, ordinal, className);
-            dataGridColumn.CellStyleClasses.Add(className);
-            Columns.Add(dataGridColumn);
+                var dataGridColumn = CreateColumn(col, ordinal, className);
+                dataGridColumn.CellStyleClasses.Add(className);
+                Columns.Add(dataGridColumn);
 
-            var cellStyle = CreateNullValueStyle(ordinal, className);
-            Styles.Add(cellStyle);
-            m_dynamicStyles.Add(cellStyle);
+                var cellStyle = CreateNullValueStyle(ordinal, className);
+                Styles.Add(cellStyle);
+                m_dynamicStyles.Add(cellStyle);
+            }
+
+            ItemsSource = ResultView;
+
+            // Apply sort if saved
+            ApplySavedSort();
         }
+        finally
+        {
+            m_isUpdatingFromSettings = false;
+        }
+    }
 
-        ItemsSource = ResultView;
+    /// <summary>
+    /// Saves current column widths to ColumnSettings.
+    /// </summary>
+    private void SaveCurrentColumnWidths()
+    {
+        if (ColumnSettings == null || m_isUpdatingFromSettings)
+            return;
+
+        m_isUpdatingSettings = true;
+        try
+        {
+            foreach (var column in Columns)
+            {
+                if (column.Header is string headerName)
+                {
+                    var settings = ColumnSettings.GetOrCreate(headerName);
+                    settings.Width = column.ActualWidth > 0 ? column.ActualWidth : null;
+                    settings.DisplayIndex = column.DisplayIndex;
+                }
+            }
+        }
+        finally
+        {
+            m_isUpdatingSettings = false;
+        }
+    }
+
+    /// <summary>
+    /// Applies saved sort from ColumnSettings.
+    /// </summary>
+    private void ApplySavedSort()
+    {
+        if (ColumnSettings == null || string.IsNullOrEmpty(ColumnSettings.SortColumn))
+            return;
+
+        if (ResultView == null)
+            return;
+
+        var sortDirection = ColumnSettings.SortAscending ? "ASC" : "DESC";
+        ResultView.Sort = $"[{ColumnSettings.SortColumn}] {sortDirection}";
     }
 
     /// <summary>
@@ -154,6 +239,57 @@ public abstract partial class DataGridBase : DataGrid
         RebuildColumns();
     }
 
+    /// <summary>
+    /// Called when ColumnSettings property changes.
+    /// </summary>
+    protected virtual void OnColumnSettingsChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        // If we have data, rebuild to apply new settings
+        if (ResultView?.Table != null)
+        {
+            RebuildColumns();
+        }
+    }
+
+    #endregion
+
+    #region Event Handlers
+
+    private void OnColumnReordered(object? sender, DataGridColumnEventArgs e)
+    {
+        if (ColumnSettings == null || m_isUpdatingFromSettings)
+            return;
+
+        SaveCurrentColumnWidths();
+    }
+
+    /// <summary>
+    /// Called by derived classes when column width changes.
+    /// </summary>
+    protected void NotifyColumnWidthChanged(DataGridColumn column)
+    {
+        if (ColumnSettings == null || m_isUpdatingFromSettings || m_isUpdatingSettings)
+            return;
+
+        if (column.Header is string headerName)
+        {
+            var settings = ColumnSettings.GetOrCreate(headerName);
+            settings.Width = column.ActualWidth > 0 ? column.ActualWidth : null;
+        }
+    }
+
+    /// <summary>
+    /// Called by derived classes when sort changes.
+    /// </summary>
+    protected void NotifySortChanged(string? columnName, bool ascending)
+    {
+        if (ColumnSettings == null || m_isUpdatingFromSettings)
+            return;
+
+        ColumnSettings.SortColumn = columnName;
+        ColumnSettings.SortAscending = ascending;
+    }
+
     #endregion
 
     #region Properties
@@ -163,6 +299,12 @@ public abstract partial class DataGridBase : DataGrid
     /// </summary>
     [StyledProperty]
     public DataView? ResultView { get; set; }
+
+    /// <summary>
+    /// Column settings for persistence.
+    /// </summary>
+    [StyledProperty]
+    public GridColumnSettings? ColumnSettings { get; set; }
 
     protected override Type StyleKeyOverride => typeof(DataGrid);
 

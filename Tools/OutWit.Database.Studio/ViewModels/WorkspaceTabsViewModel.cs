@@ -20,10 +20,19 @@ public class WorkspaceTabsViewModel : ViewModelBase<ApplicationViewModel>
 {
     #region Constants
 
+    /// <summary>
+    /// DDL keywords that should trigger a schema refresh after execution.
+    /// </summary>
     private static readonly string[] DDL_KEYWORDS =
     [
         "CREATE", "DROP", "ALTER", "TRUNCATE", "RENAME"
     ];
+
+    /// <summary>
+    /// Additional DDL-related keywords that may appear after comments or whitespace.
+    /// </summary>
+    private static readonly HashSet<string> DDL_KEYWORDS_SET = 
+        new(DDL_KEYWORDS, StringComparer.OrdinalIgnoreCase);
 
     #endregion
 
@@ -346,6 +355,7 @@ public class WorkspaceTabsViewModel : ViewModelBase<ApplicationViewModel>
         tab.SetResultData(null);
 
         var isDdlStatement = IsDdlStatement(sql);
+        Logger.LogDebug("Executing SQL. IsDDL: {IsDDL}, SQL: {Sql}", isDdlStatement, sql.Length > 100 ? sql[..100] + "..." : sql);
 
         try
         {
@@ -367,8 +377,16 @@ public class WorkspaceTabsViewModel : ViewModelBase<ApplicationViewModel>
 
                 if (isDdlStatement)
                 {
-                    Logger.LogInformation("DDL statement detected, refreshing schema tree");
-                    await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
+                    Logger.LogInformation("DDL statement detected, refreshing schema tree...");
+                    try
+                    {
+                        await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
+                        Logger.LogInformation("Schema tree refreshed successfully");
+                    }
+                    catch (Exception refreshEx)
+                    {
+                        Logger.LogError(refreshEx, "Failed to refresh schema tree after DDL");
+                    }
                 }
             }
             else
@@ -405,12 +423,65 @@ public class WorkspaceTabsViewModel : ViewModelBase<ApplicationViewModel>
         if (string.IsNullOrWhiteSpace(sql))
             return false;
 
-        var trimmed = sql.TrimStart();
-        var firstWord = trimmed.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+        // Skip leading comments and whitespace
+        var trimmed = SkipCommentsAndWhitespace(sql);
+        if (string.IsNullOrEmpty(trimmed))
+            return false;
+
+        // Get first word (keyword)
+        var firstWord = trimmed.Split([' ', '\t', '\r', '\n', '(', '[', '"'], StringSplitOptions.RemoveEmptyEntries)
                                .FirstOrDefault()?
                                .ToUpperInvariant();
 
-        return firstWord != null && DDL_KEYWORDS.Contains(firstWord);
+        return firstWord != null && DDL_KEYWORDS_SET.Contains(firstWord);
+    }
+
+    /// <summary>
+    /// Skips SQL comments (-- and /* */) and whitespace at the beginning of the string.
+    /// </summary>
+    private static string SkipCommentsAndWhitespace(string sql)
+    {
+        var index = 0;
+        while (index < sql.Length)
+        {
+            // Skip whitespace
+            while (index < sql.Length && char.IsWhiteSpace(sql[index]))
+                index++;
+
+            if (index >= sql.Length)
+                break;
+
+            // Check for -- single line comment
+            if (index < sql.Length - 1 && sql[index] == '-' && sql[index + 1] == '-')
+            {
+                // Skip until end of line
+                while (index < sql.Length && sql[index] != '\n')
+                    index++;
+                continue;
+            }
+
+            // Check for /* */ block comment
+            if (index < sql.Length - 1 && sql[index] == '/' && sql[index + 1] == '*')
+            {
+                index += 2;
+                // Skip until */
+                while (index < sql.Length - 1)
+                {
+                    if (sql[index] == '*' && sql[index + 1] == '/')
+                    {
+                        index += 2;
+                        break;
+                    }
+                    index++;
+                }
+                continue;
+            }
+
+            // Not a comment, we're done
+            break;
+        }
+
+        return index < sql.Length ? sql[index..] : string.Empty;
     }
 
     #endregion

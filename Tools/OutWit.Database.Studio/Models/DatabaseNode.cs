@@ -1,4 +1,5 @@
 using OutWit.Common.Abstract;
+using OutWit.Common.Aspects;
 using OutWit.Common.Values;
 using OutWit.Common.Collections;
 
@@ -7,7 +8,7 @@ namespace OutWit.Database.Studio.Models;
 /// <summary>
 /// Represents a node in the database explorer tree.
 /// </summary>
-public sealed class DatabaseNode : ModelBase
+public sealed partial class DatabaseNode : ModelBase
 {
     #region Model Base
 
@@ -50,6 +51,7 @@ public sealed class DatabaseNode : ModelBase
     /// <summary>
     /// Gets or sets whether the node is expanded in the tree.
     /// </summary>
+    [Notify]
     public bool IsExpanded { get; set; }
 
     /// <summary>

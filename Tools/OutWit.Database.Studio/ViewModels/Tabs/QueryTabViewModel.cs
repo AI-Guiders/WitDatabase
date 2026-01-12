@@ -30,6 +30,7 @@ public class QueryTabViewModel : WorkspaceTabViewModel
     public QueryTabViewModel(ApplicationViewModel applicationViewModel)
         : base(applicationViewModel)
     {
+        InitDefaults();
         InitCommands();
         InitEvents();
     }
@@ -37,6 +38,12 @@ public class QueryTabViewModel : WorkspaceTabViewModel
     #endregion
 
     #region Initialization
+
+    private void InitDefaults()
+    {
+        // Initialize column settings for result grid
+        ResultColumnSettings = new GridColumnSettings();
+    }
 
     private void InitCommands()
     {
@@ -283,7 +290,9 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         HasResults = TotalRowCount > 0;
         IsSuccess = string.IsNullOrEmpty(ErrorMessage);
         HasMessages = !string.IsNullOrEmpty(ErrorMessage) || RowsAffected > 0;
-        CanExecuteQuery = Database.IsConnected && !IsExecuting;
+        
+        // CanExecuteQuery requires: connected, not executing, and has SQL text
+        CanExecuteQuery = Database.IsConnected && !IsExecuting && !string.IsNullOrWhiteSpace(SqlText);
 
         var selectedCount = SelectedRows?.Count ?? 0;
         CanCopyRows = HasResults && (selectedCount > 0 || CurrentView?.Count > 0);
@@ -314,6 +323,10 @@ public class QueryTabViewModel : WorkspaceTabViewModel
             UpdateStatus();
 
         if (e.IsProperty((QueryTabViewModel vm) => vm.IsExecuting))
+            UpdateStatus();
+
+        // Update CanExecuteQuery when SqlText changes (e.g., paste)
+        if (e.IsProperty((QueryTabViewModel vm) => vm.SqlText))
             UpdateStatus();
     }
 
@@ -421,6 +434,12 @@ public class QueryTabViewModel : WorkspaceTabViewModel
     /// </summary>
     [Notify]
     public IList? SelectedRows { get; set; }
+
+    /// <summary>
+    /// Settings for result grid columns (persistence, visibility, order, etc.).
+    /// </summary>
+    [Notify]
+    public GridColumnSettings ResultColumnSettings { get; private set; }
 
     #endregion
 

@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+             xmlns:models="using:OutWit.Database.Studio.Models"
              xmlns:converters="using:OutWit.Database.Studio.Converters"
              xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
@@ -50,8 +51,16 @@
                 <TreeView ItemsSource="{Binding DatabaseExplorerVm.Nodes}"
                           SelectedItem="{Binding DatabaseExplorerVm.SelectedNode}"
                           Background="Transparent">
+                    
+                    <!-- Bind IsExpanded to node property via DataContext -->
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="models:DatabaseNode">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.Styles>
+                    
                     <TreeView.ItemTemplate>
-                        <TreeDataTemplate ItemsSource="{Binding Children}">
+                        <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="models:DatabaseNode">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <PathIcon Data="{Binding NodeType, Converter={StaticResource NodeTypeToIconConverter}}"
                                          Width="16"
