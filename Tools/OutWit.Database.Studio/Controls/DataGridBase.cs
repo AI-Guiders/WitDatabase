@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using OutWit.Common.MVVM.Attributes;
 using OutWit.Database.Studio.Converters;
 using OutWit.Database.Studio.Models;
@@ -28,9 +29,9 @@ public abstract partial class DataGridBase : DataGrid
 
     #region Converters
 
-    protected static SqlValueConverter m_valueConverter = new();
+    protected static SqlValueConverter s_valueConverter = new();
 
-    private static SqlValueBrushConverter m_brushConverter = new();
+    private static SqlValueBrushConverter s_brushConverter = new();
 
     #endregion
 
@@ -39,6 +40,8 @@ public abstract partial class DataGridBase : DataGrid
     private readonly List<IStyle> m_dynamicStyles = [];
     private bool m_isUpdatingFromSettings;
     private bool m_isUpdatingSettings;
+    private bool m_saveScheduled;
+    private Dictionary<string, double>? m_lastSavedWidths;
 
     #endregion
 
@@ -66,6 +69,7 @@ public abstract partial class DataGridBase : DataGrid
     private void InitEvents()
     {
         ColumnReordered += OnColumnReordered;
+        LayoutUpdated += OnLayoutUpdated;
     }
 
     #endregion
@@ -93,7 +97,7 @@ public abstract partial class DataGridBase : DataGrid
             Header = dataColumn.ColumnName,
             Binding = new Binding($"Row.ItemArray[{ordinal}]")
             {
-                Converter = m_valueConverter,
+                Converter = s_valueConverter,
                 Mode = BindingMode.OneWay
             },
             MinWidth = 50,
@@ -111,12 +115,12 @@ public abstract partial class DataGridBase : DataGrid
             }
             else
             {
-                column.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
+                column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
             }
         }
         else
         {
-            column.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
+            column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
         }
 
         return column;
@@ -130,7 +134,7 @@ public abstract partial class DataGridBase : DataGrid
         var cellStyle = new Style(x => x.OfType<DataGridCell>().Class(className));
         var foregroundBinding = new Binding($"Row.ItemArray[{ordinal}]")
         {
-            Converter = m_brushConverter,
+            Converter = s_brushConverter,
         };
         cellStyle.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, foregroundBinding));
         return cellStyle;
@@ -141,9 +145,6 @@ public abstract partial class DataGridBase : DataGrid
     /// </summary>
     protected virtual void RebuildColumns()
     {
-        // Save current column widths before rebuilding
-        SaveCurrentColumnWidths();
-
         Columns.Clear();
         ClearDynamicStyles();
 
@@ -194,12 +195,27 @@ public abstract partial class DataGridBase : DataGrid
         {
             foreach (var column in Columns)
             {
-                if (column.Header is string headerName)
-                {
-                    var settings = ColumnSettings.GetOrCreate(headerName);
-                    settings.Width = column.ActualWidth > 0 ? column.ActualWidth : null;
-                    settings.DisplayIndex = column.DisplayIndex;
-                }
+                if (column.Header is not string headerName)
+                    continue;
+
+                var actualWidth = column.ActualWidth;
+                
+                // Only save if width is meaningful (> MinWidth)
+                if (actualWidth <= column.MinWidth)
+                    continue;
+
+                // Check if width actually changed
+                if (m_lastSavedWidths != null && 
+                    m_lastSavedWidths.TryGetValue(headerName, out var lastWidth) &&
+                    Math.Abs(lastWidth - actualWidth) < 1.0)
+                    continue;
+
+                var settings = ColumnSettings.GetOrCreate(headerName);
+                settings.Width = actualWidth;
+                settings.DisplayIndex = column.DisplayIndex;
+
+                m_lastSavedWidths ??= new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                m_lastSavedWidths[headerName] = actualWidth;
             }
         }
         finally
@@ -236,6 +252,8 @@ public abstract partial class DataGridBase : DataGrid
     /// </summary>
     protected virtual void OnResultViewChanged(AvaloniaPropertyChangedEventArgs e)
     {
+        // Clear last saved widths cache when data changes
+        m_lastSavedWidths = null;
         RebuildColumns();
     }
 
@@ -247,6 +265,7 @@ public abstract partial class DataGridBase : DataGrid
         // If we have data, rebuild to apply new settings
         if (ResultView?.Table != null)
         {
+            m_lastSavedWidths = null;
             RebuildColumns();
         }
     }
@@ -261,6 +280,24 @@ public abstract partial class DataGridBase : DataGrid
             return;
 
         SaveCurrentColumnWidths();
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        // Skip if no settings, updating, or already scheduled
+        if (ColumnSettings == null || m_isUpdatingFromSettings || m_isUpdatingSettings || m_saveScheduled)
+            return;
+
+        if (Columns.Count == 0)
+            return;
+
+        // Debounce: schedule save on background priority to coalesce multiple updates
+        m_saveScheduled = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            m_saveScheduled = false;
+            SaveCurrentColumnWidths();
+        }, DispatcherPriority.Background);
     }
 
     /// <summary>

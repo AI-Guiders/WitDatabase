@@ -49,7 +49,7 @@ public partial class EditableDataGrid : DataGridBase
             Header = dataColumn.ColumnName,
             Binding = new Binding($"Row.ItemArray[{ordinal}]")
             {
-                Converter = m_valueConverter,
+                Converter = s_valueConverter,
                 Mode = BindingMode.OneWay // Display only, editing handled manually
             },
             Width = columnCount <= 5
