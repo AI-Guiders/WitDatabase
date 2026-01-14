@@ -9,7 +9,7 @@
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="OutWit.Database.Studio.Views.MainWindow"
         x:DataType="vm:ApplicationViewModel"
-        Title="{Binding  MainWindowVm.Title}"
+        Title="{Binding MainWindowVm.Title}"
         Width="1200"
         Height="800">
 
@@ -39,22 +39,22 @@
 				<Separator />
 
 				<MenuItem Header="New _Database..."
-                          Command="{Binding MainWindowVm.NewDatabaseCommand}">
+				          Command="{Binding MainWindowVm.NewDatabaseCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}" />
 					</MenuItem.Icon>
 				</MenuItem>
 
 				<MenuItem Header="_Open Database..."
-                          Command="{Binding MainWindowVm.OpenDatabaseCommand}"
-                          InputGesture="Ctrl+O">
+				          Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+				          InputGesture="Ctrl+O">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}" />
 					</MenuItem.Icon>
 				</MenuItem>
 
 				<MenuItem Header="_Close Database"
-                          Command="{Binding MainWindowVm.CloseDatabaseCommand}">
+				          Command="{Binding MainWindowVm.CloseDatabaseCommand}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_CLOSE_DATABASE}" />
 					</MenuItem.Icon>
@@ -80,17 +80,23 @@
 
 				<Separator />
 
-				<MenuItem Header="Recent Files">
+				<MenuItem x:Name="RecentFilesMenu"
+				          Header="Recent Files"
+				          IsEnabled="{Binding MainWindowVm.HasRecentFiles}">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_RECENT_FILES}" />
 					</MenuItem.Icon>
 				</MenuItem>
 
+				<MenuItem Header="Clear Recent Files"
+				          Command="{Binding MainWindowVm.ClearRecentFilesCommand}"
+				          IsEnabled="{Binding MainWindowVm.HasRecentFiles}"/>
+
 				<Separator />
 
 				<MenuItem Header="E_xit"
-						  Command="{Binding MainWindowVm.ExitCommand}"
-						  InputGesture="Alt+F4">
+				          Command="{Binding MainWindowVm.ExitCommand}"
+				          InputGesture="Alt+F4">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
 					</MenuItem.Icon>
@@ -157,8 +163,8 @@
 
 			<MenuItem Header="_View">
 				<MenuItem Header="_Refresh"
-						  Command="{Binding MainWindowVm.RefreshCommand}"
-						  InputGesture="F5">
+				          Command="{Binding MainWindowVm.RefreshCommand}"
+				          InputGesture="F5">
 					<MenuItem.Icon>
 						<PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}" />
 					</MenuItem.Icon>
@@ -208,63 +214,116 @@
 
 			<!-- Основная область контента -->
 			<Grid Grid.Column="2">
-				<!-- Welcome message (when not connected) -->
+				<!-- Welcome Screen (when not connected) -->
 				<Grid IsVisible="{Binding !MainWindowVm.IsConnected}">
-					<StackPanel HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Spacing="20">
-						<!-- DB Icon -->
-						<Border Width="64" Height="64"
-                                Background="{DynamicResource SystemAccentColor}"
-                                CornerRadius="32"
-                                HorizontalAlignment="Center"
-                                Margin="0,0,0,8">
-							<PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
-							          Width="32" Height="32"
-							          Foreground="White"/>
-						</Border>
+					
+					<!-- Two-column layout: Actions left, Recent right -->
+					<Grid ColumnDefinitions="*,Auto,*" 
+					      HorizontalAlignment="Center"
+					      VerticalAlignment="Center"
+					      MaxWidth="700">
+						
+						<!-- Left: Main Actions -->
+						<StackPanel Grid.Column="0" 
+						            Spacing="16"
+						            VerticalAlignment="Center"
+						            HorizontalAlignment="Center">
+							
+							<!-- Logo -->
+							<Border Width="72" Height="72"
+							        Background="{DynamicResource SystemAccentColor}"
+							        CornerRadius="36"
+							        HorizontalAlignment="Center">
+								<PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
+								          Width="36" Height="36"
+								          Foreground="White"/>
+							</Border>
 
-						<!-- Title -->
-						<TextBlock Text="Welcome to WitDatabase Studio"
-                                   HorizontalAlignment="Center"
-                                   FontSize="24"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+							<!-- Title -->
+							<TextBlock Text="WitDatabase Studio"
+							           HorizontalAlignment="Center"
+							           FontSize="22"
+							           FontWeight="SemiBold"/>
 
-						<!-- Instructions -->
-						<StackPanel HorizontalAlignment="Center" Spacing="8">
+							<!-- Subtitle -->
 							<TextBlock Text="Connect to a database to get started"
-                                       HorizontalAlignment="Center"
-                                       FontSize="14"
-                                       Foreground="Gray"/>
-							<TextBlock Text="Use File → Open Database or press Ctrl+O"
-                                       HorizontalAlignment="Center"
-                                       FontSize="13"
-                                       Foreground="Gray"
-                                       Opacity="0.8"/>
+							           HorizontalAlignment="Center"
+							           FontSize="13"
+							           Foreground="Gray"/>
+
+							<!-- Action Buttons -->
+							<StackPanel Spacing="12" Margin="0,16,0,0">
+								<Button Command="{Binding MainWindowVm.NewDatabaseCommand}"
+								        Width="180"
+								        HorizontalContentAlignment="Left"
+								        Padding="16,10">
+									<StackPanel Orientation="Horizontal" Spacing="12">
+										<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}"
+										          Width="18" Height="18"/>
+										<TextBlock Text="New Database" VerticalAlignment="Center"/>
+									</StackPanel>
+								</Button>
+								
+								<Button Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+								        Width="180"
+								        HorizontalContentAlignment="Left"
+								        Padding="16,10"
+								        Classes="accent">
+									<StackPanel Orientation="Horizontal" Spacing="12">
+										<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}"
+										          Width="18" Height="18"/>
+										<TextBlock Text="Open Database" VerticalAlignment="Center"/>
+									</StackPanel>
+								</Button>
+							</StackPanel>
+
+							<!-- Hint -->
+							<TextBlock Text="Ctrl+O"
+							           HorizontalAlignment="Center"
+							           FontSize="11"
+							           Foreground="Gray"
+							           Opacity="0.7"
+							           Margin="0,8,0,0"/>
 						</StackPanel>
 
-						<!-- Quick Actions -->
-						<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16" Margin="0,16,0,0">
-							<Button Command="{Binding MainWindowVm.NewDatabaseCommand}"
-							        Width="140">
-								<StackPanel Orientation="Horizontal" Spacing="8">
-									<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}"
-									          Width="16" Height="16"/>
-									<TextBlock Text="New Database"/>
-								</StackPanel>
-							</Button>
-							<Button Command="{Binding MainWindowVm.OpenDatabaseCommand}"
-							        Width="140"
-							        Classes="accent">
-								<StackPanel Orientation="Horizontal" Spacing="8">
-									<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}"
-									          Width="16" Height="16"/>
-									<TextBlock Text="Open Database"/>
-								</StackPanel>
-							</Button>
+						<!-- Separator (only when recent files exist) -->
+						<Border Grid.Column="1"
+						        Width="1"
+						        Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+						        Margin="40,20"
+						        IsVisible="{Binding MainWindowVm.HasRecentFiles}"/>
+
+						<!-- Right: Recent Files -->
+						<StackPanel Grid.Column="2"
+						            x:Name="RecentFilesPanel"
+						            IsVisible="{Binding MainWindowVm.HasRecentFiles}"
+						            Spacing="8"
+						            VerticalAlignment="Center"
+						            MinWidth="200">
+							
+							<TextBlock Text="Recent Databases"
+							           FontSize="14"
+							           FontWeight="SemiBold"
+							           Foreground="Gray"
+							           Margin="0,0,0,8"/>
+							
+							<!-- Recent files will be added here dynamically -->
+							<!-- Using ScrollViewer to handle many items -->
+							<ScrollViewer MaxHeight="300"
+							              HorizontalScrollBarVisibility="Disabled"
+							              VerticalScrollBarVisibility="Auto">
+								<StackPanel x:Name="RecentFilesList" Spacing="4"/>
+							</ScrollViewer>
+							
+							<Button Content="Clear Recent"
+							        Command="{Binding MainWindowVm.ClearRecentFilesCommand}"
+							        Classes="hyperlink"
+							        HorizontalAlignment="Left"
+							        Margin="0,8,0,0"
+							        FontSize="11"
+							        Foreground="Gray"/>
 						</StackPanel>
-					</StackPanel>
+					</Grid>
 				</Grid>
 
 				<!-- Unified Workspace Tabs (when connected) -->
@@ -290,19 +349,19 @@
                            Text="{Binding MainWindowVm.IsConnected, StringFormat='Connected: {0}'}"/>
 
 				<StackPanel Grid.Column="2"
-                           Orientation="Horizontal"
-                           Spacing="8"
-                           Margin="16,0,0,0"
-                           IsVisible="{Binding MainWindowVm.IsConnected}">
+				            Orientation="Horizontal"
+				            Spacing="8"
+				            Margin="16,0,0,0"
+				            IsVisible="{Binding MainWindowVm.IsConnected}">
 					<PathIcon Data="{x:Static ui:StudioIcons.COMMON_BULLET}"
 					          Width="8" Height="8"
 					          Foreground="LimeGreen"
 					          VerticalAlignment="Center"/>
 					<TextBlock IsVisible="{Binding MainWindowVm.CurrentConnection.IsEncrypted}"
-                               ToolTip.Tip="Database is encrypted"
-                               Foreground="Orange"
-                               FontWeight="Bold"
-                               VerticalAlignment="Center">
+					           ToolTip.Tip="Database is encrypted"
+					           Foreground="Orange"
+					           FontWeight="Bold"
+					           VerticalAlignment="Center">
 						<TextBlock.Text>ENC</TextBlock.Text>
 					</TextBlock>
 					<TextBlock Text="{Binding MainWindowVm.CurrentConnection.FilePath}"

@@ -20,7 +20,10 @@ public sealed class Settings : ModelBase
             && RecentFiles.Is(other.RecentFiles)
             && MaxRecentFiles.Is(other.MaxRecentFiles)
             && AutoSaveQueries.Is(other.AutoSaveQueries)
-            && EditorFontSize.Is(other.EditorFontSize);
+            && EditorFontSize.Is(other.EditorFontSize)
+            && WindowWidth.Is(other.WindowWidth, tolerance)
+            && WindowHeight.Is(other.WindowHeight, tolerance)
+            && WindowState.Is(other.WindowState);
     }
 
     public override Settings Clone()
@@ -31,18 +34,25 @@ public sealed class Settings : ModelBase
             RecentFiles = RecentFiles.ToList(),
             MaxRecentFiles = MaxRecentFiles,
             AutoSaveQueries = AutoSaveQueries,
-            EditorFontSize = EditorFontSize
+            EditorFontSize = EditorFontSize,
+            WindowWidth = WindowWidth,
+            WindowHeight = WindowHeight,
+            WindowState = WindowState
         };
     }
 
     #endregion
 
-    #region Properties
+    #region Theme
 
     /// <summary>
     /// Gets or sets the application theme (Light, Dark).
     /// </summary>
     public string Theme { get; set; } = "Light";
+
+    #endregion
+
+    #region Recent Files
 
     /// <summary>
     /// Gets or sets the list of recently opened database files.
@@ -53,6 +63,29 @@ public sealed class Settings : ModelBase
     /// Gets or sets the maximum number of recent files to keep.
     /// </summary>
     public int MaxRecentFiles { get; set; } = 10;
+
+    #endregion
+
+    #region Window
+
+    /// <summary>
+    /// Gets or sets the main window width.
+    /// </summary>
+    public double WindowWidth { get; set; } = 1200;
+
+    /// <summary>
+    /// Gets or sets the main window height.
+    /// </summary>
+    public double WindowHeight { get; set; } = 800;
+
+    /// <summary>
+    /// Gets or sets the window state (Normal, Maximized).
+    /// </summary>
+    public string WindowState { get; set; } = "Normal";
+
+    #endregion
+
+    #region Editor
 
     /// <summary>
     /// Gets or sets whether to auto-save queries.

@@ -1,4 +1,5 @@
-﻿using System.Windows.Input;
+﻿using System.Collections.ObjectModel;
+using System.Windows.Input;
 using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
 using OutWit.Common.Aspects;
@@ -35,6 +36,7 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         StatusText = "Ready";
         CurrentConnection = null;
         IsConnected = Database.IsConnected;
+        RecentFiles = new ObservableCollection<RecentFileItem>();
     }
 
     private void InitEvents()
@@ -50,7 +52,68 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         RefreshCommand = new RelayCommand(RefreshAsync, () => IsConnected);
         ExportCommand = new RelayCommandAsync(ExportAsync, () => IsConnected);
         ImportCommand = new RelayCommandAsync(ImportAsync, () => IsConnected);
+        OpenRecentCommand = new RelayCommandAsync<string>(OpenRecentAsync);
+        ClearRecentFilesCommand = new RelayCommandAsync(ClearRecentFilesAsync);
         ExitCommand = new RelayCommand(Exit);
+    }
+
+    #endregion
+
+    #region Functions
+
+    /// <summary>
+    /// Initializes recent files from settings.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            var settings = await Settings.LoadAsync();
+            LoadRecentFiles(settings);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize settings");
+        }
+    }
+
+    private void LoadRecentFiles(Models.Settings settings)
+    {
+        RecentFiles.Clear();
+
+        foreach (var file in settings.RecentFiles)
+        {
+            if (File.Exists(file))
+            {
+                RecentFiles.Add(new RecentFileItem
+                {
+                    FilePath = file,
+                    FileName = Path.GetFileName(file),
+                    Directory = Path.GetDirectoryName(file) ?? string.Empty
+                });
+            }
+        }
+
+        HasRecentFiles = RecentFiles.Count > 0;
+    }
+
+    /// <summary>
+    /// Saves current window state to settings.
+    /// </summary>
+    public async Task SaveWindowStateAsync(double width, double height, string state)
+    {
+        try
+        {
+            var settings = await Settings.LoadAsync();
+            settings.WindowWidth = width;
+            settings.WindowHeight = height;
+            settings.WindowState = state;
+            await Settings.SaveAsync(settings);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save window state");
+        }
     }
 
     #endregion
@@ -155,6 +218,54 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         await ImportDialog.ShowAsync(mainWindow, importVm);
     }
 
+    private async Task OpenRecentAsync(string? filePath)
+    {
+        if (string.IsNullOrEmpty(filePath))
+            return;
+
+        if (!File.Exists(filePath))
+        {
+            await Settings.RemoveRecentFileAsync(filePath);
+            var settings = await Settings.LoadAsync();
+            LoadRecentFiles(settings);
+            
+            StatusText = $"File not found: {Path.GetFileName(filePath)}";
+            return;
+        }
+
+        if (IsConnected)
+        {
+            CloseDatabaseAsync();
+        }
+
+        var connection = new ConnectionInfo { FilePath = filePath };
+        
+        IsLoading = true;
+        StatusText = $"Connecting to {Path.GetFileName(filePath)}...";
+
+        try
+        {
+            await Database.ConnectAsync(connection);
+            await LoadSchemaAfterConnectionAsync(connection);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Error: {ex.Message}";
+            Logger.LogError(ex, "Failed to open recent file: {FilePath}", filePath);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task ClearRecentFilesAsync()
+    {
+        await Settings.ClearRecentFilesAsync();
+        RecentFiles.Clear();
+        HasRecentFiles = false;
+    }
+
     private void Exit()
     {
         Environment.Exit(0);
@@ -171,9 +282,16 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
 
         try
         {
-            // Connection is established inside ConnectionViewModel.
             CurrentConnection = connection;
             StatusText = $"Connected to {CurrentConnection.FilePath}";
+
+            // Add to recent files
+            if (!string.IsNullOrEmpty(connection.FilePath))
+            {
+                await Settings.AddRecentFileAsync(connection.FilePath);
+                var settings = await Settings.LoadAsync();
+                LoadRecentFiles(settings);
+            }
 
             await ApplicationVm.DatabaseExplorerVm.RefreshAsync();
 
@@ -190,28 +308,14 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         }
     }
 
+    #endregion
+
+    #region Event Handlers
+
     private void OnDatabaseServiceConnectionStatusChanged(object? sender, bool isConnected)
     {
         IsConnected = isConnected;
     }
-
-    #endregion
-
-    #region Commands
-
-    public ICommand NewDatabaseCommand { get; private set; } = null!;
-
-    public ICommand OpenDatabaseCommand { get; private set; } = null!;
-
-    public ICommand CloseDatabaseCommand { get; private set; } = null!;
-
-    public ICommand RefreshCommand { get; private set; } = null!;
-
-    public ICommand ExportCommand { get; private set; } = null!;
-
-    public ICommand ImportCommand { get; private set; } = null!;
-
-    public ICommand ExitCommand { get; private set; } = null!;
 
     #endregion
 
@@ -232,6 +336,34 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
     [Notify]
     public bool IsConnected { get; private set; }
 
+    [Notify]
+    public ObservableCollection<RecentFileItem> RecentFiles { get; private set; } = null!;
+
+    [Notify]
+    public bool HasRecentFiles { get; private set; }
+
+    #endregion
+
+    #region Commands
+
+    public ICommand NewDatabaseCommand { get; private set; } = null!;
+
+    public ICommand OpenDatabaseCommand { get; private set; } = null!;
+
+    public ICommand CloseDatabaseCommand { get; private set; } = null!;
+
+    public ICommand RefreshCommand { get; private set; } = null!;
+
+    public ICommand ExportCommand { get; private set; } = null!;
+
+    public ICommand ImportCommand { get; private set; } = null!;
+
+    public ICommand OpenRecentCommand { get; private set; } = null!;
+
+    public ICommand ClearRecentFilesCommand { get; private set; } = null!;
+
+    public ICommand ExitCommand { get; private set; } = null!;
+
     #endregion
 
     #region Services
@@ -243,4 +375,14 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
     public ILogger<ApplicationViewModel> Logger => ApplicationVm.Logger;
 
     #endregion
+}
+
+/// <summary>
+/// Represents a recent file item for display.
+/// </summary>
+public sealed class RecentFileItem
+{
+    public string FilePath { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string Directory { get; set; } = string.Empty;
 }
