@@ -207,6 +207,7 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         ExecutionTimeMs = 0;
         ErrorMessage = null;
         SelectedRows = null;
+        HasExecutionResult = false;
 
         UpdateStatus();
     }
@@ -307,6 +308,7 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         HasResults = TotalRowCount > 0;
         IsSuccess = string.IsNullOrEmpty(ErrorMessage);
         HasMessages = !string.IsNullOrEmpty(ErrorMessage) || RowsAffected > 0;
+        HasExecutionResult = HasMessages || ExecutionTimeMs > 0;
         CanExecuteQuery = Database.IsConnected && !IsExecuting && !string.IsNullOrWhiteSpace(SqlText);
 
         var selectedCount = SelectedRows?.Count ?? 0;
@@ -444,6 +446,12 @@ public class QueryTabViewModel : WorkspaceTabViewModel
     /// </summary>
     [Notify]
     public GridColumnSettings ResultColumnSettings { get; private set; }
+
+    /// <summary>
+    /// Gets whether there is an execution result to show in status bar.
+    /// </summary>
+    [Notify]
+    public bool HasExecutionResult { get; private set; }
 
     #endregion
 

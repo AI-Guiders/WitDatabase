@@ -12,7 +12,7 @@
              x:DataType="tabs:QueryTabViewModel"
              x:Name="Root">
 
-    <Grid RowDefinitions="Auto,*,Auto,*">
+    <Grid RowDefinitions="Auto,*,Auto,*,Auto">
         
         <!-- Query Toolbar -->
         <Border Grid.Row="0"
@@ -75,7 +75,7 @@
         
         <!-- SQL Editor -->
         <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundAltHighBrush}" Padding="8">
-            <c:SqlEditor  SqlText="{Binding SqlText, Mode=TwoWay}"
+            <c:SqlEditor SqlText="{Binding SqlText, Mode=TwoWay}"
                          SelectedText="{Binding SelectedText, Mode=OneWayToSource}"/>
         </Border>
 
@@ -153,7 +153,7 @@
                         
                     </c:ResultDataGrid>
 
-                    <!-- Pagination -->
+                    <!-- Results info bar -->
                     <Border Grid.Row="1"
                             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
                             Padding="8"
@@ -186,17 +186,6 @@
                                                   Width="14" Height="14"/>
                                     </Button>
                                 </StackPanel>
-                            </StackPanel>
-                            
-                            <!-- Execution info -->
-                            <StackPanel Grid.Column="2"
-                                        Orientation="Horizontal"
-                                        Spacing="16"
-                                        VerticalAlignment="Center">
-                                <TextBlock VerticalAlignment="Center">
-                                    <Run Text="Execution time:"/>
-                                    <Run Text="{Binding ExecutionTimeMs, StringFormat='{}{0:F2} ms'}" FontWeight="SemiBold"/>
-                                </TextBlock>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -284,6 +273,55 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+        
+        <!-- Query Status Bar (like SSMS) -->
+        <Panel Grid.Row="4"
+               IsVisible="{Binding HasExecutionResult}">
+            
+            <!-- Success Status -->
+            <Border Background="#D4EDDA" 
+                    CornerRadius="2" 
+                    Padding="8,4"
+                    IsVisible="{Binding IsSuccess}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                                  Width="14" Height="14"
+                                  Foreground="#155724"/>
+                        <TextBlock Text="Query executed successfully"
+                                   Foreground="#155724"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <TextBlock Foreground="#155724" VerticalAlignment="Center">
+                        <Run Text="{Binding RowsAffected}"/>
+                        <Run Text="rows affected"/>
+                    </TextBlock>
+                    
+                    <TextBlock Foreground="#155724" VerticalAlignment="Center">
+                        <Run Text="{Binding ExecutionTimeMs, StringFormat='{}{0:F2}'}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+            
+            <!-- Error Status -->
+            <Border Background="#F8D7DA" 
+                    CornerRadius="2" 
+                    Padding="8,4"
+                    IsVisible="{Binding !IsSuccess}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                              Width="14" Height="14"
+                              Foreground="#721C24"/>
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="#721C24"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="800"/>
+                </StackPanel>
+            </Border>
+        </Panel>
     </Grid>
 
 </UserControl>

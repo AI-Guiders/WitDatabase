@@ -142,7 +142,7 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
             return;
 
         IsLoading = true;
-        ErrorMessage = null;
+        ClearStatus();
         ClearChangeTracking();
 
         try
@@ -153,7 +153,7 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
 
             if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
-                ErrorMessage = result.ErrorMessage;
+                SetErrorStatus(result.ErrorMessage);
                 return;
             }
 
@@ -166,12 +166,13 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
                 TotalRowCount = EditableData.Rows.Count;
             }
 
+            SetSuccessStatus($"Loaded {TotalRowCount} rows");
             ApplicationVm.MainWindowVm.StatusText = $"Loaded {TotalRowCount} rows from table \"{TableName}\"";
             Logger.LogInformation("Loaded {Count} rows from table {TableName}", TotalRowCount, TableName);
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Failed to load data: {ex.Message}";
+            SetErrorStatus($"Failed to load data: {ex.Message}");
             Logger.LogError(ex, "Failed to load data from table {TableName}", TableName);
         }
         finally
@@ -265,7 +266,7 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
             return;
 
         IsLoading = true;
-        ErrorMessage = null;
+        ClearStatus();
 
         try
         {
@@ -357,10 +358,11 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
 
             if (errors.Count > 0)
             {
-                ErrorMessage = string.Join("\n", errors);
+                SetErrorStatus(string.Join("; ", errors.Take(3)));
             }
             else
             {
+                SetSuccessStatus("Changes committed successfully");
                 ApplicationVm.MainWindowVm.StatusText = "Changes committed successfully";
                 IsModified = false;
             }
@@ -369,7 +371,7 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Commit failed: {ex.Message}";
+            SetErrorStatus($"Commit failed: {ex.Message}");
             Logger.LogError(ex, "Failed to commit changes to table {TableName}", TableName);
         }
         finally
@@ -436,6 +438,7 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
         CurrentView = new DataView(EditableData);
         TotalRowCount = EditableData.Rows.Count;
 
+        SetSuccessStatus("Changes discarded");
         ApplicationVm.MainWindowVm.StatusText = "Changes discarded";
         IsModified = false;
         UpdateStatus();
@@ -590,6 +593,32 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
         CanAddRow = !string.IsNullOrWhiteSpace(TableName) && !IsLoading && Database.IsConnected;
         CanDeleteRow = SelectedRowView != null && !IsLoading;
         CanRefresh = !string.IsNullOrWhiteSpace(TableName) && !IsLoading && Database.IsConnected;
+        
+        // Status bar states
+        HasError = !string.IsNullOrEmpty(ErrorMessage);
+        LastOperationSuccess = !HasError && !string.IsNullOrEmpty(StatusMessage);
+        IsDefaultState = !HasError && !LastOperationSuccess;
+    }
+
+    private void SetSuccessStatus(string message)
+    {
+        ErrorMessage = null;
+        StatusMessage = message;
+        UpdateStatus();
+    }
+
+    private void SetErrorStatus(string message)
+    {
+        StatusMessage = null;
+        ErrorMessage = message;
+        UpdateStatus();
+    }
+
+    private void ClearStatus()
+    {
+        StatusMessage = null;
+        ErrorMessage = null;
+        UpdateStatus();
     }
 
     #endregion
@@ -722,6 +751,30 @@ public class TableEditTabViewModel : WorkspaceTabViewModel
     /// </summary>
     [Notify]
     public GridColumnSettings EditColumnSettings { get; private set; } = null!;
+
+    /// <summary>
+    /// Status message for successful operations.
+    /// </summary>
+    [Notify]
+    public string? StatusMessage { get; set; }
+
+    /// <summary>
+    /// Indicates if there is an error to display.
+    /// </summary>
+    [Notify]
+    public bool HasError { get; private set; }
+
+    /// <summary>
+    /// Indicates if the last operation was successful.
+    /// </summary>
+    [Notify]
+    public bool LastOperationSuccess { get; private set; }
+
+    /// <summary>
+    /// Indicates if the status bar should show default state.
+    /// </summary>
+    [Notify]
+    public bool IsDefaultState { get; private set; }
 
     #endregion
 
