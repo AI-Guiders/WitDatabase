@@ -198,7 +198,8 @@
 				</MenuItem>
 
 				<MenuItem Header="_Help">
-					<MenuItem Header="_About">
+					<MenuItem Header="_About"
+					          Command="{Binding MainWindowVm.AboutCommand}">
 						<MenuItem.Icon>
 							<PathIcon Data="{x:Static ui:StudioIcons.MENU_ABOUT}" />
 						</MenuItem.Icon>

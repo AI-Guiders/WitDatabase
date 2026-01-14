@@ -55,6 +55,7 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         OpenRecentCommand = new RelayCommandAsync<string>(OpenRecentAsync);
         ClearRecentFilesCommand = new RelayCommandAsync(ClearRecentFilesAsync);
         SettingsCommand = new RelayCommandAsync(ShowSettingsAsync);
+        AboutCommand = new RelayCommandAsync(ShowAboutAsync);
         ExitCommand = new RelayCommand(Exit);
     }
 
@@ -279,6 +280,16 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         await SettingsDialog.ShowAsync(mainWindow, settingsVm);
     }
 
+    private async Task ShowAboutAsync()
+    {
+        var mainWindow = ApplicationVm.MainWindow;
+        if (mainWindow == null)
+            return;
+
+        var aboutVm = new AboutViewModel(ApplicationVm);
+        await AboutDialog.ShowAsync(mainWindow, aboutVm);
+    }
+
     private void Exit()
     {
         Environment.Exit(0);
@@ -376,6 +387,8 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand ClearRecentFilesCommand { get; private set; } = null!;
 
     public ICommand SettingsCommand { get; private set; } = null!;
+
+    public ICommand AboutCommand { get; private set; } = null!;
 
     public ICommand ExitCommand { get; private set; } = null!;
 
