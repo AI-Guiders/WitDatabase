@@ -73,15 +73,44 @@ internal class FakeDatabaseService : IDatabaseService
 /// </summary>
 internal class FakeSettingsService : ISettingsService
 {
+    #region Fields
+
+    /// <summary>
+    /// Settings to return from LoadAsync. Set this in tests to configure behavior.
+    /// </summary>
+    public Settings Settings { get; set; } = new();
+
+    #endregion
+
     #region ISettingsService
 
     public List<string> RecentFiles { get; } = [];
     
-    public Task<Settings> LoadAsync() => Task.FromResult(new Settings());
-    public Task SaveAsync(Settings settings) => Task.CompletedTask;
-    public Task AddRecentFileAsync(string filePath) { RecentFiles.Add(filePath); return Task.CompletedTask; }
-    public Task RemoveRecentFileAsync(string filePath) { RecentFiles.Remove(filePath); return Task.CompletedTask; }
-    public Task ClearRecentFilesAsync() { RecentFiles.Clear(); return Task.CompletedTask; }
+    public Task<Settings> LoadAsync() => Task.FromResult(Settings);
+    
+    public Task SaveAsync(Settings settings) 
+    { 
+        Settings = settings; 
+        return Task.CompletedTask; 
+    }
+    
+    public Task AddRecentFileAsync(string filePath) 
+    { 
+        RecentFiles.Add(filePath); 
+        return Task.CompletedTask; 
+    }
+    
+    public Task RemoveRecentFileAsync(string filePath) 
+    { 
+        RecentFiles.Remove(filePath); 
+        return Task.CompletedTask; 
+    }
+    
+    public Task ClearRecentFilesAsync() 
+    { 
+        RecentFiles.Clear(); 
+        return Task.CompletedTask; 
+    }
 
     #endregion
 }

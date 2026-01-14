@@ -298,4 +298,62 @@ public class QueryTabViewModelTests
     }
 
     #endregion
+
+    #region HasExecutionResult Tests
+
+    [Test]
+    public void HasExecutionResultIsFalseInitiallyTest()
+    {
+        // Arrange
+        var viewModel = new QueryTabViewModel(m_applicationVm);
+
+        // Assert
+        Assert.That(viewModel.HasExecutionResult, Is.False);
+    }
+
+    [Test]
+    public void HasExecutionResultIsTrueAfterSuccessfulQueryTest()
+    {
+        // Arrange
+        var viewModel = new QueryTabViewModel(m_applicationVm);
+        var dataTable = new System.Data.DataTable();
+        dataTable.Columns.Add("Id", typeof(int));
+        dataTable.Rows.Add(1);
+
+        // Act
+        viewModel.SetResultData(dataTable);
+        viewModel.RowsAffected = 1;
+
+        // Assert
+        Assert.That(viewModel.HasExecutionResult, Is.True);
+    }
+
+    [Test]
+    public void HasExecutionResultIsTrueWhenErrorExistsTest()
+    {
+        // Arrange
+        var viewModel = new QueryTabViewModel(m_applicationVm);
+
+        // Act
+        viewModel.ErrorMessage = "Some error";
+
+        // Assert
+        Assert.That(viewModel.HasExecutionResult, Is.True);
+    }
+
+    [Test]
+    public void HasExecutionResultIsFalseAfterClearResultsTest()
+    {
+        // Arrange
+        var viewModel = new QueryTabViewModel(m_applicationVm);
+        viewModel.ErrorMessage = "Some error";
+
+        // Act
+        viewModel.ClearResults();
+
+        // Assert
+        Assert.That(viewModel.HasExecutionResult, Is.False);
+    }
+
+    #endregion
 }
