@@ -1,10 +1,12 @@
 ﻿using System.Windows.Input;
+using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
 using OutWit.Common.Aspects;
 using OutWit.Common.MVVM.Commands;
 using OutWit.Common.MVVM.ViewModels;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
+using OutWit.Database.Studio.Views.Dialogs;
 
 namespace OutWit.Database.Studio.ViewModels;
 
@@ -46,6 +48,8 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         OpenDatabaseCommand = new RelayCommand(OpenDatabaseAsync);
         CloseDatabaseCommand = new RelayCommand(CloseDatabaseAsync, CanCloseDatabase);
         RefreshCommand = new RelayCommand(RefreshAsync, () => IsConnected);
+        ExportCommand = new RelayCommandAsync(ExportAsync, () => IsConnected);
+        ImportCommand = new RelayCommandAsync(ImportAsync, () => IsConnected);
         ExitCommand = new RelayCommand(Exit);
     }
 
@@ -121,6 +125,36 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
         return IsConnected && !IsLoading;
     }
 
+    private async Task ExportAsync()
+    {
+        if (!IsConnected)
+            return;
+
+        var mainWindow = ApplicationVm.MainWindow;
+        if (mainWindow == null)
+            return;
+
+        var exportVm = new ExportViewModel(ApplicationVm);
+        await exportVm.InitializeAsync();
+
+        await ExportDialog.ShowAsync(mainWindow, exportVm);
+    }
+
+    private async Task ImportAsync()
+    {
+        if (!IsConnected)
+            return;
+
+        var mainWindow = ApplicationVm.MainWindow;
+        if (mainWindow == null)
+            return;
+
+        var importVm = new ImportViewModel(ApplicationVm);
+        await importVm.InitializeAsync();
+
+        await ImportDialog.ShowAsync(mainWindow, importVm);
+    }
+
     private void Exit()
     {
         Environment.Exit(0);
@@ -172,6 +206,10 @@ public sealed class MainWindowViewModel : ViewModelBase<ApplicationViewModel>
     public ICommand CloseDatabaseCommand { get; private set; } = null!;
 
     public ICommand RefreshCommand { get; private set; } = null!;
+
+    public ICommand ExportCommand { get; private set; } = null!;
+
+    public ICommand ImportCommand { get; private set; } = null!;
 
     public ICommand ExitCommand { get; private set; } = null!;
 

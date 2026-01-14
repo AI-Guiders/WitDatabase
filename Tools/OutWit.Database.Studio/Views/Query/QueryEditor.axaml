@@ -136,6 +136,13 @@
                                         <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}" Width="14" Height="14"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Export Results..."
+                                          Command="{Binding ExportResultsCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.EXPORT}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
                             </ContextMenu>
                         </c:ResultDataGrid.ContextMenu>
                         

@@ -1,0 +1,201 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+        xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
+        mc:Ignorable="d"
+        d:DesignWidth="500"
+        d:DesignHeight="480"
+        x:Class="OutWit.Database.Studio.Views.Dialogs.ExportDialog"
+        x:DataType="vm:ExportViewModel"
+        Title="Export Data"
+        Width="500"
+        Height="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid RowDefinitions="*,Auto" Margin="20">
+        
+        <!-- Main Content -->
+        <StackPanel Grid.Row="0" Spacing="16">
+            
+            <!-- Source Selection -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Source" FontWeight="SemiBold"/>
+                
+                <!-- Query Result indicator -->
+                <Border Background="#E3F2FD"
+                        BorderBrush="#2196F3"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="12,8"
+                        IsVisible="{Binding IsQueryResult}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}"
+                                  Width="16" Height="16"
+                                  Foreground="#1976D2"/>
+                        <TextBlock Foreground="#1976D2">
+                            <Run Text="Query Result:"/>
+                            <Run Text="{Binding SourceName}" FontWeight="SemiBold"/>
+                            <Run Text="("/>
+                            <Run Text="{Binding TotalRows}"/>
+                            <Run Text="rows)"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Table selection -->
+                <ComboBox ItemsSource="{Binding AvailableTables}"
+                          SelectedItem="{Binding SelectedTable}"
+                          HorizontalAlignment="Stretch"
+                          IsVisible="{Binding !IsQueryResult}"
+                          IsEnabled="{Binding !IsExporting}"
+                          PlaceholderText="Select table to export..."/>
+            </StackPanel>
+
+            <!-- Format Selection -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Format" FontWeight="SemiBold"/>
+                <StackPanel Spacing="4">
+                    <RadioButton GroupName="Format"
+                                 IsEnabled="{Binding !IsExporting}"
+                                 IsChecked="{Binding SelectedFormat, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:ExportFormat.Csv}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="CSV" FontWeight="SemiBold"/>
+                            <TextBlock Text="(Comma Separated Values)" 
+                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton GroupName="Format"
+                                 IsEnabled="{Binding !IsExporting}"
+                                 IsChecked="{Binding SelectedFormat, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:ExportFormat.Json}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="JSON" FontWeight="SemiBold"/>
+                            <TextBlock Text="(Array of Objects)" 
+                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton GroupName="Format"
+                                 IsEnabled="{Binding !IsExporting}"
+                                 IsChecked="{Binding SelectedFormat, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:ExportFormat.Sql}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="SQL" FontWeight="SemiBold"/>
+                            <TextBlock Text="(INSERT Statements)" 
+                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Options -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Options" FontWeight="SemiBold"/>
+                <CheckBox Content="Include column headers"
+                          IsChecked="{Binding IncludeHeaders}"
+                          IsEnabled="{Binding !IsExporting}"
+                          IsVisible="{Binding SelectedFormat, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:ExportFormat.Csv}}"/>
+                <CheckBox Content="Format dates as ISO 8601"
+                          IsChecked="{Binding FormatDatesAsIso}"
+                          IsEnabled="{Binding !IsExporting}"/>
+            </StackPanel>
+
+            <!-- Output File -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Output File" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0"
+                             Text="{Binding OutputPath}"
+                             Watermark="Select output file..."
+                             IsReadOnly="True"/>
+                    <Button Grid.Column="1"
+                            Content="Browse..."
+                            Command="{Binding BrowseCommand}"
+                            IsEnabled="{Binding !IsExporting}"
+                            Margin="8,0,0,0"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Error Message -->
+            <Border Background="#FFEBEE"
+                    BorderBrush="#F44336"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12,8"
+                    IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                              Width="16" Height="16"
+                              Foreground="#C62828"/>
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="#C62828"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+            
+        </StackPanel>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,20,0,0">
+            <Button Grid.Column="1"
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    IsVisible="{Binding !IsExporting}"/>
+            <Button Grid.Column="2"
+                    Content="Export"
+                    Command="{Binding ExportCommand}"
+                    IsEnabled="{Binding CanExport}"
+                    Width="80"
+                    Classes="accent"
+                    IsVisible="{Binding !IsExporting}"/>
+        </Grid>
+        
+        <!-- Loading Overlay with Progress -->
+        <Border Grid.Row="0"
+                Grid.RowSpan="2"
+                Background="#E0000000"
+                IsVisible="{Binding IsExporting}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="16"
+                        Width="300">
+                <!-- Progress Bar -->
+                <ProgressBar Value="{Binding ExportProgress}"
+                             Minimum="0"
+                             Maximum="100"
+                             Height="8"/>
+                
+                <!-- Progress Text -->
+                <TextBlock Foreground="White"
+                           HorizontalAlignment="Center"
+                           FontSize="16">
+                    <Run Text="Exporting..."/>
+                    <Run Text="{Binding RowsExported}"/>
+                    <Run Text="/"/>
+                    <Run Text="{Binding TotalRows}"/>
+                    <Run Text="rows"/>
+                </TextBlock>
+                
+                <!-- Percentage -->
+                <TextBlock Foreground="White"
+                           HorizontalAlignment="Center"
+                           FontSize="14"
+                           Opacity="0.8">
+                    <Run Text="{Binding ExportProgress, StringFormat='{}{0:F1}'}"/>
+                    <Run Text="%"/>
+                </TextBlock>
+                
+                <!-- Cancel Button -->
+                <Button Content="Cancel Export"
+                        Command="{Binding CancelExportCommand}"
+                        HorizontalAlignment="Center"
+                        Width="120"
+                        Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+        
+    </Grid>
+
+</Window>

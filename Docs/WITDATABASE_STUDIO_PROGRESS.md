@@ -1,55 +1,51 @@
 # WitDatabase Studio - Implementation Progress
 
-**Last Updated:** 2025-01-04  
-**Status:** Phase 4 Complete
+**Last Updated:** 2025-01-13  
+**Status:** Phase 6 Complete
 
 ---
 
-## Latest Updates (2025-01-04)
+## Latest Updates (2025-01-13)
 
-### Phase 4 Completed
+### Phase 6 Completed - Export/Import
 
-**Result Grid - All Tasks Done:**
+**Export Features:**
+- Export Dialog UI with format selection (CSV, JSON, SQL)
+- Export table data to CSV/JSON/SQL files
+- Export query results directly from context menu
+- Options: include headers, ISO date format
+
+**Import Features:**
+- Import Dialog UI with column mapping
+- CSV import with delimiter and header options
+- JSON import (array of objects)
+- Auto-mapping columns by name
+
+**Menu Integration:**
+- Tools ? Export... menu item
+- Tools ? Import... menu item
+- Context menu "Export Results..." in query results
+
+### Phase 5 Completed - Table Editor
+
+**Features Implemented:**
+- `TableEditTabViewModel` - full editing logic
+- `EditableDataGrid` - editable grid control
+- `TableEditView.axaml` - editing UI
+- Add/Delete row commands
+- Commit/Rollback functionality
+- Change tracking (modified/new/deleted rows)
+- Primary key detection
+
+### Phase 4 Completed - Result Grid
+
 - DataGrid setup with `ResultDataGrid` control
-- Column sorting via `CanUserSortColumns`
+- Column sorting via DataView
+- Column width persistence (runtime)
 - Copy functionality (rows, CSV, INSERT statements)
-- NULL display with `SqlValueConverter` and `SqlValueBrushConverter`
-- Row count display in status bar
-
-**Note:** Pagination was intentionally excluded from scope. It adds significant complexity with DataTable/DataView for select all, copy, and sort operations. Instead, queries should use LIMIT clause.
-
-### Deep Audit Completed
-
-**Issues Found and Fixed:**
-
-1. **WitSqlExpressionSerializer - EXCLUDED handling**
-   - Problem: Serializer did not handle `IsExcluded` flag for `EXCLUDED.column` references
-   - Fix: Added check for `IsExcluded` in `VisitExpressionColumnRef`
-   - File: `Sources\Engine\OutWit.Database.Parser\Serializers\WitSqlExpressionSerializer.cs`
-
-2. **QuoteIdentifier - Reserved words**
-   - Problem: `NeedsQuoting` only checked special chars and digits, not SQL reserved words
-   - Fix: Added `IsReservedWord` check with comprehensive reserved words list
-   - File: `Sources\Engine\OutWit.Database.Parser\Serializers\WitSqlExpressionSerializer.cs`
-
-3. **Missing Serializer Tests**
-   - Added 17 new tests for `WitSqlExpressionSerializer`
-   - File: `Sources\Engine\OutWit.Database.Parser.Tests\SerializerTests.cs`
-
-4. **View Definition for Tables**
-   - Problem: "View Definition" context menu was disabled for tables
-   - Fix: Added `GetTableDefinitionAsync` to `IDatabaseService` and `DatabaseService`
-   - Updated `CanViewDefinition` to include `DatabaseNodeType.Table`
-   - Updated `ViewDefinitionAsync` to handle Table case
-
-### Test Results After Audit
-
-| Project | Tests | Status |
-|---------|-------|--------|
-| Parser Tests | 705 | PASSED |
-| Studio Tests | 146 | PASSED |
-| Engine Tests | 1723 | PASSED |
-| **Total** | **2574** | **ALL PASSED** |
+- NULL display with visual indicator
+- Row count in status bar
+- Export service (CSV, JSON, SQL)
 
 ---
 
@@ -76,16 +72,47 @@ All tasks completed successfully.
 
 - DataGrid setup with `ResultDataGrid` control
 - Column sorting (click-to-sort via DataView)
-- Copy functionality:
-  - Copy rows
-  - Copy as CSV
-  - Copy as INSERT statements
-  - Copy all rows
+- Copy functionality
 - NULL display with visual indicator
 - Row count in status bar
-- Export service (CSV, JSON, SQL)
+- Export service
 
-**Excluded:** Pagination (complexity with DataTable for select all, copy, sort)
+### Phase 5: Table Editor (Complete - 16h)
+
+- `TableEditTabViewModel` with full CRUD support
+- `EditableDataGrid` control
+- Add/Delete row commands
+- Commit/Rollback changes
+- Change tracking
+- Primary key handling
+
+### Phase 6: Export/Import (Complete - 14h)
+
+| Feature | Status |
+|---------|--------|
+| Export table to CSV | ? Done |
+| Export table to JSON | ? Done |
+| Export table to SQL | ? Done |
+| Export dialog UI | ? Done |
+| Import from CSV | ? Done |
+| Import from JSON | ? Done |
+| Import dialog with mapping | ? Done |
+
+---
+
+## New Files Created (Phase 6)
+
+```
+ViewModels/
+  ExportViewModel.cs          ?
+  ImportViewModel.cs          ?
+
+Views/Dialogs/
+  ExportDialog.axaml          ?
+  ExportDialog.axaml.cs       ?
+  ImportDialog.axaml          ?
+  ImportDialog.axaml.cs       ?
+```
 
 ---
 
@@ -102,33 +129,13 @@ All tasks completed successfully.
 
 ## Next Steps
 
-### Phase 5: Table Editor
-
-| Task | Estimate |
-|------|----------|
-| Editable grid | 6h |
-| Add row | 2h |
-| Delete row | 2h |
-| Commit/Rollback | 4h |
-| Validation | 2h |
-| **Total** | **16h** |
-
-### Phase 6: Export/Import
-
-| Task | Estimate |
-|------|----------|
-| Export dialog UI | 4h |
-| Import from CSV | 6h |
-| Backup/Restore | 4h |
-| **Total** | **14h** |
-
 ### Phase 7: Polish & Release
 
 | Task | Estimate |
 |------|----------|
 | Dark theme | 4h |
-| Error handling | 4h |
-| Status bar | 2h |
+| Error handling improvements | 4h |
+| Status bar enhancements | 2h |
 | Recent files | 2h |
 | Testing | 8h |
 | Documentation | 4h |
@@ -138,12 +145,12 @@ All tasks completed successfully.
 
 ## Metrics
 
-- **Total Time**: ~62h (Phases 1-4)
-- **Remaining**: ~54h (Phases 5-7)
-- **Total Lines of Code**: ~8,000+
+- **Total Time**: ~92h (Phases 1-6)
+- **Remaining**: ~24h (Phase 7)
+- **Total Lines of Code**: ~10,000+
 - **Test Coverage**: 2574 tests
 - **Build Status**: Successful
 
 ---
 
-*Phase 4 Complete - Ready for Phase 5: Table Editor*
+*Phase 6 Complete - Ready for Phase 7: Polish & Release*

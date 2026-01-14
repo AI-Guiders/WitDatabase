@@ -11,6 +11,7 @@ using OutWit.Common.Utils;
 using OutWit.Database.Studio.Models;
 using OutWit.Database.Studio.Services;
 using OutWit.Database.Studio.Ui.Icons;
+using OutWit.Database.Studio.Views.Dialogs;
 
 namespace OutWit.Database.Studio.ViewModels.Tabs;
 
@@ -56,6 +57,7 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         CopyRowsAsCsvCommand = new RelayCommandAsync(CopyRowsAsCsvAsync);
         CopyAllRowsCommand = new RelayCommandAsync(CopyAllRowsAsync);
         CopyAllRowsAsInsertCommand = new RelayCommandAsync(CopyAllRowsAsInsertAsync);
+        ExportResultsCommand = new RelayCommandAsync(ExportResultsAsync, () => HasResults);
     }
 
     private void InitEvents()
@@ -257,6 +259,21 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         await SetClipboardTextAsync(sql);
     }
 
+    private async Task ExportResultsAsync()
+    {
+        if (!HasResults || ResultData == null)
+            return;
+
+        var mainWindow = ApplicationVm.MainWindow;
+        if (mainWindow == null)
+            return;
+
+        var exportVm = new ExportViewModel(ApplicationVm);
+        exportVm.SetDataSource(ResultData, Title);
+
+        await ExportDialog.ShowAsync(mainWindow, exportVm);
+    }
+
     private async Task SetClipboardTextAsync(string text)
     {
         var mainWindow = ApplicationVm.MainWindow;
@@ -290,8 +307,6 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         HasResults = TotalRowCount > 0;
         IsSuccess = string.IsNullOrEmpty(ErrorMessage);
         HasMessages = !string.IsNullOrEmpty(ErrorMessage) || RowsAffected > 0;
-        
-        // CanExecuteQuery requires: connected, not executing, and has SQL text
         CanExecuteQuery = Database.IsConnected && !IsExecuting && !string.IsNullOrWhiteSpace(SqlText);
 
         var selectedCount = SelectedRows?.Count ?? 0;
@@ -307,27 +322,16 @@ public class QueryTabViewModel : WorkspaceTabViewModel
         if (GlobalLocker.IsLocked(nameof(QueryTabViewModel)))
             return;
 
-        if (e.IsProperty((QueryTabViewModel vm) => vm.TotalRowCount))
+        if (e.IsProperty((QueryTabViewModel vm) => vm.TotalRowCount) ||
+            e.IsProperty((QueryTabViewModel vm) => vm.ErrorMessage) ||
+            e.IsProperty((QueryTabViewModel vm) => vm.RowsAffected) ||
+            e.IsProperty((QueryTabViewModel vm) => vm.CurrentView) ||
+            e.IsProperty((QueryTabViewModel vm) => vm.SelectedRows) ||
+            e.IsProperty((QueryTabViewModel vm) => vm.IsExecuting) ||
+            e.IsProperty((QueryTabViewModel vm) => vm.SqlText))
+        {
             UpdateStatus();
-
-        if (e.IsProperty((QueryTabViewModel vm) => vm.ErrorMessage))
-            UpdateStatus();
-
-        if (e.IsProperty((QueryTabViewModel vm) => vm.RowsAffected))
-            UpdateStatus();
-
-        if (e.IsProperty((QueryTabViewModel vm) => vm.CurrentView))
-            UpdateStatus();
-
-        if (e.IsProperty((QueryTabViewModel vm) => vm.SelectedRows))
-            UpdateStatus();
-
-        if (e.IsProperty((QueryTabViewModel vm) => vm.IsExecuting))
-            UpdateStatus();
-
-        // Update CanExecuteQuery when SqlText changes (e.g., paste)
-        if (e.IsProperty((QueryTabViewModel vm) => vm.SqlText))
-            UpdateStatus();
+        }
     }
 
     private void OnConnectionStatusChanged(object? sender, bool isConnected)
@@ -462,6 +466,8 @@ public class QueryTabViewModel : WorkspaceTabViewModel
     public ICommand CopyAllRowsCommand { get; private set; } = null!;
 
     public ICommand CopyAllRowsAsInsertCommand { get; private set; } = null!;
+
+    public ICommand ExportResultsCommand { get; private set; } = null!;
 
     #endregion
 
