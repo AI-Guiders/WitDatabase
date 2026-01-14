@@ -2,8 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OutWit.Database.Studio.App"
              xmlns:local="using:OutWit.Database.Studio"
+             xmlns:controls="clr-namespace:OutWit.Database.Studio.Controls"
              RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
         <local:ViewLocator/>
@@ -13,14 +13,38 @@
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+        
+        <!-- DataGrid cell text color fix for dark theme -->
+        <Style Selector="DataGridCell TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextControlForeground}"/>
+        </Style>
+        
+        <!-- NULL indicator style -->
+        <Style Selector="DataGridCell.null-value TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextControlPlaceholderForeground}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+        </Style>
     </Application.Styles>
 
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- SQL Editor Colors (default: light theme) -->
                 <ResourceInclude Source="/Themes/SqlEditorColors.axaml" />
             </ResourceDictionary.MergedDictionaries>
+            
+            <!-- Theme-variant aware colors for SQL Editor -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="SqlEditorBg">#FFFFFF</Color>
+                    <Color x:Key="SqlEditorFg">#1E1E1E</Color>
+                    <Color x:Key="SqlEditorLineNumbers">#6E6E6E</Color>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="SqlEditorBg">#1E1E1E</Color>
+                    <Color x:Key="SqlEditorFg">#D4D4D4</Color>
+                    <Color x:Key="SqlEditorLineNumbers">#858585</Color>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

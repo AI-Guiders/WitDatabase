@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+        mc:Ignorable="d"
+        d:DesignWidth="450"
+        d:DesignHeight="380"
+        x:Class="OutWit.Database.Studio.Views.Dialogs.SettingsDialog"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings"
+        Width="450"
+        Height="380"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid RowDefinitions="*,Auto" Margin="20">
+        
+        <StackPanel Grid.Row="0" Spacing="20">
+            
+            <StackPanel Spacing="12">
+                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="14"/>
+                
+                <Grid ColumnDefinitions="120,*">
+                    <TextBlock Grid.Column="0" 
+                               Text="Theme:" 
+                               VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="1" 
+                              ItemsSource="{Binding AvailableThemes}"
+                              SelectedItem="{Binding SelectedTheme}"
+                              HorizontalAlignment="Stretch"/>
+                </Grid>
+            </StackPanel>
+
+            <Separator/>
+
+            <StackPanel Spacing="12">
+                <TextBlock Text="Editor" FontWeight="SemiBold" FontSize="14"/>
+                
+                <Grid ColumnDefinitions="120,*">
+                    <TextBlock Grid.Column="0" 
+                               Text="Font Size:" 
+                               VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="1" 
+                              ItemsSource="{Binding AvailableFontSizes}"
+                              SelectedItem="{Binding EditorFontSize}"
+                              Width="100"
+                              HorizontalAlignment="Left"/>
+                </Grid>
+            </StackPanel>
+
+            <Separator/>
+
+            <StackPanel Spacing="12">
+                <TextBlock Text="Behavior" FontWeight="SemiBold" FontSize="14"/>
+                
+                <CheckBox Content="Auto-save queries on close"
+                          IsChecked="{Binding AutoSaveQueries}"/>
+                
+                <Grid ColumnDefinitions="120,*">
+                    <TextBlock Grid.Column="0" 
+                               Text="Recent files:" 
+                               VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Column="1" 
+                                   Value="{Binding MaxRecentFiles}"
+                                   Minimum="1"
+                                   Maximum="25"
+                                   Width="100"
+                                   HorizontalAlignment="Left"/>
+                </Grid>
+            </StackPanel>
+
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,20,0,0">
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Width="80"/>
+            <Button Content="Save"
+                    Command="{Binding SaveCommand}"
+                    Width="80"
+                    Classes="accent"/>
+        </StackPanel>
+        
+    </Grid>
+
+</Window>

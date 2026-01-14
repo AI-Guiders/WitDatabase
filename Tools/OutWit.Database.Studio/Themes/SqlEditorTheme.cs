@@ -6,24 +6,19 @@ namespace OutWit.Database.Studio.Themes;
 
 /// <summary>
 /// Provides SQL Editor theme colors from application resources.
-/// Editor background/foreground colors are defined here.
-/// Syntax highlighting colors are defined in xshd files (WitSql.xshd / WitSqlLight.xshd).
 /// </summary>
 public static class SqlEditorTheme
 {
     #region Constants
 
-    // Resource keys for editor colors
-    private const string BACKGROUND_COLOR_KEY = "SqlEditorBackgroundColor";
-    private const string FOREGROUND_COLOR_KEY = "SqlEditorForegroundColor";
-    private const string LINE_NUMBERS_COLOR_KEY = "SqlEditorLineNumbersColor";
+    private const string BG_KEY = "SqlEditorBg";
+    private const string FG_KEY = "SqlEditorFg";
+    private const string LN_KEY = "SqlEditorLineNumbers";
 
-    // Default colors (light theme fallback)
     private static readonly Color DEFAULT_BACKGROUND_LIGHT = Color.Parse("#FFFFFF");
     private static readonly Color DEFAULT_FOREGROUND_LIGHT = Color.Parse("#1E1E1E");
     private static readonly Color DEFAULT_LINE_NUMBERS_LIGHT = Color.Parse("#6E6E6E");
 
-    // Default colors (dark theme fallback)
     private static readonly Color DEFAULT_BACKGROUND_DARK = Color.Parse("#1E1E1E");
     private static readonly Color DEFAULT_FOREGROUND_DARK = Color.Parse("#D4D4D4");
     private static readonly Color DEFAULT_LINE_NUMBERS_DARK = Color.Parse("#858585");
@@ -33,13 +28,13 @@ public static class SqlEditorTheme
     #region Functions
 
     /// <summary>
-    /// Gets a color from application resources by key.
+    /// Gets a color from application resources.
     /// </summary>
-    /// <param name="key">Resource key.</param>
-    /// <param name="defaultColor">Fallback color if resource not found.</param>
-    /// <returns>Color from resources or default.</returns>
-    public static Color GetColor(string key, Color defaultColor)
+    private static Color GetColor(string key, Color lightDefault, Color darkDefault)
     {
+        var isDark = IsDarkTheme();
+        var defaultColor = isDark ? darkDefault : lightDefault;
+
         if (Application.Current?.Resources.TryGetResource(key, Application.Current.ActualThemeVariant, out var resource) == true)
         {
             if (resource is Color color)
@@ -47,14 +42,6 @@ public static class SqlEditorTheme
         }
 
         return defaultColor;
-    }
-
-    /// <summary>
-    /// Gets a SolidColorBrush for the specified color.
-    /// </summary>
-    public static SolidColorBrush GetBrush(Color color)
-    {
-        return new SolidColorBrush(color);
     }
 
     /// <summary>
@@ -75,53 +62,35 @@ public static class SqlEditorTheme
     /// <summary>
     /// Gets the editor background color for the current theme.
     /// </summary>
-    public static Color BackgroundColor
-    {
-        get
-        {
-            var defaultColor = IsDarkTheme() ? DEFAULT_BACKGROUND_DARK : DEFAULT_BACKGROUND_LIGHT;
-            return GetColor(BACKGROUND_COLOR_KEY, defaultColor);
-        }
-    }
+    public static Color BackgroundColor =>
+        GetColor(BG_KEY, DEFAULT_BACKGROUND_LIGHT, DEFAULT_BACKGROUND_DARK);
 
     /// <summary>
     /// Gets the editor foreground color for the current theme.
     /// </summary>
-    public static Color ForegroundColor
-    {
-        get
-        {
-            var defaultColor = IsDarkTheme() ? DEFAULT_FOREGROUND_DARK : DEFAULT_FOREGROUND_LIGHT;
-            return GetColor(FOREGROUND_COLOR_KEY, defaultColor);
-        }
-    }
+    public static Color ForegroundColor =>
+        GetColor(FG_KEY, DEFAULT_FOREGROUND_LIGHT, DEFAULT_FOREGROUND_DARK);
 
     /// <summary>
     /// Gets the line numbers color for the current theme.
     /// </summary>
-    public static Color LineNumbersColor
-    {
-        get
-        {
-            var defaultColor = IsDarkTheme() ? DEFAULT_LINE_NUMBERS_DARK : DEFAULT_LINE_NUMBERS_LIGHT;
-            return GetColor(LINE_NUMBERS_COLOR_KEY, defaultColor);
-        }
-    }
+    public static Color LineNumbersColor =>
+        GetColor(LN_KEY, DEFAULT_LINE_NUMBERS_LIGHT, DEFAULT_LINE_NUMBERS_DARK);
 
     /// <summary>
     /// Gets the editor background brush.
     /// </summary>
-    public static SolidColorBrush BackgroundBrush => GetBrush(BackgroundColor);
+    public static SolidColorBrush BackgroundBrush => new(BackgroundColor);
 
     /// <summary>
     /// Gets the editor foreground brush.
     /// </summary>
-    public static SolidColorBrush ForegroundBrush => GetBrush(ForegroundColor);
+    public static SolidColorBrush ForegroundBrush => new(ForegroundColor);
 
     /// <summary>
     /// Gets the line numbers brush.
     /// </summary>
-    public static SolidColorBrush LineNumbersBrush => GetBrush(LineNumbersColor);
+    public static SolidColorBrush LineNumbersBrush => new(LineNumbersColor);
 
     #endregion
 }

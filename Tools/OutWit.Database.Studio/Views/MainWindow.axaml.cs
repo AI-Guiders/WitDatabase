@@ -1,6 +1,9 @@
 using System.Collections.Specialized;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Styling;
+using OutWit.Database.Studio.Ui.Icons;
 using OutWit.Database.Studio.ViewModels;
 
 namespace OutWit.Database.Studio.Views;
@@ -22,6 +25,12 @@ public partial class MainWindow : Window
         
         Loaded += OnLoaded;
         Closing += OnClosing;
+        ThemeToggleButton.Click += OnThemeToggleClick;
+        
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeChanged;
+        }
     }
 
     #endregion
@@ -34,6 +43,10 @@ public partial class MainWindow : Window
         {
             var settings = await ApplicationViewModel.Instance.Settings.LoadAsync();
             
+            App.Current?.ApplyTheme(settings.Theme);
+            UpdateThemeButton();
+            
+            // Apply window size
             Width = settings.WindowWidth;
             Height = settings.WindowHeight;
             
@@ -76,9 +89,42 @@ public partial class MainWindow : Window
         UpdateRecentFilesList();
     }
 
+    private async void OnThemeToggleClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var isDark = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+        var newTheme = isDark ? "Light" : "Dark";
+        
+        App.Current?.ApplyTheme(newTheme);
+        
+        // Save to settings
+        try
+        {
+            var settings = await ApplicationViewModel.Instance.Settings.LoadAsync();
+            settings.Theme = newTheme;
+            await ApplicationViewModel.Instance.Settings.SaveAsync(settings);
+        }
+        catch
+        {
+            // Ignore save errors
+        }
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeButton();
+    }
+
     #endregion
 
     #region Functions
+
+    private void UpdateThemeButton()
+    {
+        var isDark = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+        
+        ThemeIcon.Data = Avalonia.Media.Geometry.Parse(isDark ? StudioIcons.PATH_THEME_LIGHT : StudioIcons.PATH_THEME_DARK);
+        ThemeText.Text = isDark ? "Light" : "Dark";
+    }
 
     private void UpdateRecentFilesMenu()
     {
@@ -135,14 +181,11 @@ public partial class MainWindow : Window
             border.Child = stack;
             border.SetValue(ToolTip.TipProperty, file.FilePath);
             
-            // Capture file path for click handler
             var filePath = file.FilePath;
             
-            // Hover effect
             border.PointerEntered += (_, _) => border.Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
             border.PointerExited += (_, _) => border.Background = Brushes.Transparent;
             
-            // Click handler
             border.PointerPressed += (_, _) =>
             {
                 ApplicationViewModel.Instance.MainWindowVm.OpenRecentCommand.Execute(filePath);

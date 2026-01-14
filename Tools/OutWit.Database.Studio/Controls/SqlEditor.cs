@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Data;
 using Avalonia.Media;
 using AvaloniaEdit;
 using OutWit.Common.Locker;
@@ -37,7 +38,6 @@ public partial class SqlEditor : TextEditor
 
     private void InitDefaults()
     {
-        // Set up appearance
         FontFamily = new FontFamily("Consolas, Courier New, monospace");
         FontSize = 13;
         ShowLineNumbers = true;
@@ -46,13 +46,8 @@ public partial class SqlEditor : TextEditor
         WordWrap = false;
         Padding = new Thickness(4);
 
-        // Apply theme-aware colors
-        ApplyThemeColors();
-
-        // Apply WitSQL syntax highlighting
         SyntaxHighlighting = WitSqlHighlighting.Definition;
 
-        // Configure editor options
         Options.EnableHyperlinks = false;
         Options.EnableEmailHyperlinks = false;
         Options.ConvertTabsToSpaces = true;
@@ -65,11 +60,8 @@ public partial class SqlEditor : TextEditor
     private void InitEvents()
     {
         TextChanged += OnEditorTextChanged;
-        
-        // Subscribe to selection changes
         TextArea.SelectionChanged += OnSelectionChanged;
         
-        // Subscribe to theme changes
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeChanged;
@@ -80,11 +72,35 @@ public partial class SqlEditor : TextEditor
 
     #region Functions
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        ApplyThemeColors();
+    }
+
     private void ApplyThemeColors()
     {
-        Background = SqlEditorTheme.BackgroundBrush;
-        Foreground = SqlEditorTheme.ForegroundBrush;
-        LineNumbersForeground = SqlEditorTheme.LineNumbersBrush;
+        var bgColor = SqlEditorTheme.BackgroundColor;
+        var fgColor = SqlEditorTheme.ForegroundColor;
+        var lnColor = SqlEditorTheme.LineNumbersColor;
+
+        // Use LocalValue priority to override styles
+        SetValue(BackgroundProperty, new SolidColorBrush(bgColor), BindingPriority.LocalValue);
+        SetValue(ForegroundProperty, new SolidColorBrush(fgColor), BindingPriority.LocalValue);
+        LineNumbersForeground = new SolidColorBrush(lnColor);
+
+        // Force redraw
+        InvalidateVisual();
+        TextArea.TextView.Redraw();
+    }
+
+    /// <summary>
+    /// Refreshes theme colors. Call this after theme change.
+    /// </summary>
+    public void RefreshTheme()
+    {
+        ApplyThemeColors();
+        SyntaxHighlighting = WitSqlHighlighting.CreateDefinition();
     }
 
     private void UpdateSelectedText()
@@ -131,11 +147,7 @@ public partial class SqlEditor : TextEditor
 
     private void OnThemeChanged(object? sender, EventArgs e)
     {
-        // Re-apply colors when theme changes
-        ApplyThemeColors();
-        
-        // Re-apply syntax highlighting to refresh colors
-        SyntaxHighlighting = WitSqlHighlighting.CreateDefinition();
+        RefreshTheme();
     }
 
     #endregion
@@ -158,15 +170,9 @@ public partial class SqlEditor : TextEditor
 
     #region Properties
 
-    /// <summary>
-    /// Gets or sets the SQL text content (bindable, two-way).
-    /// </summary>
     [StyledProperty]
     public string? SqlText { get; set; }
 
-    /// <summary>
-    /// Gets the currently selected text (bindable, one-way to source).
-    /// </summary>
     [StyledProperty]
     public new string? SelectedText { get; set; }
 

@@ -25,177 +25,202 @@
 	</Window.KeyBindings>
 
 	<Grid RowDefinitions="Auto,*,Auto">
-		<!-- Menu -->
-		<Menu Grid.Row="0">
-			<MenuItem Header="_File">
-				<MenuItem Header="_New Query Tab"
-				          Command="{Binding WorkspaceTabsVm.NewQueryTabCommand}"
-				          InputGesture="Ctrl+N">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.TAB_NEW}" />
-					</MenuItem.Icon>
+		<!-- Menu Bar with Theme Toggle -->
+		<Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+			<!-- Menu -->
+			<Menu Grid.Column="0">
+				<MenuItem Header="_File">
+					<MenuItem Header="_New Query Tab"
+					          Command="{Binding WorkspaceTabsVm.NewQueryTabCommand}"
+					          InputGesture="Ctrl+N">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.TAB_NEW}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="New _Database..."
+					          Command="{Binding MainWindowVm.NewDatabaseCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="_Open Database..."
+					          Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+					          InputGesture="Ctrl+O">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="_Close Database"
+					          Command="{Binding MainWindowVm.CloseDatabaseCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_CLOSE_DATABASE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="_Save Query"
+					          Command="{Binding WorkspaceTabsVm.SaveTabCommand}"
+					          InputGesture="Ctrl+S">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Save Query _As..."
+					          Command="{Binding WorkspaceTabsVm.SaveTabAsCommand}"
+					          InputGesture="Ctrl+Shift+S">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem x:Name="RecentFilesMenu"
+					          Header="Recent Files"
+					          IsEnabled="{Binding MainWindowVm.HasRecentFiles}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_RECENT_FILES}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Clear Recent Files"
+					          Command="{Binding MainWindowVm.ClearRecentFilesCommand}"
+					          IsEnabled="{Binding MainWindowVm.HasRecentFiles}"/>
+
+					<Separator />
+
+					<MenuItem Header="E_xit"
+					          Command="{Binding MainWindowVm.ExitCommand}"
+					          InputGesture="Alt+F4">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
+						</MenuItem.Icon>
+					</MenuItem>
 				</MenuItem>
 
-				<Separator />
-
-				<MenuItem Header="New _Database..."
-				          Command="{Binding MainWindowVm.NewDatabaseCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}" />
-					</MenuItem.Icon>
+				<MenuItem Header="_Edit">
+					<MenuItem Header="_Copy" InputGesture="Ctrl+C">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_COPY}" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<MenuItem Header="_Paste" InputGesture="Ctrl+V">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_PASTE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<Separator/>
+					<MenuItem Header="_Settings..."
+					          Command="{Binding MainWindowVm.SettingsCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_ABOUT}" />
+						</MenuItem.Icon>
+					</MenuItem>
 				</MenuItem>
 
-				<MenuItem Header="_Open Database..."
-				          Command="{Binding MainWindowVm.OpenDatabaseCommand}"
-				          InputGesture="Ctrl+O">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}" />
-					</MenuItem.Icon>
+				<MenuItem Header="_Query">
+					<MenuItem Header="_Execute"
+					          Command="{Binding WorkspaceTabsVm.ExecuteQueryCommand}"
+					          InputGesture="F5">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Execute _Selection"
+					          Command="{Binding WorkspaceTabsVm.ExecuteSelectionCommand}"
+					          InputGesture="Ctrl+Enter">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="_Clear Results"
+					          Command="{Binding WorkspaceTabsVm.ClearResultsCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_CLEAR}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="Close _Tab"
+					          Command="{Binding WorkspaceTabsVm.CloseTabCommand}"
+					          CommandParameter="{Binding WorkspaceTabsVm.SelectedTab}"
+					          InputGesture="Ctrl+W">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Close _All Tabs"
+					          Command="{Binding WorkspaceTabsVm.CloseAllTabsCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
+						</MenuItem.Icon>
+					</MenuItem>
 				</MenuItem>
 
-				<MenuItem Header="_Close Database"
-				          Command="{Binding MainWindowVm.CloseDatabaseCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_CLOSE_DATABASE}" />
-					</MenuItem.Icon>
+				<MenuItem Header="_View">
+					<MenuItem Header="_Refresh"
+					          Command="{Binding MainWindowVm.RefreshCommand}"
+					          InputGesture="F5">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}" />
+						</MenuItem.Icon>
+					</MenuItem>
 				</MenuItem>
 
-				<Separator />
-
-				<MenuItem Header="_Save Query"
-				          Command="{Binding WorkspaceTabsVm.SaveTabCommand}"
-				          InputGesture="Ctrl+S">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
-					</MenuItem.Icon>
+				<MenuItem Header="_Tools">
+					<MenuItem Header="_Export..."
+					          Command="{Binding MainWindowVm.ExportCommand}"
+					          IsEnabled="{Binding MainWindowVm.IsConnected}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXPORT}" />
+		                </MenuItem.Icon>
+					</MenuItem>
+					<MenuItem Header="_Import..."
+					          Command="{Binding MainWindowVm.ImportCommand}"
+					          IsEnabled="{Binding MainWindowVm.IsConnected}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_IMPORT}" />
+		                </MenuItem.Icon>
+					</MenuItem>
 				</MenuItem>
 
-				<MenuItem Header="Save Query _As..."
-				          Command="{Binding WorkspaceTabsVm.SaveTabAsCommand}"
-				          InputGesture="Ctrl+Shift+S">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
-					</MenuItem.Icon>
+				<MenuItem Header="_Help">
+					<MenuItem Header="_About">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_ABOUT}" />
+						</MenuItem.Icon>
+					</MenuItem>
 				</MenuItem>
+			</Menu>
 
-				<Separator />
-
-				<MenuItem x:Name="RecentFilesMenu"
-				          Header="Recent Files"
-				          IsEnabled="{Binding MainWindowVm.HasRecentFiles}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_RECENT_FILES}" />
-					</MenuItem.Icon>
-				</MenuItem>
-
-				<MenuItem Header="Clear Recent Files"
-				          Command="{Binding MainWindowVm.ClearRecentFilesCommand}"
-				          IsEnabled="{Binding MainWindowVm.HasRecentFiles}"/>
-
-				<Separator />
-
-				<MenuItem Header="E_xit"
-				          Command="{Binding MainWindowVm.ExitCommand}"
-				          InputGesture="Alt+F4">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
-					</MenuItem.Icon>
-				</MenuItem>
-			</MenuItem>
-
-			<MenuItem Header="_Edit">
-				<MenuItem Header="_Copy" InputGesture="Ctrl+C">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_COPY}" />
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="_Paste" InputGesture="Ctrl+V">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_PASTE}" />
-					</MenuItem.Icon>
-				</MenuItem>
-			</MenuItem>
-
-			<MenuItem Header="_Query">
-				<MenuItem Header="_Execute"
-				          Command="{Binding WorkspaceTabsVm.ExecuteQueryCommand}"
-				          InputGesture="F5">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
-					</MenuItem.Icon>
-				</MenuItem>
-
-				<MenuItem Header="Execute _Selection"
-				          Command="{Binding WorkspaceTabsVm.ExecuteSelectionCommand}"
-				          InputGesture="Ctrl+Enter">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
-					</MenuItem.Icon>
-				</MenuItem>
-
-				<Separator />
-
-				<MenuItem Header="_Clear Results"
-				          Command="{Binding WorkspaceTabsVm.ClearResultsCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.QUERY_CLEAR}" />
-					</MenuItem.Icon>
-				</MenuItem>
-
-				<Separator />
-
-				<MenuItem Header="Close _Tab"
-				          Command="{Binding WorkspaceTabsVm.CloseTabCommand}"
-				          CommandParameter="{Binding WorkspaceTabsVm.SelectedTab}"
-				          InputGesture="Ctrl+W">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
-					</MenuItem.Icon>
-				</MenuItem>
-
-				<MenuItem Header="Close _All Tabs"
-				          Command="{Binding WorkspaceTabsVm.CloseAllTabsCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
-					</MenuItem.Icon>
-				</MenuItem>
-			</MenuItem>
-
-			<MenuItem Header="_View">
-				<MenuItem Header="_Refresh"
-				          Command="{Binding MainWindowVm.RefreshCommand}"
-				          InputGesture="F5">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}" />
-					</MenuItem.Icon>
-				</MenuItem>
-			</MenuItem>
-
-			<MenuItem Header="_Tools">
-				<MenuItem Header="_Export..."
-				          Command="{Binding MainWindowVm.ExportCommand}"
-				          IsEnabled="{Binding MainWindowVm.IsConnected}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXPORT}" />
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="_Import..."
-				          Command="{Binding MainWindowVm.ImportCommand}"
-				          IsEnabled="{Binding MainWindowVm.IsConnected}">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_IMPORT}" />
-					</MenuItem.Icon>
-				</MenuItem>
-			</MenuItem>
-
-			<MenuItem Header="_Help">
-				<MenuItem Header="_About">
-					<MenuItem.Icon>
-						<PathIcon Data="{x:Static ui:StudioIcons.MENU_ABOUT}" />
-					</MenuItem.Icon>
-				</MenuItem>
-			</MenuItem>
-		</Menu>
+			<!-- Theme Toggle Button (right side) -->
+			<Button Grid.Column="1"
+			        x:Name="ThemeToggleButton"
+			        ToolTip.Tip="Toggle Dark/Light Theme"
+			        Background="Transparent"
+			        BorderThickness="0"
+			        Padding="12,6"
+			        Margin="0,0,8,0"
+			        VerticalAlignment="Center">
+				<StackPanel Orientation="Horizontal" Spacing="6">
+					<PathIcon x:Name="ThemeIcon" Width="16" Height="16"/>
+					<TextBlock x:Name="ThemeText" VerticalAlignment="Center" FontSize="12"/>
+				</StackPanel>
+			</Button>
+		</Grid>
 
 		<!-- Основной контент с разделителем -->
 		<Grid Grid.Row="1" ColumnDefinitions="250,Auto,*">
