@@ -52,7 +52,26 @@ public sealed partial class WitSqlEngine
         if (m_currentTransaction == null)
             return;
 
+        // First, commit the transaction to persist actual data
         m_currentTransaction.Commit();
+        
+        // Now persist metadata BEFORE disposing transaction
+        // This ensures metadata is written even if there's a crash
+        // after transaction commit but before dispose.
+        // Note: If metadata persist fails, the data is still committed
+        // but metadata can be recovered by scanning on next startup.
+        try
+        {
+            m_schema.PersistRowCountsToStore();
+            m_schema.PersistRowIdsToStore();
+            m_schema.PersistRowVersionToStore();
+        }
+        catch
+        {
+            // Best effort - metadata can be recovered on startup
+            // by scanning actual data. Don't fail the commit.
+        }
+        
         m_currentTransaction.Dispose();
         m_currentTransaction = null;
         m_rowCountDeltaSinceSavepoint = null;

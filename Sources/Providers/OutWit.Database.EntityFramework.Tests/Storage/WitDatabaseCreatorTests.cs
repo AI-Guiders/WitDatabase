@@ -87,7 +87,6 @@ public class WitDatabaseCreatorTests
         creator.Create();
 
         // Note: File creation depends on underlying WitDbConnection behavior
-        // For in-memory, this is a no-op
     }
 
     [Test]
@@ -98,8 +97,7 @@ public class WitDatabaseCreatorTests
 
         await creator.CreateAsync();
 
-        // Verify no exception thrown
-        Assert.Pass();
+        Assert.Pass("CreateAsync completed without exception");
     }
 
     #endregion
@@ -143,8 +141,6 @@ public class WitDatabaseCreatorTests
         using var context = CreateInMemoryContext();
         var creator = GetDatabaseCreator(context);
 
-        // Note: This test depends on the database being empty initially
-        // The actual behavior depends on the connection state
         var hasTables = creator.HasTables();
 
         Assert.That(hasTables, Is.False);
@@ -163,7 +159,7 @@ public class WitDatabaseCreatorTests
 
     #endregion
 
-    #region EnsureCreated/Deleted Tests
+    #region EnsureCreated Tests
 
     [Test]
     public void EnsureDeletedDoesNotThrowForInMemoryTest()
@@ -179,6 +175,291 @@ public class WitDatabaseCreatorTests
         using var context = CreateInMemoryContext();
 
         Assert.DoesNotThrowAsync(async () => await context.Database.EnsureDeletedAsync());
+    }
+
+    [Test]
+    public void EnsureCreatedReturnsTrueForNewDatabaseTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+
+        var result = context.Database.EnsureCreated();
+
+        Assert.That(result, Is.True, "EnsureCreated should return true for new database");
+    }
+
+    [Test]
+    public async Task EnsureCreatedAsyncReturnsTrueForNewDatabaseTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+
+        var result = await context.Database.EnsureCreatedAsync();
+
+        Assert.That(result, Is.True, "EnsureCreatedAsync should return true for new database");
+    }
+
+    [Test]
+    public void EnsureCreatedCreatesFileTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+
+        Assert.That(File.Exists(m_testDbPath), Is.False);
+        
+        context.Database.EnsureCreated();
+
+        Assert.That(File.Exists(m_testDbPath), Is.True, "Database file should be created");
+    }
+
+    [Test]
+    public async Task EnsureCreatedAsyncCreatesFileTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+
+        Assert.That(File.Exists(m_testDbPath), Is.False);
+        
+        await context.Database.EnsureCreatedAsync();
+
+        Assert.That(File.Exists(m_testDbPath), Is.True, "Database file should be created");
+    }
+
+    [Test]
+    public void EnsureCreatedIsIdempotentTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+
+        var firstResult = context.Database.EnsureCreated();
+        Assert.That(firstResult, Is.True);
+
+        // Second call should not throw
+        Assert.DoesNotThrow(() => context.Database.EnsureCreated());
+    }
+
+    [Test]
+    public async Task EnsureCreatedAsyncIsIdempotentTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+
+        var firstResult = await context.Database.EnsureCreatedAsync();
+        Assert.That(firstResult, Is.True);
+
+        // Second call should not throw
+        Assert.DoesNotThrowAsync(async () => await context.Database.EnsureCreatedAsync());
+    }
+
+    [Test]
+    public void EnsureDeletedRemovesDatabaseFileTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+        
+        context.Database.EnsureCreated();
+        Assert.That(File.Exists(m_testDbPath), Is.True);
+
+        var deleted = context.Database.EnsureDeleted();
+
+        Assert.That(deleted, Is.True, "EnsureDeleted should return true when database existed");
+        Assert.That(File.Exists(m_testDbPath), Is.False, "Database file should be deleted");
+    }
+
+    [Test]
+    public async Task EnsureDeletedAsyncRemovesDatabaseFileTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+        
+        await context.Database.EnsureCreatedAsync();
+        Assert.That(File.Exists(m_testDbPath), Is.True);
+
+        var deleted = await context.Database.EnsureDeletedAsync();
+
+        Assert.That(deleted, Is.True, "EnsureDeletedAsync should return true when database existed");
+        Assert.That(File.Exists(m_testDbPath), Is.False, "Database file should be deleted");
+    }
+
+    [Test]
+    public void EnsureDeletedForFileBasedDatabaseRemovesFileTest()
+    {
+        using (var context = CreateFileContext(m_testDbPath))
+        {
+            context.Database.EnsureCreated();
+            Assert.That(File.Exists(m_testDbPath), Is.True);
+        }
+
+        using (var context = CreateFileContext(m_testDbPath))
+        {
+            context.Database.EnsureDeleted();
+        }
+
+        Assert.That(File.Exists(m_testDbPath), Is.False, "Database file should be deleted");
+    }
+
+    [Test]
+    public void ExistsReturnsTrueAfterEnsureCreatedTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+        var creator = GetDatabaseCreator(context);
+
+        Assert.That(creator.Exists(), Is.False);
+
+        context.Database.EnsureCreated();
+
+        Assert.That(creator.Exists(), Is.True);
+    }
+
+    [Test]
+    public void EnsureCreatedForInMemoryDatabaseTest()
+    {
+        using var context = CreateInMemoryContext();
+
+        var result = context.Database.EnsureCreated();
+
+        Assert.That(result, Is.True, "EnsureCreated should return true for in-memory database");
+    }
+
+    [Test]
+    public async Task EnsureCreatedAsyncForInMemoryDatabaseTest()
+    {
+        await using var context = CreateInMemoryContext();
+
+        var result = await context.Database.EnsureCreatedAsync();
+
+        Assert.That(result, Is.True, "EnsureCreatedAsync should return true for in-memory database");
+    }
+
+    [Test]
+    public void EnsureDeletedReturnsFalseForNonExistentDatabaseTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+        
+        Assert.That(File.Exists(m_testDbPath), Is.False);
+
+        var deleted = context.Database.EnsureDeleted();
+
+        Assert.That(deleted, Is.False, "EnsureDeleted should return false when database didn't exist");
+    }
+
+    [Test]
+    public async Task EnsureDeletedAsyncReturnsFalseForNonExistentDatabaseTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+        
+        Assert.That(File.Exists(m_testDbPath), Is.False);
+
+        var deleted = await context.Database.EnsureDeletedAsync();
+
+        Assert.That(deleted, Is.False, "EnsureDeletedAsync should return false when database didn't exist");
+    }
+
+    #endregion
+
+    #region Manual Table Creation + Data Operations Tests
+
+    [Test]
+    public void ManualTableCreationAllowsSaveChangesTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+        
+        // Open connection and create table manually
+        context.Database.OpenConnection();
+        using (var cmd = context.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ""TestEntity"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT)";
+            cmd.ExecuteNonQuery();
+        }
+
+        context.TestEntities.Add(new TestEntity { Name = "Test" });
+        var saveResult = context.SaveChanges();
+
+        Assert.That(saveResult, Is.EqualTo(1), "SaveChanges should affect 1 row");
+        
+        context.Database.CloseConnection();
+    }
+
+    [Test]
+    public async Task ManualTableCreationAllowsSaveChangesAsyncTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+        
+        await context.Database.OpenConnectionAsync();
+        await using (var cmd = context.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ""TestEntity"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT)";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        context.TestEntities.Add(new TestEntity { Name = "AsyncTest" });
+        var saveResult = await context.SaveChangesAsync();
+
+        Assert.That(saveResult, Is.EqualTo(1));
+        
+        await context.Database.CloseConnectionAsync();
+    }
+
+    [Test]
+    public void ManualTableCreationAllowsQueryTest()
+    {
+        using var context = CreateFileContext(m_testDbPath);
+        
+        context.Database.OpenConnection();
+        using (var cmd = context.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ""TestEntity"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT)";
+            cmd.ExecuteNonQuery();
+        }
+
+        context.TestEntities.Add(new TestEntity { Name = "QueryTest" });
+        context.SaveChanges();
+
+        var entity = context.TestEntities.FirstOrDefault(e => e.Name == "QueryTest");
+        
+        Assert.That(entity, Is.Not.Null);
+        Assert.That(entity!.Name, Is.EqualTo("QueryTest"));
+        
+        context.Database.CloseConnection();
+    }
+
+    [Test]
+    public async Task ManualTableCreationAllowsQueryAsyncTest()
+    {
+        await using var context = CreateFileContext(m_testDbPath);
+        
+        await context.Database.OpenConnectionAsync();
+        await using (var cmd = context.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ""TestEntity"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT)";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        context.TestEntities.Add(new TestEntity { Name = "AsyncQueryTest" });
+        await context.SaveChangesAsync();
+
+        var entity = await context.TestEntities.FirstOrDefaultAsync(e => e.Name == "AsyncQueryTest");
+        
+        Assert.That(entity, Is.Not.Null);
+        Assert.That(entity!.Name, Is.EqualTo("AsyncQueryTest"));
+        
+        await context.Database.CloseConnectionAsync();
+    }
+
+    [Test]
+    public void InMemoryWithManualTableCreationTest()
+    {
+        using var context = CreateInMemoryContext();
+        
+        context.Database.OpenConnection();
+        using (var cmd = context.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ""TestEntity"" (""Id"" INT PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT)";
+            cmd.ExecuteNonQuery();
+        }
+
+        context.TestEntities.Add(new TestEntity { Name = "InMemoryTest" });
+        var saveResult = context.SaveChanges();
+
+        Assert.That(saveResult, Is.EqualTo(1), "SaveChanges should affect 1 row");
+
+        var entity = context.TestEntities.FirstOrDefault(e => e.Name == "InMemoryTest");
+        Assert.That(entity, Is.Not.Null);
+        Assert.That(entity!.Name, Is.EqualTo("InMemoryTest"));
+        
+        context.Database.CloseConnection();
     }
 
     #endregion

@@ -391,9 +391,11 @@ public static class WitDbBulkExtensions
 
         var pkProperties = primaryKey.Properties.ToList();
         var pkColumnNames = pkProperties.Select(p => p.GetColumnName()).ToList();
+        var pkPropertyNames = pkProperties.Select(p => p.Name).ToHashSet();
 
-        // Get all columns for insert
-        var insertColumns = GetInsertColumns(entityType, options).ToList();
+        // For UPSERT, we need to include PK columns in INSERT even if they are auto-generated
+        // because ON CONFLICT uses them to detect conflicts
+        var insertColumns = GetInsertColumnsForUpsert(entityType, pkPropertyNames, options).ToList();
         var columnNames = insertColumns.Select(c => c.GetColumnName()).ToArray();
         var properties = insertColumns.Select(c => c.PropertyInfo!).ToArray();
 
@@ -473,6 +475,26 @@ public static class WitDbBulkExtensions
         properties = ApplyPropertyFilters(properties, options);
 
         return properties;
+    }
+
+    private static IEnumerable<IProperty> GetInsertColumnsForUpsert(IEntityType entityType, HashSet<string> pkPropertyNames, BulkOptions? options)
+    {
+        var properties = entityType.GetProperties()
+            .Where(p => !p.IsShadowProperty())
+            .Where(p => p.PropertyInfo != null)
+            .Where(p => p.ValueGenerated == ValueGenerated.Never || 
+                        (options?.SetOutputIdentity == true && p.ValueGenerated == ValueGenerated.OnAdd));
+
+        // Exclude properties marked as computed
+        properties = properties.Where(p => p.GetComputedColumnSql() == null);
+
+        // Always include primary key columns for upsert
+        properties = properties.Concat(entityType.FindPrimaryKey()!.Properties.Where(p => p.PropertyInfo != null && !p.IsShadowProperty()));
+
+        // Apply include/exclude filters
+        properties = ApplyPropertyFilters(properties, options);
+
+        return properties.Distinct();
     }
 
     private static IEnumerable<IProperty> GetUpdateColumns(IEntityType entityType, List<IProperty> pkProperties, BulkOptions? options = null)

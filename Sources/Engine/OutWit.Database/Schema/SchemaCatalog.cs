@@ -319,14 +319,15 @@ public sealed partial class SchemaCatalog : IDisposable
         Span<byte> rowIdBytes = stackalloc byte[8];
         System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(rowIdBytes, rowId);
         
-        if (transaction != null)
-        {
-            transaction.Put(keyBytes.AsSpan(), rowIdBytes);
-        }
-        else
+        // When a transaction is active, we only update the in-memory cache.
+        // The persisted row ID will be updated on COMMIT via PersistRowIdsToStore().
+        // Row IDs are monotonically increasing, so gaps after rollback are acceptable.
+        // This avoids lock recursion when TransactionalStore already holds the write lock.
+        if (transaction == null)
         {
             m_store.Put(keyBytes.AsSpan(), rowIdBytes);
         }
+        // else: only in-memory cache was updated by the caller
     }
 
     private void LoadTableRowId(string tableName)
@@ -434,14 +435,38 @@ public sealed partial class SchemaCatalog : IDisposable
         Span<byte> valueBytes = stackalloc byte[8];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(valueBytes, rowVersion);
         
-        if (transaction != null)
-        {
-            transaction.Put(ROWVERSION_KEY_BYTES.AsSpan(), valueBytes);
-        }
-        else
+        // When a transaction is active, we only update the in-memory cache.
+        // Row version is persisted on COMMIT via PersistRowVersionToStore().
+        // This avoids lock recursion when TransactionalStore already holds the write lock.
+        if (transaction == null)
         {
             m_store.Put(ROWVERSION_KEY_BYTES.AsSpan(), valueBytes);
         }
+        // else: only in-memory cache was updated
+    }
+    
+    /// <summary>
+    /// Persists the global row version to the store.
+    /// This should be called after a transaction commit.
+    /// </summary>
+    public void PersistRowVersionToStore()
+    {
+        // Take a snapshot under read lock
+        ulong version;
+        m_lock.EnterReadLock();
+        try
+        {
+            version = m_globalRowVersion;
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+        
+        // Persist outside of lock
+        Span<byte> valueBytes = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(valueBytes, version);
+        m_store.Put(ROWVERSION_KEY_BYTES.AsSpan(), valueBytes);
     }
 
     private void LoadRowVersion()
@@ -584,6 +609,82 @@ public sealed partial class SchemaCatalog : IDisposable
     }
 
     /// <summary>
+    /// Persists all in-memory row counts to the store.
+    /// This should be called after a transaction commit to ensure
+    /// the persisted metadata matches the in-memory cache.
+    /// </summary>
+    public void PersistRowCountsToStore()
+    {
+        // Take a snapshot under read lock to avoid holding lock during I/O
+        KeyValuePair<string, long>[] snapshot;
+        m_lock.EnterReadLock();
+        try
+        {
+            snapshot = m_tableRowCounts.ToArray();
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+        
+        // Persist outside of lock
+        foreach (var (tableName, count) in snapshot)
+        {
+            PersistRowCountInternal(tableName, count);
+        }
+    }
+
+    /// <summary>
+    /// Persists all in-memory row IDs to the store.
+    /// This should be called after a transaction commit to ensure
+    /// the persisted metadata matches the in-memory cache.
+    /// </summary>
+    public void PersistRowIdsToStore()
+    {
+        // Take a snapshot under read lock to avoid holding lock during I/O
+        KeyValuePair<string, long>[] snapshot;
+        m_lock.EnterReadLock();
+        try
+        {
+            snapshot = m_tableRowIds.ToArray();
+        }
+        finally
+        {
+            m_lock.ExitReadLock();
+        }
+        
+        // Persist outside of lock
+        foreach (var (tableName, rowId) in snapshot)
+        {
+            PersistRowIdInternal(tableName, rowId);
+        }
+    }
+    
+    private void PersistRowIdInternal(string tableName, long rowId)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWID_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWID_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWID_PREFIX_BYTES.Length);
+
+        Span<byte> rowIdBytes = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(rowIdBytes, rowId);
+        m_store.Put(keyBytes.AsSpan(), rowIdBytes);
+    }
+    
+    private void PersistRowCountInternal(string tableName, long count)
+    {
+        var tableNameBytes = Encoding.UTF8.GetBytes(tableName);
+        var keyBytes = new byte[ROWCOUNT_PREFIX_BYTES.Length + tableNameBytes.Length];
+        ROWCOUNT_PREFIX_BYTES.CopyTo(keyBytes, 0);
+        tableNameBytes.CopyTo(keyBytes, ROWCOUNT_PREFIX_BYTES.Length);
+
+        Span<byte> countBytes = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(countBytes, count);
+        m_store.Put(keyBytes.AsSpan(), countBytes);
+    }
+
+    /// <summary>
     /// Reloads all row counts and row IDs from the store.
     /// This should be called after a transaction rollback to ensure
     /// the in-memory cache reflects the actual persisted state.
@@ -598,6 +699,9 @@ public sealed partial class SchemaCatalog : IDisposable
                 LoadTableRowCount(tableName);
                 LoadTableRowId(tableName);
             }
+            
+            // Also reload global row version
+            LoadRowVersion();
         }
         finally
         {
@@ -679,14 +783,16 @@ public sealed partial class SchemaCatalog : IDisposable
         Span<byte> countBytes = stackalloc byte[8];
         System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(countBytes, count);
         
-        if (transaction != null)
-        {
-            transaction.Put(keyBytes.AsSpan(), countBytes);
-        }
-        else
+        // When a transaction is active, we only update the in-memory cache.
+        // The persisted row count will be updated:
+        // - On COMMIT: we persist the final in-memory value
+        // - On ROLLBACK: we reload the in-memory cache from the persisted value
+        // This avoids writing metadata that might be rolled back.
+        if (transaction == null)
         {
             m_store.Put(keyBytes.AsSpan(), countBytes);
         }
+        // else: only in-memory cache was updated by the caller
     }
 
     private void LoadTableRowCount(string tableName)

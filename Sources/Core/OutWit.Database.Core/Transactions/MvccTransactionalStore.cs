@@ -630,6 +630,16 @@ namespace OutWit.Database.Core.Transactions
                 }
             }
 
+            // Flush MVCC store to ensure all data is persisted before disposing
+            try
+            {
+                m_mvccStore.Flush();
+            }
+            catch
+            {
+                // Best effort - don't fail dispose on flush errors
+            }
+
             m_waitQueue.Dispose();
             m_deadlockDetector.Dispose();
             m_rowLockManager.Dispose();
