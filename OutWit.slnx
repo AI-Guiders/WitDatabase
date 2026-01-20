@@ -25,7 +25,6 @@
     <Project Path="Sources/Engine/OutWit.Database.Tests/OutWit.Database.Tests.csproj" Id="300c3af8-a89b-4507-b444-167d9b0d947c" />
   </Folder>
   <Folder Name="/Samples/">
-    <Project Path="Samples/OutWit.Database.Samples.BlazorServer/OutWit.Database.Samples.BlazorServer.csproj" />
     <Project Path="Samples/OutWit.Database.Samples.BlazorWasm/OutWit.Database.Samples.BlazorWasm.csproj" />
     <Project Path="Samples/OutWit.Database.Samples.ConsoleApp/OutWit.Database.Samples.ConsoleApp.csproj" />
     <Project Path="Samples/OutWit.Database.Samples.IdentityServer/OutWit.Database.Samples.IdentityServer.csproj" />
