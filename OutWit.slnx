@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/@Directory/">
+    <File Path="Sources/Directory.Build.props" />
+    <File Path="Sources/Directory.Build.targets" />
+  </Folder>
   <Folder Name="/@Docs/">
     <File Path="CODE_STYLE_GUIDE.md" />
     <File Path="Directory.Build.props" />
@@ -31,6 +35,13 @@
     <Project Path="Samples/OutWit.Database.Samples.WebApi/OutWit.Database.Samples.WebApi.csproj" />
     <Project Path="Samples/OutWit.Database.Samples.WebApiEF/OutWit.Database.Samples.WebApiEF.csproj" />
   </Folder>
+  <Folder Name="/@GitHub/">
+    <File Path=".github/workflows/ci.yml" />
+    <File Path=".github/workflows/pack.yml" />
+    <File Path=".github/workflows/publish.yml" />
+    <File Path=".github/workflows/release.yml" />
+    <File Path=".github/workflows/test-one.yml" />
+  </Folder>
   <Folder Name="/Benchmarks/">
     <Project Path="Benchmarks/OutWit.Database.AdoNet.Benchmarks/OutWit.Database.AdoNet.Benchmarks.csproj" />
     <Project Path="Benchmarks/OutWit.Database.Benchmarks/OutWit.Database.Benchmarks.csproj" />
@@ -41,7 +52,7 @@
     <Project Path="Sources/Providers/OutWit.Database.EntityFramework.Tests/OutWit.Database.EntityFramework.Tests.csproj" Id="09badd84-f5a3-4310-b672-3c8a8c1a04d3" />
     <Project Path="Sources/Providers/OutWit.Database.EntityFramework/OutWit.Database.EntityFramework.csproj" Id="a9ae5e40-63e3-4f7a-9b64-03ad4397ab00" />
   </Folder>
-  <Folder Name="/Sources/Studio/">
+  <Folder Name="/Tools/">
     <Project Path="Tools/OutWit.Database.Studio.Tests/OutWit.Database.Studio.Tests.csproj" />
     <Project Path="Tools/OutWit.Database.Studio/OutWit.Database.Studio.csproj" />
   </Folder>
