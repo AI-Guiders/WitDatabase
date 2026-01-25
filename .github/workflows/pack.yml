@@ -1,0 +1,81 @@
+name: Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Project to pack (name equals .csproj filename without extension)'
+        required: true
+        type: choice
+        options:
+          - OutWit.Database.Core
+          - OutWit.Database.Core.BouncyCastle
+          - OutWit.Database.Core.IndexedDb
+          - OutWit.Database.Parser
+          - OutWit.Database
+          - OutWit.Database.AdoNet
+          - OutWit.Database.EntityFramework
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT: ${{ github.event.inputs.project }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDKs (9/10)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.slnx', '**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore solution
+        run: dotnet restore OutWit.slnx
+
+      - name: Resolve project path
+        id: paths
+        shell: bash
+        run: |
+          name="${{ env.PROJECT }}"
+          lib=$(find . -name "$name.csproj" -type f | head -1)
+          if [ -z "$lib" ]; then
+            echo "Library project '$name.csproj' not found"
+            exit 1
+          fi
+          echo "libCsproj=$lib" >> $GITHUB_OUTPUT
+          echo "Resolved: $lib"
+
+      - name: Build (all target frameworks)
+        run: dotnet build "${{ steps.paths.outputs.libCsproj }}" --configuration Release -p:ContinuousIntegrationBuild=true
+
+      - name: Pack (no build)
+        run: dotnet pack "${{ steps.paths.outputs.libCsproj }}" --configuration Release --no-build
+
+      - name: Collect packages
+        shell: bash
+        run: |
+          mkdir -p NuGet
+          find . -path "*/bin/Release/*.nupkg" -exec cp {} NuGet/ \;
+          find . -path "*/bin/Release/*.snupkg" -exec cp {} NuGet/ \;
+          echo "Collected packages:"
+          ls -la NuGet/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ env.PROJECT }}
+          path: NuGet/*

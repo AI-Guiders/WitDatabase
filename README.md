@@ -3,7 +3,7 @@
 A high-performance embedded key-value database for .NET with support for multiple storage engines, ACID transactions, and encryption.
 
 [![.NET](https://img.shields.io/badge/.NET-9.0%20%7C%2010.0-512BD4)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ## Features
 
@@ -26,6 +26,13 @@ A high-performance embedded key-value database for .NET with support for multipl
   - File locking for multi-process safety
   - Async/await support
 
+- **SQL Support**
+  - Full SQL parser (WitSQL dialect)
+  - ADO.NET provider
+  - Entity Framework Core provider
+  - Window functions, CTEs, subqueries
+  - 60+ built-in functions
+
 - **Fluent API**
   - Easy configuration with builder pattern
   - Extensible via extension methods
@@ -36,19 +43,40 @@ A high-performance embedded key-value database for .NET with support for multipl
   - Auto-detection of settings when reopening databases
   - Easy registration of custom providers
 
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [OutWit.Database.Core](Sources/Core/OutWit.Database.Core/) | Core storage engine (B+Tree, LSM-Tree, MVCC) |
+| [OutWit.Database.Core.BouncyCastle](Sources/Core/OutWit.Database.Core.BouncyCastle/) | ChaCha20-Poly1305 encryption provider |
+| [OutWit.Database.Core.IndexedDb](Sources/Core/OutWit.Database.Core.IndexedDb/) | IndexedDB storage for Blazor WebAssembly |
+| [OutWit.Database.Parser](Sources/Engine/OutWit.Database.Parser/) | SQL parser (ANTLR4-based) |
+| [OutWit.Database](Sources/Engine/OutWit.Database/) | SQL execution engine |
+| [OutWit.Database.AdoNet](Sources/Providers/OutWit.Database.AdoNet/) | ADO.NET provider |
+| [OutWit.Database.EntityFramework](Sources/Providers/OutWit.Database.EntityFramework/) | Entity Framework Core provider |
+
 ## Installation
 
 ```bash
-# Main package
+# Core storage engine
 dotnet add package OutWit.Database.Core
+
+# SQL engine with ADO.NET
+dotnet add package OutWit.Database.AdoNet
+
+# Entity Framework Core
+dotnet add package OutWit.Database.EntityFramework
 
 # Optional: BouncyCastle encryption (for Blazor WASM)
 dotnet add package OutWit.Database.Core.BouncyCastle
+
+# Optional: IndexedDB storage (for Blazor WASM)
+dotnet add package OutWit.Database.Core.IndexedDb
 ```
 
 ## Quick Start
 
-### Simplest Usage (Static Factory Methods)
+### Key-Value Storage (Core API)
 
 ```csharp
 using OutWit.Database.Core.Builder;
@@ -56,224 +84,96 @@ using OutWit.Database.Core.Builder;
 // Create a new database
 using var db = WitDatabase.Create("mydata.db");
 
-// Or open existing (auto-detects settings!)
-using var db = WitDatabase.Open("mydata.db");
-
-// Create or open (most common)
-using var db = WitDatabase.CreateOrOpen("mydata.db");
-
-// With encryption
+// Or with encryption
 using var db = WitDatabase.Create("secure.db", "my-password");
-using var db = WitDatabase.Open("secure.db", "my-password");
 
-// In-memory (for testing)
-using var db = WitDatabase.CreateInMemory();
-```
-
-### Basic Operations
-
-```csharp
-using var db = WitDatabase.CreateOrOpen("mydata.db");
-
-// Store data
+// Store and retrieve data
 db.Put("user:1"u8, """{"name": "John", "age": 30}"""u8);
-
-// Retrieve data
 var value = db.Get("user:1"u8);
-
-// Delete data
 db.Delete("user:1"u8);
-
-// Scan range
-foreach (var (key, val) in db.Scan("user:"u8.ToArray(), "user:\xff"u8.ToArray()))
-{
-    Console.WriteLine($"Key: {Encoding.UTF8.GetString(key)}");
-}
 ```
 
-### With Transactions
+### SQL with ADO.NET
 
 ```csharp
-using var db = WitDatabase.CreateOrOpen("mydata.db");
+using OutWit.Database.AdoNet;
 
-// Explicit transaction
-using (var tx = db.BeginTransaction())
-{
-    tx.Put("key1"u8, "value1"u8);
-    tx.Put("key2"u8, "value2"u8);
-    tx.Commit(); // or tx.Rollback()
-}
+using var connection = new WitDbConnection("Data Source=mydb.witdb");
+connection.Open();
 
-// Async transaction
-await using (var tx = await db.BeginTransactionAsync())
-{
-    await tx.PutAsync(key, value);
-    await tx.CommitAsync();
-}
+using var cmd = connection.CreateCommand();
+cmd.CommandText = "CREATE TABLE Users (Id INT PRIMARY KEY, Name VARCHAR(100))";
+cmd.ExecuteNonQuery();
+
+cmd.CommandText = "INSERT INTO Users (Id, Name) VALUES (@id, @name)";
+cmd.Parameters.AddWithValue("@id", 1);
+cmd.Parameters.AddWithValue("@name", "John Doe");
+cmd.ExecuteNonQuery();
 ```
 
-### Full Configuration (Builder Pattern)
+### Entity Framework Core
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using OutWit.Database.EntityFramework.Extensions;
+
+public class AppDbContext : DbContext
+{
+    public DbSet<User> Users => Set<User>();
+    
+    protected override void OnConfiguring(DbContextOptionsBuilder options)
+        => options.UseWitDb("Data Source=myapp.witdb");
+}
+
+// Usage
+using var context = new AppDbContext();
+context.Database.EnsureCreated();
+context.Users.Add(new User { Name = "John" });
+context.SaveChanges();
+```
+
+### Blazor WebAssembly
 
 ```csharp
 using OutWit.Database.Core.Builder;
-
-// Create a database with custom settings
-using var db = new WitDatabaseBuilder()
-    .WithFilePath("mydata.db")
-    .WithBTree()
-    .WithEncryption("my-password")
-    .WithTransactions()
-    .WithFileLocking()
-    .Build();
-
-// Advanced settings for LSM-Tree
-using var lsmDb = new WitDatabaseBuilder()
-    .WithLsmTree("/data/lsm", opts =>
-    {
-        opts.EnableWal = true;
-        opts.EnableBlockCache = true;
-        opts.BlockCacheSizeBytes = 64 * 1024 * 1024; // 64MB
-        opts.MemTableSizeLimit = 4 * 1024 * 1024;    // 4MB
-        opts.BackgroundCompaction = true;
-    })
-    .WithEncryption("password")
-    .WithTransactions()
-    .Build();
-```
-
-### BouncyCastle Encryption (Blazor WASM)
-
-```csharp
+using OutWit.Database.Core.IndexedDb;
 using OutWit.Database.Core.BouncyCastle;
 
-// ChaCha20-Poly1305 - works in Blazor WebAssembly
-using var db = new WitDatabaseBuilder()
-    .WithFilePath("secure.db")
-    .WithBouncyCastleEncryption("my-password")
+// In Blazor component
+var db = new WitDatabaseBuilder()
+    .WithIndexedDbStorage("MyDatabase", JSRuntime)
+    .WithBouncyCastleEncryption("password")  // Works in browser
+    .WithBTree()
     .Build();
+
+await ((StorageIndexedDb)db.Store).InitializeAsync();
 ```
 
-## Configuration Options
+## Configuration
 
-### Storage
+### Storage Engines
 
 | Method | Description |
 |--------|-------------|
 | `WithFilePath(path)` | Use file-based storage |
-| `WithMemoryStorage()` | Use in-memory storage (data lost on dispose) |
-| `WithStorage(IStorage)` | Use custom storage implementation |
-
-### Engine
-
-| Method | Description |
-|--------|-------------|
+| `WithMemoryStorage()` | Use in-memory storage |
 | `WithBTree()` | Use B-Tree engine (default) |
 | `WithLsmTree()` | Use LSM-Tree engine |
-| `WithLsmTree(directory)` | LSM-Tree with specific directory |
-| `WithLsmTree(Action<LsmOptions>)` | LSM-Tree with custom options |
 
 ### Encryption
 
 | Method | Description |
 |--------|-------------|
 | `WithEncryption(password)` | AES-GCM with password |
-| `WithEncryption(user, password)` | AES-GCM with user/password |
-| `WithAesEncryption(key)` | AES-GCM with 256-bit key |
-| `WithBouncyCastleEncryption(password)` | ChaCha20-Poly1305 with password |
+| `WithBouncyCastleEncryption(password)` | ChaCha20-Poly1305 |
 
-### Transactions & Locking
+### Transactions
 
 | Method | Description |
 |--------|-------------|
-| `WithTransactions()` | Enable ACID transactions (default) |
-| `WithoutTransactions()` | Disable transactions for performance |
-| `WithFileLocking()` | Enable file locking (default) |
-| `WithoutFileLocking()` | Disable file locking |
-| `WithLockTimeout(TimeSpan)` | Set lock timeout |
-
-### Performance
-
-| Method | Description |
-|--------|-------------|
-| `WithPageSize(int)` | Set page size (default: 4096) |
-| `WithCacheSize(int)` | Set cache size in pages |
-
-## Provider System
-
-WitDatabase uses a pluggable provider system for extensibility. All providers implement `IProvider` interface.
-
-### Built-in Providers
-
-| Type | Provider Keys | Description |
-|------|---------------|-------------|
-| `IStorage` | `file`, `memory`, `encrypted` | Storage backends |
-| `IKeyValueStore` | `btree`, `lsm`, `inmemory` | Storage engines |
-| `ICryptoProvider` | `aes-gcm` | Encryption algorithms |
-| `IPageCache` | `clock`, `lru` | Page caching strategies |
-| `ITransactionJournal` | `rollback`, `wal` | Transaction journals |
-
-### BouncyCastle Extension
-
-| Type | Provider Keys | Description |
-|------|---------------|-------------|
-| `ICryptoProvider` | `chacha20-poly1305` | ChaCha20-Poly1305 encryption |
-
-### Registering Custom Providers
-
-```csharp
-using OutWit.Database.Core.Providers;
-
-// Register a custom crypto provider
-ProviderRegistry.Instance.Register<ICryptoProvider>("my-crypto", 
-    parameters => new MyCryptoProvider(parameters.GetRequired<byte[]>("key")));
-
-// Use it via the registry
-var crypto = ProviderRegistry.Instance.Create<ICryptoProvider>("my-crypto",
-    new ProviderParameters().Set("key", myKey));
-
-// Or list all registered providers
-var keys = ProviderRegistry.Instance.GetRegisteredKeys<ICryptoProvider>();
-// Returns: ["aes-gcm", "chacha20-poly1305", "my-crypto"]
-```
-
-### Auto-Detection on Open
-
-When opening an existing database, WitDatabase automatically reads stored settings:
-
-```csharp
-// Database created with specific settings
-using (var db = new WitDatabaseBuilder()
-    .WithFilePath("data.db")
-    .WithBTree()
-    .WithTransactions()
-    .WithFileLocking()
-    .Build())
-{
-    db.Put("key"u8, "value"u8);
-}
-
-// Later: Open() auto-detects settings from header
-using var db = WitDatabase.Open("data.db");
-// Transactions, FileLocking settings are restored automatically!
-
-// Inspect database without opening
-var info = WitDatabase.GetDatabaseInfo("data.db");
-Console.WriteLine($"Store: {info.StoreProvider}");           // "btree"
-Console.WriteLine($"Encrypted: {info.RequiresEncryption}");  // false
-Console.WriteLine($"Transactions: {info.HasTransactions}");  // true
-```
-
-### Settings Persisted in Header
-
-| Setting | Persisted | Notes |
-|---------|-----------|-------|
-| Store type (btree/lsm) | Yes | Auto-detected on reopen |
-| Encryption enabled | Yes | Throws if password not provided |
-| Encryption provider | Yes | e.g., "aes-gcm" |
-| Transactions enabled | Yes | Auto-detected on reopen |
-| File locking enabled | Yes | Auto-detected on reopen |
-| Page size | Yes | Mismatch throws exception |
-| Cache type/size | No | Can be changed on reopen |
+| `WithTransactions()` | Enable ACID transactions |
+| `WithMvcc()` | Enable MVCC |
+| `WithFileLocking()` | Enable file locking |
 
 ## Architecture
 
@@ -289,57 +189,23 @@ Console.WriteLine($"Transactions: {info.HasTransactions}");  // true
 |      |   StoreBTree   |    |    StoreLsm    |                 |
 |      |  (B+Tree engine)|    | (LSM-Tree engine)|              |
 |      +----------------+    +----------------+                 |
-|               |                    |                          |
-|      +----------------+    +----------------------------+     |
-|      |    IStorage    |    |MemTable+SSTables          |     |
-|      | File/Memory/Enc|    |  +WAL+BloomFilter         |     |
-|      +----------------+    +----------------------------+     |
 +---------------------------------------------------------------+
 |                     ProviderRegistry                          |
 |          (Pluggable providers for all components)             |
 +---------------------------------------------------------------+
 ```
 
-## Storage Engines Comparison
-
-| Feature | B-Tree | LSM-Tree |
-|---------|--------|----------|
-| Read performance | Excellent | Good |
-| Write performance | Good | Excellent |
-| Range scan | Excellent | Very Good |
-| Space efficiency | Very Good | Good |
-| Write amplification | Medium | Low |
-| Read amplification | Low | Medium |
-
-**Recommendations:**
-- **B-Tree**: General purpose, read-heavy workloads, random access patterns
-- **LSM-Tree**: Write-heavy workloads, time-series data, logging
-
-## Encryption Providers
-
-| Provider | Algorithm | Use Case |
-|----------|-----------|----------|
-| `aes-gcm` | AES-256-GCM | Standard (hardware accelerated) |
-| `chacha20-poly1305` | ChaCha20-Poly1305 | Blazor WASM, ARM without AES-NI |
-
-## Thread Safety
-
-- Multiple concurrent readers
-- Single writer with serialization
-- Reader-writer lock with writer priority
-- File locking for multi-process safety
-- Nested transactions throws `LockRecursionException`
-
 ## Performance
 
-Typical performance on modern hardware:
+WitDatabase is optimized for common database operations:
 
-| Operation | B-Tree (File) | LSM-Tree |
-|-----------|---------------|----------|
-| Put (1K ops) | ~5ms | ~2ms |
-| Put (10K ops) | ~39ms | ~15ms |
-| Get (1K ops) | ~2ms | ~3ms |
-| Range scan (1K entries) | ~1ms | ~2ms |
+| Operation | vs SQLite | vs LiteDB |
+|-----------|-----------|-----------|
+| INSERT | 1.5-3x faster | 1.5-2x faster |
+| UPDATE by PK | 1.1-10x faster | 2-4x faster |
+| DELETE by PK | 20x faster | 1.7x faster |
+| SELECT by PK | 22x faster | 10x faster |
+| Transactions | 4-20x faster | 1.2-2x faster |
 
 ## Requirements
 
@@ -350,19 +216,27 @@ Typical performance on modern hardware:
 
 ```
 WitDatabase/
-??? OutWit.Database.Core/           # Main library
-?   ??? Builder/                    # Fluent API
-?   ??? Providers/                  # Provider system
-?   ??? Tree/                       # B-Tree implementation
-?   ??? LSM/                        # LSM-Tree components
-?   ??? Storage/                    # Storage implementations
-?   ??? Transactions/               # Transaction support
-?   ??? Encryption/                 # Encryption support
-?   ??? Concurrency/                # Locking subsystem
-??? OutWit.Database.Core.BouncyCastle/  # BouncyCastle crypto
-??? OutWit.Database.Core.Tests/     # Unit tests (~1100 tests)
-??? OutWit.Database.Core.Tests.Benchmarks/  # Benchmarks
++-- Sources/
+|   +-- Core/
+|   |   +-- OutWit.Database.Core/           # Storage engine
+|   |   +-- OutWit.Database.Core.BouncyCastle/  # ChaCha20 encryption
+|   |   +-- OutWit.Database.Core.IndexedDb/     # Blazor WASM storage
+|   +-- Engine/
+|   |   +-- OutWit.Database.Parser/         # SQL parser
+|   |   +-- OutWit.Database/                # SQL engine
+|   +-- Providers/
+|       +-- OutWit.Database.AdoNet/         # ADO.NET provider
+|       +-- OutWit.Database.EntityFramework/ # EF Core provider
++-- Tools/
+|   +-- OutWit.Database.Studio/             # Database management tool
++-- Samples/
++-- Benchmarks/
 ```
+
+## Documentation
+
+- [ROADMAP.md](ROADMAP.md) - Future plans and version 2.0 features
+- [Sources/Core/OutWit.Database.Core/EXTENSIBILITY.md](Sources/Core/OutWit.Database.Core/EXTENSIBILITY.md) - Extension guide
 
 ## Running Tests
 
@@ -370,23 +244,30 @@ WitDatabase/
 # All tests
 dotnet test
 
-# Specific category
-dotnet test --filter "FullyQualifiedName~Builder"
-dotnet test --filter "FullyQualifiedName~Encryption"
-dotnet test --filter "FullyQualifiedName~Transaction"
-dotnet test --filter "FullyQualifiedName~Provider"
-```
-
-## Running Benchmarks
-
-```bash
-cd OutWit.Database.Core.Tests.Benchmarks
-dotnet run -c Release
+# Specific project
+dotnet test Sources/Core/OutWit.Database.Core.Tests
 ```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Licensed under the Apache License, Version 2.0. See `LICENSE`.
+
+## Attribution (optional)
+
+If you use WitDatabase in a product, a mention is appreciated (but not required), for example:
+"Powered by WitDatabase https://witdatabase.io/".
+
+## Trademark / Project name
+
+"WitDatabase" and the WitDatabase logo are used to identify the official project by Dmitry Ratner.
+
+You may:
+- refer to the project name in a factual way (e.g., "built with WitDatabase");
+- use the name to indicate compatibility (e.g., "WitDatabase-compatible").
+
+You may not:
+- use "WitDatabase" as the name of a fork or a derived product in a way that implies it is the official project;
+- use the WitDatabase logo to promote forks or derived products without permission.
 
 ## Contributing
 
@@ -400,23 +281,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
 
-### v1.1.0 (Current)
-
-- **Provider System**: Pluggable architecture for all components
-  - `ProviderRegistry` for centralized provider management
-  - Auto-registration via `[ModuleInitializer]`
-  - `IProvider` base interface for all providers
-- **Auto-Detection**: `WitDatabase.Open()` auto-detects settings from header
-- **Database Info**: `WitDatabase.GetDatabaseInfo()` to inspect without opening
-- **Configuration Validation**: Detects mismatched settings on reopen
-- **ProviderMetadata**: Stored in database header for persistence
-
-### v1.0.0
-
-- Initial release
-- B-Tree and LSM-Tree storage engines
-- ACID transactions with WAL
-- AES-GCM and ChaCha20-Poly1305 encryption
-- Fluent API builder
-- Password-based encryption
-- ~1100 unit tests
+See [ROADMAP.md](ROADMAP.md) for version history and planned features.

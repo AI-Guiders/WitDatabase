@@ -550,7 +550,24 @@ END;
 
 ## License
 
-MIT License - see LICENSE file for details.
+Licensed under the Apache License, Version 2.0. See `LICENSE`.
+
+## Attribution (optional)
+
+If you use OutWit.Database in a product, a mention is appreciated (but not required), for example:
+"Powered by WitDatabase https://witdatabase.io/".
+
+## Trademark / Project name
+
+"WitDatabase" and the WitDatabase logo are used to identify the official project by Dmitry Ratner.
+
+You may:
+- refer to the project name in a factual way (e.g., "built with WitDatabase");
+- use the name to indicate compatibility (e.g., "WitDatabase-compatible").
+
+You may not:
+- use "WitDatabase" as the name of a fork or a derived product in a way that implies it is the official project;
+- use the WitDatabase logo to promote forks or derived products without permission.
 
 ---
 

@@ -1,0 +1,121 @@
+name: Release WitDatabase Studio
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+      releaseName:
+        description: 'Release title (defaults to tag)'
+        required: false
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            artifact: WitDatabase.Studio-win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact: WitDatabase.Studio-linux-x64
+          - os: macos-latest
+            rid: osx-x64
+            artifact: WitDatabase.Studio-osx-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Publish self-contained
+        run: >
+          dotnet publish Tools/OutWit.Database.Studio/OutWit.Database.Studio.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishTrimmed=false
+          --output ./publish/${{ matrix.artifact }}
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path ./publish/${{ matrix.artifact }}/* -DestinationPath ./${{ matrix.artifact }}.zip
+
+      - name: Create archive (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd ./publish/${{ matrix.artifact }}
+          tar -czvf ../../${{ matrix.artifact }}.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ./${{ matrix.artifact }}.zip
+            ./${{ matrix.artifact }}.tar.gz
+          if-no-files-found: ignore
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find ./artifacts -type f | head -20
+
+      - name: Collect release files
+        id: collect
+        run: |
+          mkdir -p release-files
+          find ./artifacts -name "*.zip" -exec cp {} release-files/ \;
+          find ./artifacts -name "*.tar.gz" -exec cp {} release-files/ \;
+          echo "Release files:"
+          ls -la release-files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          name: ${{ github.event.inputs.releaseName || github.event.inputs.tag }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: release-files/*
+          generate_release_notes: true

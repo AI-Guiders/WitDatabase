@@ -9,28 +9,13 @@ on:
         required: true
         type: choice
         options:
-          - OutWit.Common
-          - OutWit.Common.Aspects
-          - OutWit.Common.CommandLine
-          - OutWit.Common.Logging
-          - OutWit.Common.Rest
-          - OutWit.Common.Reflection
-          - OutWit.Common.Proxy
-          - OutWit.Common.Proxy.Generator
-          - OutWit.Common.Json
-          - OutWit.Common.MemoryPack
-          - OutWit.Common.MessagePack
-          - OutWit.Common.ProtoBuf
-          - OutWit.Common.MVVM
-          - OutWit.Common.MVVM.WPF
-          - OutWit.Common.MVVM.WPF.Generator
-          - OutWit.Common.MVVM.Avalonia
-          - OutWit.Common.MVVM.Avalonia.Generator
-          - OutWit.Common.MVVM.Blazor
-          - OutWit.Common.NUnit
-          - OutWit.Common.Plugins
-          - OutWit.Common.Plugins.Abstractions
-          - OutWit.Common.Settings
+          - OutWit.Database.Core
+          - OutWit.Database.Core.BouncyCastle
+          - OutWit.Database.Core.IndexedDb
+          - OutWit.Database.Parser
+          - OutWit.Database
+          - OutWit.Database.AdoNet
+          - OutWit.Database.EntityFramework
       pushToNuGet:
         description: 'Push to nuget.org'
         type: boolean
@@ -48,20 +33,17 @@ permissions:
 
 jobs:
   publish:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     env:
       PROJECT: ${{ github.event.inputs.project }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET SDKs (6/7/8/9/10)
+      - name: Setup .NET SDKs (9/10)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            6.0.x
-            7.0.x
-            8.0.x
             9.0.x
             10.0.x
 
@@ -69,47 +51,22 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.sln*', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.slnx', '**/*.csproj') }}
           restore-keys: |
             nuget-${{ runner.os }}-
 
-      - name: Resolve project paths
+      - name: Resolve project path
         id: paths
-        shell: pwsh
+        shell: bash
         run: |
-          $name = "${{ env.PROJECT }}"
-          $lib = Get-ChildItem -Recurse -Filter "$name.csproj" | Select-Object -Expand FullName -First 1
-          if (-not $lib) { Write-Error "Library project '$name.csproj' not found"; exit 1 }
-          "libCsproj=$lib" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Resolved: $lib"
-          
-          # Check if this project embeds a generator and needs it built first
-          # Projects that embed generators: OutWit.Common.Proxy, OutWit.Common.MVVM.WPF, OutWit.Common.MVVM.Avalonia
-          $generatorProject = ""
-          switch ($name) {
-            "OutWit.Common.Proxy" { 
-              $generatorProject = Get-ChildItem -Recurse -Filter "OutWit.Common.Proxy.Generator.csproj" | Select-Object -Expand FullName -First 1
-            }
-            "OutWit.Common.MVVM.WPF" { 
-              $generatorProject = Get-ChildItem -Recurse -Filter "OutWit.Common.MVVM.WPF.Generator.csproj" | Select-Object -Expand FullName -First 1
-            }
-            "OutWit.Common.MVVM.Avalonia" { 
-              $generatorProject = Get-ChildItem -Recurse -Filter "OutWit.Common.MVVM.Avalonia.Generator.csproj" | Select-Object -Expand FullName -First 1
-            }
-          }
-          
-          if ($generatorProject) {
-            "generatorCsproj=$generatorProject" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            "hasGenerator=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            Write-Host "Associated generator: $generatorProject"
-          } else {
-            "hasGenerator=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            Write-Host "No associated generator"
-          }
-
-      - name: Build generator (if needed)
-        if: steps.paths.outputs.hasGenerator == 'true'
-        run: dotnet build "${{ steps.paths.outputs.generatorCsproj }}" -c Release
+          name="${{ env.PROJECT }}"
+          lib=$(find . -name "$name.csproj" -type f | head -1)
+          if [ -z "$lib" ]; then
+            echo "Library project '$name.csproj' not found"
+            exit 1
+          fi
+          echo "libCsproj=$lib" >> $GITHUB_OUTPUT
+          echo "Resolved: $lib"
 
       - name: Build (all target frameworks)
         run: dotnet build "${{ steps.paths.outputs.libCsproj }}" -c Release -p:ContinuousIntegrationBuild=true
@@ -119,23 +76,20 @@ jobs:
 
       - name: Collect packages
         id: collect
-        shell: pwsh
+        shell: bash
         run: |
-          if (!(Test-Path "NuGet")) { New-Item -ItemType Directory -Force -Path "NuGet" | Out-Null }
-          Get-ChildItem -Recurse -Include *.nupkg,*.snupkg -Path . |
-            Where-Object { $_.FullName -match "\\bin\\Release\\" } |
-            Copy-Item -Destination "NuGet" -Force
+          mkdir -p NuGet
+          find . -path "*/bin/Release/*.nupkg" -exec cp {} NuGet/ \;
+          find . -path "*/bin/Release/*.snupkg" -exec cp {} NuGet/ \;
           
-          $hasNupkg = (Get-ChildItem -Path "NuGet" -Filter "*.nupkg" | Measure-Object).Count -gt 0
-          $hasSnupkg = (Get-ChildItem -Path "NuGet" -Filter "*.snupkg" | Measure-Object).Count -gt 0
+          hasNupkg=$(ls NuGet/*.nupkg 2>/dev/null | wc -l)
+          hasSnupkg=$(ls NuGet/*.snupkg 2>/dev/null | wc -l)
           
-          "hasNupkg=$hasNupkg" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "hasSnupkg=$hasSnupkg" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          echo "hasNupkg=$([[ $hasNupkg -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "hasSnupkg=$([[ $hasSnupkg -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
           
-          Write-Host "Collected packages:"
-          Get-ChildItem NuGet | Select-Object Name
-          Write-Host "Has .nupkg: $hasNupkg"
-          Write-Host "Has .snupkg: $hasSnupkg"
+          echo "Collected packages:"
+          ls -la NuGet/
 
       - name: Add GitHub Packages source
         if: github.event.inputs.pushToGitHubPackages == 'true'
@@ -148,29 +102,29 @@ jobs:
           "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
 
       - name: Push to nuget.org (.nupkg)
-        if: github.event.inputs.pushToNuGet == 'true' && steps.collect.outputs.hasNupkg == 'True'
+        if: github.event.inputs.pushToNuGet == 'true' && steps.collect.outputs.hasNupkg == 'true'
         run: >
-          dotnet nuget push "NuGet\*.nupkg"
+          dotnet nuget push "NuGet/*.nupkg"
           --api-key ${{ secrets.NUGET_API_KEY }}
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
 
       - name: Push symbols to nuget.org (.snupkg)
-        if: github.event.inputs.pushToNuGet == 'true' && steps.collect.outputs.hasSnupkg == 'True'
+        if: github.event.inputs.pushToNuGet == 'true' && steps.collect.outputs.hasSnupkg == 'true'
         run: >
-          dotnet nuget push "NuGet\*.snupkg"
+          dotnet nuget push "NuGet/*.snupkg"
           --api-key ${{ secrets.NUGET_API_KEY }}
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
 
       - name: Push to GitHub Packages (.nupkg)
-        if: github.event.inputs.pushToGitHubPackages == 'true' && steps.collect.outputs.hasNupkg == 'True'
+        if: github.event.inputs.pushToGitHubPackages == 'true' && steps.collect.outputs.hasNupkg == 'true'
         run: >
-          dotnet nuget push "NuGet\*.nupkg"
+          dotnet nuget push "NuGet/*.nupkg"
           --api-key ${{ secrets.GITHUB_TOKEN }}
           --source github
           --skip-duplicate
-          
+
       - name: Upload NuGet artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,100 @@
+name: Test One Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Test project name (equals .Tests.csproj base name)'
+        required: true
+        type: choice
+        options:
+          - OutWit.Database.Core.Tests
+          - OutWit.Database.Core.IndexedDb.Tests
+          - OutWit.Database.Parser.Tests
+          - OutWit.Database.Tests
+          - OutWit.Database.AdoNet.Tests
+          - OutWit.Database.EntityFramework.Tests
+          - OutWit.Database.Studio.Tests
+      configuration:
+        description: 'Build configuration'
+        required: false
+        type: choice
+        default: 'Release'
+        options: [ 'Release', 'Debug' ]
+      filter:
+        description: 'Optional test filter (e.g., Category=Unit or FullyQualifiedName~Namespace.Class)'
+        required: false
+        type: string
+      verbosity:
+        description: 'dotnet test verbosity'
+        required: false
+        type: choice
+        default: 'minimal'
+        options: [ 'quiet', 'minimal', 'normal', 'detailed', 'diagnostic' ]
+
+permissions:
+  contents: read
+
+jobs:
+  test-one:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT: ${{ github.event.inputs.project }}
+      CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
+      FILTER: ${{ github.event.inputs.filter }}
+      VERBOSITY: ${{ github.event.inputs.verbosity || 'minimal' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDKs (9/10)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.slnx', '**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Resolve test project path
+        id: paths
+        shell: bash
+        run: |
+          name="${{ env.PROJECT }}"
+          test=$(find . -name "$name.csproj" -type f | head -1)
+          if [ -z "$test" ]; then
+            echo "Test project '$name.csproj' not found in repo."
+            exit 1
+          fi
+          echo "testCsproj=$test" >> $GITHUB_OUTPUT
+          echo "Resolved test csproj: $test"
+
+      - name: Run tests
+        shell: bash
+        run: |
+          test="${{ steps.paths.outputs.testCsproj }}"
+          cfg="${{ env.CONFIGURATION }}"
+          v="${{ env.VERBOSITY }}"
+          filter="${{ env.FILTER }}"
+          
+          args="test $test --configuration $cfg --verbosity $v --logger trx;LogFileName=test.trx --results-directory TestResults"
+          
+          if [ -n "$filter" ]; then
+            args="$args --filter $filter"
+          fi
+          
+          dotnet $args
+
+      - name: Upload TRX results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ env.PROJECT }}-${{ env.CONFIGURATION }}
+          path: TestResults/**
+          if-no-files-found: ignore
