@@ -27,7 +27,7 @@ on:
         required: false
         default: true
       buildMacOS:
-        description: 'Build for macOS (x64) - may have issues with AspectInjector'
+        description: 'Build for macOS Intel (x64) - uses macos-13 runner'
         type: boolean
         required: false
         default: false
@@ -95,7 +95,7 @@ jobs:
           
           if [ "${{ github.event.inputs.buildMacOS }}" == "true" ]; then
             if [ "$first" == "false" ]; then matrix+=','; fi
-            matrix+='{"os":"macos-latest","rid":"osx-x64","artifact":"WitDatabase.Studio-osx-x64"}'
+            matrix+='{"os":"macos-13","rid":"osx-x64","artifact":"WitDatabase.Studio-osx-x64"}'
           fi
           
           matrix+=']}'
@@ -149,7 +149,16 @@ jobs:
           -p:GeneratePackageOnBuild=false
           --output ./publish/${{ matrix.artifact }}
 
-      - name: List published files
+      - name: List published files (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "Published files:"
+          Get-ChildItem -Path ./publish/${{ matrix.artifact }}/ | Format-Table Name, Length
+
+      - name: List published files (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
           echo "Published files:"
           ls -la ./publish/${{ matrix.artifact }}/
@@ -162,6 +171,7 @@ jobs:
 
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
           cd ./publish/${{ matrix.artifact }}
           tar -czvf ../../${{ matrix.artifact }}.tar.gz *
