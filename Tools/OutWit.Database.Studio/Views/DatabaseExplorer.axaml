@@ -1,0 +1,226 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+             xmlns:models="using:OutWit.Database.Studio.Models"
+             xmlns:converters="using:OutWit.Database.Studio.Converters"
+             xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
+             x:Class="OutWit.Database.Studio.Views.DatabaseExplorer"
+             x:DataType="vm:ApplicationViewModel">
+
+    <UserControl.Resources>
+        <converters:NodeTypeToIconConverter x:Key="NodeTypeToIconConverter"/>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- Header -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" 
+                BorderThickness="0,0,0,1" 
+                Padding="8">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" 
+                           Text="Database Explorer" 
+                           FontWeight="SemiBold" 
+                           FontSize="14"
+                           VerticalAlignment="Center"/>
+                
+                <Button Grid.Column="1"
+                        Command="{Binding DatabaseExplorerVm.RefreshCommand}"
+                        ToolTip.Tip="Refresh"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        VerticalAlignment="Center">
+                    <PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}"
+                              Width="16"
+                              Height="16" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- TreeView -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <TreeView ItemsSource="{Binding DatabaseExplorerVm.Nodes}"
+                          SelectedItem="{Binding DatabaseExplorerVm.SelectedNode}"
+                          Background="Transparent">
+                    
+                    <!-- Bind IsExpanded to node property via DataContext -->
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="models:DatabaseNode">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.Styles>
+                    
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="models:DatabaseNode">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="{Binding NodeType, Converter={StaticResource NodeTypeToIconConverter}}"
+                                         Width="16"
+                                         Height="16"/>
+                                <TextBlock Text="{Binding Name}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                    
+                    <TreeView.ContextMenu>
+                        <ContextMenu>
+                            <!-- Create actions -->
+                            <MenuItem Header="Create">
+                                <MenuItem Header="Create Table..."
+                                          Command="{Binding DatabaseExplorerVm.CreateTableCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                
+                                <MenuItem Header="Create View..."
+                                          Command="{Binding DatabaseExplorerVm.CreateViewCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.DB_VIEW}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                
+                                <MenuItem Header="Create Index..."
+                                          Command="{Binding DatabaseExplorerVm.CreateIndexCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.DB_INDEX}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </MenuItem>
+                            
+                            <Separator/>
+                            
+                            <!-- Select data submenu -->
+                            <MenuItem Header="Select Data"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanBrowseData}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"/>
+                                </MenuItem.Icon>
+                                <MenuItem Header="Select Top 100"
+                                          Command="{Binding DatabaseExplorerVm.SelectTop100Command}"/>
+                                <MenuItem Header="Select Top 1000"
+                                          Command="{Binding DatabaseExplorerVm.SelectTop1000Command}"/>
+                            </MenuItem>
+                            
+                            <MenuItem Header="Edit Data..."
+                                      Command="{Binding DatabaseExplorerVm.EditDataCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanEditData}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.TAB_TABLE_EDIT}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            
+                            <MenuItem Header="View Structure..."
+                                      Command="{Binding DatabaseExplorerVm.ViewStructureCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanViewStructure}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.TAB_STRUCTURE}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            
+                            <MenuItem Header="View Definition"
+                                      Command="{Binding DatabaseExplorerVm.ViewDefinitionCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanViewDefinition}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.DB_VIEW}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            
+                            <Separator/>
+                            
+                            <MenuItem Header="Refresh"
+                                      Command="{Binding DatabaseExplorerVm.RefreshCommand}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            
+                            <Separator/>
+                            
+                            <MenuItem Header="Drop..."
+                                      Command="{Binding DatabaseExplorerVm.DropObjectCommand}"
+                                      IsEnabled="{Binding DatabaseExplorerVm.CanDropObject}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_DELETE}" 
+                                             Foreground="Red"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </ContextMenu>
+                    </TreeView.ContextMenu>
+                </TreeView>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Loading overlay -->
+        <Border Grid.Row="1"
+                Background="#80000000"
+                IsVisible="{Binding DatabaseExplorerVm.IsLoading}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="8">
+                <Border Width="32" Height="32"
+                        Background="White"
+                        CornerRadius="16">
+                    <TextBlock Text="..."
+                               FontSize="18"
+                               Foreground="Black"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="Loading schema..."
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Error message -->
+        <Border Grid.Row="1"
+                Background="#FFF3CD"
+                BorderBrush="#FFC107"
+                BorderThickness="1"
+                Padding="8"
+                Margin="8"
+                VerticalAlignment="Top"
+                IsVisible="{Binding DatabaseExplorerVm.ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Spacing="4">
+                <TextBlock Text="[!] Error"
+                           FontWeight="Bold"
+                           Foreground="#856404"/>
+                <TextBlock Text="{Binding DatabaseExplorerVm.ErrorMessage}"
+                           TextWrapping="Wrap"
+                           Foreground="#856404"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Empty state -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding !MainWindowVm.IsConnected}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="8">
+                <Border Width="48" Height="48"
+                        Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        CornerRadius="24"
+                        HorizontalAlignment="Center">
+                    <PathIcon Data="{x:Static ui:StudioIcons.DB_DATABASE}"
+                              Width="24" Height="24"
+                              Foreground="Gray"/>
+                </Border>
+                <TextBlock Text="Not Connected"
+                           FontSize="14"
+                           Foreground="Gray"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+
+</UserControl>

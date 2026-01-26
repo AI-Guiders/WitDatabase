@@ -1,0 +1,266 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+        xmlns:models="using:OutWit.Database.Studio.Models"
+        xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
+        mc:Ignorable="d"
+        d:DesignWidth="700"
+        d:DesignHeight="650"
+        x:Class="OutWit.Database.Studio.Views.Dialogs.ImportDialog"
+        x:DataType="vm:ImportViewModel"
+        Title="Import Data"
+        Width="700"
+        Height="650"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="600"
+        MinHeight="550">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="20">
+        
+        <!-- Source File -->
+        <StackPanel Grid.Row="0" Spacing="8">
+            <TextBlock Text="Source File" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <ComboBox Grid.Column="0"
+                          Width="100"
+                          Margin="0,0,8,0"
+                          SelectedIndex="{Binding SelectedFormat}"
+                          IsEnabled="{Binding !IsImporting}">
+                    <ComboBoxItem Content="CSV"/>
+                    <ComboBoxItem Content="JSON"/>
+                </ComboBox>
+                <TextBox Grid.Column="1"
+                         Text="{Binding InputPath}"
+                         Watermark="Select file to import..."
+                         IsReadOnly="True"/>
+                <Button Grid.Column="2"
+                        Content="Browse..."
+                        Command="{Binding BrowseCommand}"
+                        IsEnabled="{Binding !IsImporting}"
+                        Margin="8,0,0,0"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- CSV Options -->
+        <StackPanel Grid.Row="1" 
+                    Spacing="8"
+                    Margin="0,16,0,0"
+                    IsVisible="{Binding SelectedFormat, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:ImportFormat.Csv}}">
+            <TextBlock Text="CSV Options" FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <CheckBox Content="First row contains headers"
+                          IsChecked="{Binding HasHeaders}"
+                          IsEnabled="{Binding !IsImporting}"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Delimiter:" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding Delimiter}" 
+                             Width="50"
+                             IsEnabled="{Binding !IsImporting}"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Import Options -->
+        <StackPanel Grid.Row="2" Spacing="8" Margin="0,16,0,0">
+            <TextBlock Text="Import Options" FontWeight="SemiBold"/>
+            <CheckBox IsChecked="{Binding ContinueOnError}"
+                      IsEnabled="{Binding !IsImporting}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Continue on error"/>
+                    <TextBlock Text="(skip failed rows instead of stopping)"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                               FontSize="12"/>
+                </StackPanel>
+            </CheckBox>
+        </StackPanel>
+
+        <!-- Target and Mapping -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="0,16,0,0">
+            
+            <!-- Target Table -->
+            <StackPanel Grid.Row="0" Spacing="8">
+                <TextBlock Text="Target Table" FontWeight="SemiBold"/>
+                <ComboBox ItemsSource="{Binding AvailableTables}"
+                          SelectedItem="{Binding SelectedTable}"
+                          HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding !IsImporting}"
+                          PlaceholderText="Select target table..."/>
+            </StackPanel>
+
+            <!-- Column Mapping -->
+            <Grid Grid.Row="1" Margin="0,16,0,0" RowDefinitions="Auto,*">
+                <TextBlock Grid.Row="0" Text="Column Mapping" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                
+                <Border Grid.Row="1"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <DataGrid ItemsSource="{Binding ColumnMappings}"
+                              AutoGenerateColumns="False"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              IsReadOnly="False"
+                              IsEnabled="{Binding !IsImporting}">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Include" 
+                                                    Binding="{Binding IsIncluded}"
+                                                    Width="70"/>
+                            <DataGridTextColumn Header="Source Column" 
+                                                Binding="{Binding SourceColumn}"
+                                                Width="*"
+                                                IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Target Column" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ColumnMapping">
+                                        <ComboBox ItemsSource="{Binding $parent[Window].((vm:ImportViewModel)DataContext).AvailableTargetColumns}"
+                                                  SelectedItem="{Binding TargetColumn}"
+                                                  HorizontalAlignment="Stretch"
+                                                  Margin="4"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+            
+        </Grid>
+
+        <!-- Preview Info -->
+        <Border Grid.Row="4"
+                Background="#E8F5E9"
+                BorderBrush="#4CAF50"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="12,8"
+                Margin="0,16,0,0"
+                IsVisible="{Binding PreviewData, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <TextBlock Foreground="#2E7D32">
+                    <Run Text="File contains approximately"/>
+                    <Run Text="{Binding TotalRows}" FontWeight="SemiBold"/>
+                    <Run Text="rows"/>
+                </TextBlock>
+                <TextBlock Foreground="#2E7D32">
+                    <Run Text="{Binding ColumnMappings.Count}"/>
+                    <Run Text="columns"/>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Error Message -->
+        <Border Grid.Row="4"
+                Background="#FFEBEE"
+                BorderBrush="#F44336"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="12,8"
+                Margin="0,16,0,0"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                              Width="16" Height="16"
+                              Foreground="#C62828"/>
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="#C62828"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+                
+                <!-- Error Details -->
+                <ItemsControl ItemsSource="{Binding ImportErrors}"
+                              IsVisible="{Binding ImportErrors.Count}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       Foreground="#C62828"
+                                       FontSize="11"
+                                       Margin="24,2,0,0"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,20,0,0">
+            <Button Grid.Column="0"
+                    Content="Refresh Preview"
+                    Command="{Binding PreviewCommand}"
+                    IsEnabled="{Binding CanPreview}"/>
+            <Button Grid.Column="2"
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    IsVisible="{Binding !IsImporting}"/>
+            <Button Grid.Column="3"
+                    Content="Import"
+                    Command="{Binding ImportCommand}"
+                    IsEnabled="{Binding CanImport}"
+                    Width="80"
+                    Classes="accent"
+                    IsVisible="{Binding !IsImporting}"/>
+        </Grid>
+        
+        <!-- Loading Overlay with Progress -->
+        <Border Grid.Row="0"
+                Grid.RowSpan="6"
+                Background="#E0000000"
+                IsVisible="{Binding IsImporting}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="16"
+                        Width="350">
+                <!-- Progress Bar -->
+                <ProgressBar Value="{Binding ImportProgress}"
+                             Minimum="0"
+                             Maximum="100"
+                             Height="8"/>
+                
+                <!-- Progress Text -->
+                <TextBlock Foreground="White"
+                           HorizontalAlignment="Center"
+                           FontSize="16">
+                    <Run Text="Importing..."/>
+                    <Run Text="{Binding RowsImported}"/>
+                    <Run Text="/"/>
+                    <Run Text="{Binding TotalRows}"/>
+                    <Run Text="rows"/>
+                </TextBlock>
+                
+                <!-- Failed count (if any) -->
+                <TextBlock Foreground="#FF8A80"
+                           HorizontalAlignment="Center"
+                           FontSize="13"
+                           IsVisible="{Binding RowsFailed}">
+                    <Run Text="{Binding RowsFailed}"/>
+                    <Run Text="rows failed"/>
+                </TextBlock>
+                
+                <!-- Percentage -->
+                <TextBlock Foreground="White"
+                           HorizontalAlignment="Center"
+                           FontSize="14"
+                           Opacity="0.8">
+                    <Run Text="{Binding ImportProgress, StringFormat='{}{0:F1}'}"/>
+                    <Run Text="%"/>
+                </TextBlock>
+                
+                <!-- Cancel Button -->
+                <Button Content="Cancel Import"
+                        Command="{Binding CancelImportCommand}"
+                        HorizontalAlignment="Center"
+                        Width="120"
+                        Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+        
+    </Grid>
+
+</Window>

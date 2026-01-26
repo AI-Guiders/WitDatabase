@@ -1,0 +1,401 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OutWit.Database.Studio.ViewModels"
+        xmlns:views="using:OutWit.Database.Studio.Views"
+        xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:workspace="clr-namespace:OutWit.Database.Studio.Views.Workspace"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="OutWit.Database.Studio.Views.MainWindow"
+        x:DataType="vm:ApplicationViewModel"
+        Title="{Binding MainWindowVm.Title}"
+        Width="1200"
+        Height="800">
+
+	<!-- Keyboard Shortcuts -->
+	<Window.KeyBindings>
+		<KeyBinding Gesture="Ctrl+N" Command="{Binding WorkspaceTabsVm.NewQueryTabCommand}"/>
+		<KeyBinding Gesture="Ctrl+W" Command="{Binding WorkspaceTabsVm.CloseTabCommand}" CommandParameter="{Binding WorkspaceTabsVm.SelectedTab}"/>
+		<KeyBinding Gesture="Ctrl+O" Command="{Binding MainWindowVm.OpenDatabaseCommand}"/>
+		<KeyBinding Gesture="F5" Command="{Binding WorkspaceTabsVm.ExecuteQueryCommand}"/>
+		<KeyBinding Gesture="Ctrl+Return" Command="{Binding WorkspaceTabsVm.ExecuteSelectionCommand}"/>
+		<KeyBinding Gesture="Ctrl+S" Command="{Binding WorkspaceTabsVm.SaveTabCommand}"/>
+		<KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding WorkspaceTabsVm.SaveTabAsCommand}"/>
+	</Window.KeyBindings>
+
+	<Grid RowDefinitions="Auto,*,Auto">
+		<!-- Menu Bar with Theme Toggle -->
+		<Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+			<!-- Menu -->
+			<Menu Grid.Column="0">
+				<MenuItem Header="_File">
+					<MenuItem Header="_New Query Tab"
+					          Command="{Binding WorkspaceTabsVm.NewQueryTabCommand}"
+					          InputGesture="Ctrl+N">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.TAB_NEW}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="New _Database..."
+					          Command="{Binding MainWindowVm.NewDatabaseCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="_Open Database..."
+					          Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+					          InputGesture="Ctrl+O">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="_Close Database"
+					          Command="{Binding MainWindowVm.CloseDatabaseCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_CLOSE_DATABASE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="_Save Query"
+					          Command="{Binding WorkspaceTabsVm.SaveTabCommand}"
+					          InputGesture="Ctrl+S">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Save Query _As..."
+					          Command="{Binding WorkspaceTabsVm.SaveTabAsCommand}"
+					          InputGesture="Ctrl+Shift+S">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_SAVE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem x:Name="RecentFilesMenu"
+					          Header="Recent Files"
+					          IsEnabled="{Binding MainWindowVm.HasRecentFiles}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_RECENT_FILES}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Clear Recent Files"
+					          Command="{Binding MainWindowVm.ClearRecentFilesCommand}"
+					          IsEnabled="{Binding MainWindowVm.HasRecentFiles}"/>
+
+					<Separator />
+
+					<MenuItem Header="E_xit"
+					          Command="{Binding MainWindowVm.ExitCommand}"
+					          InputGesture="Alt+F4">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXIT}" />
+						</MenuItem.Icon>
+					</MenuItem>
+				</MenuItem>
+
+				<MenuItem Header="_Edit">
+					<MenuItem Header="_Copy" InputGesture="Ctrl+C">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_COPY}" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<MenuItem Header="_Paste" InputGesture="Ctrl+V">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_PASTE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<Separator/>
+					<MenuItem Header="_Settings..."
+					          Command="{Binding MainWindowVm.SettingsCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_ABOUT}" />
+						</MenuItem.Icon>
+					</MenuItem>
+				</MenuItem>
+
+				<MenuItem Header="_Query">
+					<MenuItem Header="_Execute"
+					          Command="{Binding WorkspaceTabsVm.ExecuteQueryCommand}"
+					          InputGesture="F5">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Execute _Selection"
+					          Command="{Binding WorkspaceTabsVm.ExecuteSelectionCommand}"
+					          InputGesture="Ctrl+Enter">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="_Clear Results"
+					          Command="{Binding WorkspaceTabsVm.ClearResultsCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.QUERY_CLEAR}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<Separator />
+
+					<MenuItem Header="Close _Tab"
+					          Command="{Binding WorkspaceTabsVm.CloseTabCommand}"
+					          CommandParameter="{Binding WorkspaceTabsVm.SelectedTab}"
+					          InputGesture="Ctrl+W">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+
+					<MenuItem Header="Close _All Tabs"
+					          Command="{Binding WorkspaceTabsVm.CloseAllTabsCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.TAB_CLOSE}" />
+						</MenuItem.Icon>
+					</MenuItem>
+				</MenuItem>
+
+				<MenuItem Header="_View">
+					<MenuItem Header="_Refresh"
+					          Command="{Binding MainWindowVm.RefreshCommand}"
+					          InputGesture="F5">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_REFRESH}" />
+						</MenuItem.Icon>
+					</MenuItem>
+				</MenuItem>
+
+				<MenuItem Header="_Tools">
+					<MenuItem Header="_Export..."
+					          Command="{Binding MainWindowVm.ExportCommand}"
+					          IsEnabled="{Binding MainWindowVm.IsConnected}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_EXPORT}" />
+		                </MenuItem.Icon>
+					</MenuItem>
+					<MenuItem Header="_Import..."
+					          Command="{Binding MainWindowVm.ImportCommand}"
+					          IsEnabled="{Binding MainWindowVm.IsConnected}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_IMPORT}" />
+		                </MenuItem.Icon>
+					</MenuItem>
+				</MenuItem>
+
+				<MenuItem Header="_Help">
+					<MenuItem Header="_About"
+					          Command="{Binding MainWindowVm.AboutCommand}">
+						<MenuItem.Icon>
+							<PathIcon Data="{x:Static ui:StudioIcons.MENU_ABOUT}" />
+						</MenuItem.Icon>
+					</MenuItem>
+				</MenuItem>
+			</Menu>
+
+			<!-- Theme Toggle Button (right side) -->
+			<Button Grid.Column="1"
+			        x:Name="ThemeToggleButton"
+			        ToolTip.Tip="Toggle Dark/Light Theme"
+			        Background="Transparent"
+			        BorderThickness="0"
+			        Padding="12,6"
+			        Margin="0,0,8,0"
+			        VerticalAlignment="Center">
+				<StackPanel Orientation="Horizontal" Spacing="6">
+					<PathIcon x:Name="ThemeIcon" Width="16" Height="16"/>
+					<TextBlock x:Name="ThemeText" VerticalAlignment="Center" FontSize="12"/>
+				</StackPanel>
+			</Button>
+		</Grid>
+
+		<!-- Основной контент с разделителем -->
+		<Grid Grid.Row="1" ColumnDefinitions="250,Auto,*">
+			<!-- Обозреватель баз данных -->
+			<Border Grid.Column="0"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="0,0,1,0">
+				<views:DatabaseExplorer/>
+			</Border>
+
+			<!-- Разделитель -->
+			<GridSplitter Grid.Column="1"
+                         Width="4"
+                         Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                         ResizeDirection="Columns"/>
+
+			<!-- Основная область контента -->
+			<Grid Grid.Column="2">
+				<!-- Welcome Screen (when not connected) -->
+				<Grid IsVisible="{Binding !MainWindowVm.IsConnected}">
+					
+					<!-- Two-column layout: Actions left, Recent right -->
+					<Grid ColumnDefinitions="*,Auto,*" 
+					      HorizontalAlignment="Center"
+					      VerticalAlignment="Center"
+					      MaxWidth="700">
+						
+						<!-- Left: Main Actions -->
+						<StackPanel Grid.Column="0" 
+						            Spacing="16"
+						            VerticalAlignment="Center"
+						            HorizontalAlignment="Center">
+							
+							<!-- Logo -->
+							<Border Width="72" Height="72"
+							        Background="{DynamicResource SystemAccentColor}"
+							        CornerRadius="36"
+							        HorizontalAlignment="Center">
+								<PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
+								          Width="36" Height="36"
+								          Foreground="White"/>
+							</Border>
+
+							<!-- Title -->
+							<TextBlock Text="WitDatabase Studio"
+							           HorizontalAlignment="Center"
+							           FontSize="22"
+							           FontWeight="SemiBold"/>
+
+							<!-- Subtitle -->
+							<TextBlock Text="Connect to a database to get started"
+							           HorizontalAlignment="Center"
+							           FontSize="13"
+							           Foreground="Gray"/>
+
+							<!-- Action Buttons -->
+							<StackPanel Spacing="12" Margin="0,16,0,0">
+								<Button Command="{Binding MainWindowVm.NewDatabaseCommand}"
+								        Width="180"
+								        HorizontalContentAlignment="Left"
+								        Padding="16,10">
+									<StackPanel Orientation="Horizontal" Spacing="12">
+										<PathIcon Data="{x:Static ui:StudioIcons.MENU_NEW_DATABASE}"
+										          Width="18" Height="18"/>
+										<TextBlock Text="New Database" VerticalAlignment="Center"/>
+									</StackPanel>
+								</Button>
+								
+								<Button Command="{Binding MainWindowVm.OpenDatabaseCommand}"
+								        Width="180"
+								        HorizontalContentAlignment="Left"
+								        Padding="16,10"
+								        Classes="accent">
+									<StackPanel Orientation="Horizontal" Spacing="12">
+										<PathIcon Data="{x:Static ui:StudioIcons.MENU_OPEN_DATABASE}"
+										          Width="18" Height="18"/>
+										<TextBlock Text="Open Database" VerticalAlignment="Center"/>
+									</StackPanel>
+								</Button>
+							</StackPanel>
+
+							<!-- Hint -->
+							<TextBlock Text="Ctrl+O"
+							           HorizontalAlignment="Center"
+							           FontSize="11"
+							           Foreground="Gray"
+							           Opacity="0.7"
+							           Margin="0,8,0,0"/>
+						</StackPanel>
+
+						<!-- Separator (only when recent files exist) -->
+						<Border Grid.Column="1"
+						        Width="1"
+						        Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+						        Margin="40,20"
+						        IsVisible="{Binding MainWindowVm.HasRecentFiles}"/>
+
+						<!-- Right: Recent Files -->
+						<StackPanel Grid.Column="2"
+						            x:Name="RecentFilesPanel"
+						            IsVisible="{Binding MainWindowVm.HasRecentFiles}"
+						            Spacing="8"
+						            VerticalAlignment="Center"
+						            MinWidth="200">
+							
+							<TextBlock Text="Recent Databases"
+							           FontSize="14"
+							           FontWeight="SemiBold"
+							           Foreground="Gray"
+							           Margin="0,0,0,8"/>
+							
+							<!-- Recent files will be added here dynamically -->
+							<!-- Using ScrollViewer to handle many items -->
+							<ScrollViewer MaxHeight="300"
+							              HorizontalScrollBarVisibility="Disabled"
+							              VerticalScrollBarVisibility="Auto">
+								<StackPanel x:Name="RecentFilesList" Spacing="4"/>
+							</ScrollViewer>
+							
+							<Button Content="Clear Recent"
+							        Command="{Binding MainWindowVm.ClearRecentFilesCommand}"
+							        Classes="hyperlink"
+							        HorizontalAlignment="Left"
+							        Margin="0,8,0,0"
+							        FontSize="11"
+							        Foreground="Gray"/>
+						</StackPanel>
+					</Grid>
+				</Grid>
+
+				<!-- Unified Workspace Tabs (when connected) -->
+				<workspace:WorkspaceTabs DataContext="{Binding WorkspaceTabsVm}"
+				                         IsVisible="{Binding $parent[Window].((vm:ApplicationViewModel)DataContext).MainWindowVm.IsConnected}"/>
+			</Grid>
+		</Grid>
+
+		<!-- Статус-бар -->
+		<Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+			<Grid ColumnDefinitions="*,Auto,Auto">
+				<TextBlock Grid.Column="0"
+                           Text="{Binding MainWindowVm.StatusText}"
+                           VerticalAlignment="Center" />
+
+				<TextBlock Grid.Column="1"
+                           VerticalAlignment="Center"
+                           Margin="16,0,0,0"
+                           Text="{Binding MainWindowVm.IsConnected, StringFormat='Connected: {0}'}"/>
+
+				<StackPanel Grid.Column="2"
+				            Orientation="Horizontal"
+				            Spacing="8"
+				            Margin="16,0,0,0"
+				            IsVisible="{Binding MainWindowVm.IsConnected}">
+					<PathIcon Data="{x:Static ui:StudioIcons.COMMON_BULLET}"
+					          Width="8" Height="8"
+					          Foreground="LimeGreen"
+					          VerticalAlignment="Center"/>
+					<TextBlock IsVisible="{Binding MainWindowVm.CurrentConnection.IsEncrypted}"
+					           ToolTip.Tip="Database is encrypted"
+					           Foreground="Orange"
+					           FontWeight="Bold"
+					           VerticalAlignment="Center">
+						<TextBlock.Text>ENC</TextBlock.Text>
+					</TextBlock>
+					<TextBlock Text="{Binding MainWindowVm.CurrentConnection.FilePath}"
+                               VerticalAlignment="Center"
+                               Foreground="Gray"/>
+				</StackPanel>
+			</Grid>
+		</Border>
+	</Grid>
+
+</Window>

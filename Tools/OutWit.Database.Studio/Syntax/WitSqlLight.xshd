@@ -1,0 +1,513 @@
+<?xml version="1.0"?>
+<SyntaxDefinition name="WitSQL" extensions=".sql;.witsql" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  
+  <!-- Colors - Light Theme (Visual Studio style) -->
+  <Color name="Comment" foreground="#008000" fontStyle="italic" />
+  <Color name="String" foreground="#A31515" />
+  <Color name="Keyword" foreground="#0000FF" fontWeight="bold" />
+  <Color name="DataType" foreground="#2B91AF" />
+  <Color name="Function" foreground="#795E26" />
+  <Color name="Number" foreground="#098658" />
+  <Color name="Null" foreground="#0000FF" fontStyle="italic" />
+  <Color name="Boolean" foreground="#0000FF" />
+  <Color name="Parameter" foreground="#001080" />
+  <Color name="Operator" foreground="#1E1E1E" />
+  <Color name="BuiltinLiteral" foreground="#0070C1" />
+  
+  <RuleSet ignoreCase="true">
+    
+    <!-- Line Comments -->
+    <Span color="Comment" begin="--" />
+    
+    <!-- Block Comments -->
+    <Span color="Comment" multiline="true">
+      <Begin>/\*</Begin>
+      <End>\*/</End>
+    </Span>
+    
+    <!-- String Literals -->
+    <Span color="String">
+      <Begin>'</Begin>
+      <End>'</End>
+      <RuleSet>
+        <Span begin="''" end="" />
+      </RuleSet>
+    </Span>
+    
+    <!-- Parameters -->
+    <Rule color="Parameter">@[a-zA-Z_][a-zA-Z0-9_]*</Rule>
+    <Rule color="Parameter">:[a-zA-Z_][a-zA-Z0-9_]*</Rule>
+    <Rule color="Parameter">\$[0-9]+</Rule>
+    <Rule color="Parameter">\?</Rule>
+    
+    <!-- Numbers -->
+    <Rule color="Number">\b[0-9]+\.?[0-9]*([eE][+-]?[0-9]+)?\b</Rule>
+    <Rule color="Number">\b0[xX][0-9a-fA-F]+\b</Rule>
+    
+    <!-- NULL -->
+    <Keywords color="Null">
+      <Word>NULL</Word>
+    </Keywords>
+    
+    <!-- Boolean Literals -->
+    <Keywords color="Boolean">
+      <Word>TRUE</Word>
+      <Word>FALSE</Word>
+    </Keywords>
+    
+    <!-- Built-in Literals -->
+    <Keywords color="BuiltinLiteral">
+      <Word>CURRENT_TIMESTAMP</Word>
+      <Word>CURRENT_DATE</Word>
+      <Word>CURRENT_TIME</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - DML -->
+    <Keywords color="Keyword">
+      <Word>SELECT</Word>
+      <Word>FROM</Word>
+      <Word>WHERE</Word>
+      <Word>INSERT</Word>
+      <Word>INTO</Word>
+      <Word>VALUES</Word>
+      <Word>UPDATE</Word>
+      <Word>SET</Word>
+      <Word>DELETE</Word>
+      <Word>MERGE</Word>
+      <Word>USING</Word>
+      <Word>MATCHED</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - DDL -->
+    <Keywords color="Keyword">
+      <Word>CREATE</Word>
+      <Word>TABLE</Word>
+      <Word>VIEW</Word>
+      <Word>INDEX</Word>
+      <Word>TRIGGER</Word>
+      <Word>SEQUENCE</Word>
+      <Word>DROP</Word>
+      <Word>ALTER</Word>
+      <Word>ADD</Word>
+      <Word>COLUMN</Word>
+      <Word>RENAME</Word>
+      <Word>TO</Word>
+      <Word>TRUNCATE</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Constraints -->
+    <Keywords color="Keyword">
+      <Word>PRIMARY</Word>
+      <Word>KEY</Word>
+      <Word>FOREIGN</Word>
+      <Word>REFERENCES</Word>
+      <Word>UNIQUE</Word>
+      <Word>CHECK</Word>
+      <Word>DEFAULT</Word>
+      <Word>CONSTRAINT</Word>
+      <Word>CASCADE</Word>
+      <Word>RESTRICT</Word>
+      <Word>ACTION</Word>
+      <Word>AUTOINCREMENT</Word>
+      <Word>NO</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Clauses -->
+    <Keywords color="Keyword">
+      <Word>AS</Word>
+      <Word>ON</Word>
+      <Word>AND</Word>
+      <Word>OR</Word>
+      <Word>NOT</Word>
+      <Word>IN</Word>
+      <Word>BETWEEN</Word>
+      <Word>LIKE</Word>
+      <Word>GLOB</Word>
+      <Word>IS</Word>
+      <Word>EXISTS</Word>
+      <Word>ESCAPE</Word>
+      <Word>ANY</Word>
+      <Word>ALL</Word>
+      <Word>SOME</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Joins -->
+    <Keywords color="Keyword">
+      <Word>JOIN</Word>
+      <Word>INNER</Word>
+      <Word>LEFT</Word>
+      <Word>RIGHT</Word>
+      <Word>FULL</Word>
+      <Word>OUTER</Word>
+      <Word>CROSS</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Order/Group -->
+    <Keywords color="Keyword">
+      <Word>ORDER</Word>
+      <Word>BY</Word>
+      <Word>ASC</Word>
+      <Word>DESC</Word>
+      <Word>NULLS</Word>
+      <Word>FIRST</Word>
+      <Word>LAST</Word>
+      <Word>GROUP</Word>
+      <Word>HAVING</Word>
+      <Word>LIMIT</Word>
+      <Word>OFFSET</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Set Operations -->
+    <Keywords color="Keyword">
+      <Word>UNION</Word>
+      <Word>INTERSECT</Word>
+      <Word>EXCEPT</Word>
+      <Word>DISTINCT</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Case -->
+    <Keywords color="Keyword">
+      <Word>CASE</Word>
+      <Word>WHEN</Word>
+      <Word>THEN</Word>
+      <Word>ELSE</Word>
+      <Word>END</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Transactions -->
+    <Keywords color="Keyword">
+      <Word>BEGIN</Word>
+      <Word>COMMIT</Word>
+      <Word>ROLLBACK</Word>
+      <Word>TRANSACTION</Word>
+      <Word>SAVEPOINT</Word>
+      <Word>RELEASE</Word>
+      <Word>ISOLATION</Word>
+      <Word>LEVEL</Word>
+      <Word>READ</Word>
+      <Word>WRITE</Word>
+      <Word>UNCOMMITTED</Word>
+      <Word>COMMITTED</Word>
+      <Word>REPEATABLE</Word>
+      <Word>SERIALIZABLE</Word>
+      <Word>SNAPSHOT</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - CTE -->
+    <Keywords color="Keyword">
+      <Word>WITH</Word>
+      <Word>RECURSIVE</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - UPSERT -->
+    <Keywords color="Keyword">
+      <Word>CONFLICT</Word>
+      <Word>DO</Word>
+      <Word>NOTHING</Word>
+      <Word>EXCLUDED</Word>
+      <Word>REPLACE</Word>
+      <Word>IGNORE</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Window -->
+    <Keywords color="Keyword">
+      <Word>OVER</Word>
+      <Word>PARTITION</Word>
+      <Word>ROWS</Word>
+      <Word>ROW</Word>
+      <Word>RANGE</Word>
+      <Word>UNBOUNDED</Word>
+      <Word>PRECEDING</Word>
+      <Word>FOLLOWING</Word>
+      <Word>CURRENT</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Triggers -->
+    <Keywords color="Keyword">
+      <Word>INSTEAD</Word>
+      <Word>AFTER</Word>
+      <Word>BEFORE</Word>
+      <Word>FOR</Word>
+      <Word>EACH</Word>
+      <Word>OF</Word>
+    </Keywords>
+    
+    <!-- SQL Keywords - Other -->
+    <Keywords color="Keyword">
+      <Word>IF</Word>
+      <Word>EXPLAIN</Word>
+      <Word>QUERY</Word>
+      <Word>PLAN</Word>
+      <Word>RETURNING</Word>
+      <Word>CAST</Word>
+      <Word>CONVERT</Word>
+      <Word>COLLATE</Word>
+      <Word>STORED</Word>
+      <Word>VIRTUAL</Word>
+      <Word>INCLUDE</Word>
+      <Word>START</Word>
+      <Word>RESTART</Word>
+      <Word>TYPE</Word>
+      <Word>ANALYZE</Word>
+      <Word>SIGNAL</Word>
+      <Word>SQLSTATE</Word>
+      <Word>MESSAGE_TEXT</Word>
+      <Word>SHARE</Word>
+      <Word>NOWAIT</Word>
+      <Word>SKIP</Word>
+      <Word>LOCKED</Word>
+      <Word>MAX</Word>
+    </Keywords>
+    
+    <!-- Data Types - Integer -->
+    <Keywords color="DataType">
+      <Word>INT</Word>
+      <Word>INTEGER</Word>
+      <Word>BIGINT</Word>
+      <Word>SMALLINT</Word>
+      <Word>TINYINT</Word>
+      <Word>INT8</Word>
+      <Word>INT16</Word>
+      <Word>INT32</Word>
+      <Word>INT64</Word>
+      <Word>UINT</Word>
+      <Word>UINT8</Word>
+      <Word>UINT16</Word>
+      <Word>UINT32</Word>
+      <Word>UINT64</Word>
+      <Word>UTINYINT</Word>
+      <Word>USMALLINT</Word>
+      <Word>UBIGINT</Word>
+      <Word>LONG</Word>
+      <Word>ULONG</Word>
+    </Keywords>
+    
+    <!-- Data Types - Floating Point -->
+    <Keywords color="DataType">
+      <Word>FLOAT</Word>
+      <Word>FLOAT16</Word>
+      <Word>FLOAT32</Word>
+      <Word>FLOAT64</Word>
+      <Word>DOUBLE</Word>
+      <Word>REAL</Word>
+      <Word>HALF</Word>
+      <Word>DECIMAL</Word>
+      <Word>NUMERIC</Word>
+      <Word>MONEY</Word>
+    </Keywords>
+    
+    <!-- Data Types - String -->
+    <Keywords color="DataType">
+      <Word>VARCHAR</Word>
+      <Word>NVARCHAR</Word>
+      <Word>CHAR</Word>
+      <Word>NCHAR</Word>
+      <Word>TEXT</Word>
+      <Word>NTEXT</Word>
+    </Keywords>
+    
+    <!-- Data Types - Boolean -->
+    <Keywords color="DataType">
+      <Word>BOOLEAN</Word>
+      <Word>BOOL</Word>
+    </Keywords>
+    
+    <!-- Data Types - Date/Time -->
+    <Keywords color="DataType">
+      <Word>DATE</Word>
+      <Word>TIME</Word>
+      <Word>DATETIME</Word>
+      <Word>TIMESTAMP</Word>
+      <Word>DATETIMEOFFSET</Word>
+      <Word>DATEONLY</Word>
+      <Word>TIMEONLY</Word>
+      <Word>TIMESPAN</Word>
+      <Word>INTERVAL</Word>
+    </Keywords>
+    
+    <!-- Data Types - Binary -->
+    <Keywords color="DataType">
+      <Word>BLOB</Word>
+      <Word>BINARY</Word>
+      <Word>VARBINARY</Word>
+      <Word>ROWVERSION</Word>
+    </Keywords>
+    
+    <!-- Data Types - GUID -->
+    <Keywords color="DataType">
+      <Word>GUID</Word>
+      <Word>UUID</Word>
+      <Word>UNIQUEIDENTIFIER</Word>
+    </Keywords>
+    
+    <!-- Data Types - JSON -->
+    <Keywords color="DataType">
+      <Word>JSON</Word>
+      <Word>JSONB</Word>
+    </Keywords>
+    
+    <!-- Functions - Aggregate -->
+    <Keywords color="Function">
+      <Word>COUNT</Word>
+      <Word>SUM</Word>
+      <Word>AVG</Word>
+      <Word>MIN</Word>
+      <Word>GROUP_CONCAT</Word>
+    </Keywords>
+    
+    <!-- Functions - String -->
+    <Keywords color="Function">
+      <Word>UPPER</Word>
+      <Word>LOWER</Word>
+      <Word>LENGTH</Word>
+      <Word>CHAR_LENGTH</Word>
+      <Word>OCTET_LENGTH</Word>
+      <Word>SUBSTR</Word>
+      <Word>SUBSTRING</Word>
+      <Word>TRIM</Word>
+      <Word>LTRIM</Word>
+      <Word>RTRIM</Word>
+      <Word>REPLACE</Word>
+      <Word>REVERSE</Word>
+      <Word>CONCAT</Word>
+      <Word>CONCAT_WS</Word>
+      <Word>INSTR</Word>
+      <Word>POSITION</Word>
+      <Word>LPAD</Word>
+      <Word>RPAD</Word>
+      <Word>REPEAT</Word>
+      <Word>SPACE</Word>
+      <Word>FORMAT</Word>
+    </Keywords>
+    
+    <!-- Functions - Math -->
+    <Keywords color="Function">
+      <Word>ABS</Word>
+      <Word>ROUND</Word>
+      <Word>FLOOR</Word>
+      <Word>CEIL</Word>
+      <Word>CEILING</Word>
+      <Word>TRUNC</Word>
+      <Word>SIGN</Word>
+      <Word>MOD</Word>
+      <Word>POWER</Word>
+      <Word>SQRT</Word>
+      <Word>EXP</Word>
+      <Word>LOG</Word>
+      <Word>LOG10</Word>
+      <Word>LOG2</Word>
+      <Word>PI</Word>
+      <Word>RANDOM</Word>
+      <Word>SIN</Word>
+      <Word>COS</Word>
+      <Word>TAN</Word>
+      <Word>ASIN</Word>
+      <Word>ACOS</Word>
+      <Word>ATAN</Word>
+      <Word>ATAN2</Word>
+      <Word>DEGREES</Word>
+      <Word>RADIANS</Word>
+    </Keywords>
+    
+    <!-- Functions - Date/Time -->
+    <Keywords color="Function">
+      <Word>NOW</Word>
+      <Word>YEAR</Word>
+      <Word>MONTH</Word>
+      <Word>DAY</Word>
+      <Word>HOUR</Word>
+      <Word>MINUTE</Word>
+      <Word>SECOND</Word>
+      <Word>DAYOFWEEK</Word>
+      <Word>DAYOFYEAR</Word>
+      <Word>WEEKOFYEAR</Word>
+      <Word>QUARTER</Word>
+      <Word>DATEADD</Word>
+      <Word>DATEDIFF</Word>
+      <Word>STRFTIME</Word>
+      <Word>MAKEDATE</Word>
+      <Word>MAKETIME</Word>
+    </Keywords>
+    
+    <!-- Functions - Null Handling -->
+    <Keywords color="Function">
+      <Word>COALESCE</Word>
+      <Word>NULLIF</Word>
+      <Word>IFNULL</Word>
+      <Word>NVL</Word>
+      <Word>IIF</Word>
+    </Keywords>
+    
+    <!-- Functions - Conversion -->
+    <Keywords color="Function">
+      <Word>TOSTRING</Word>
+      <Word>TOINT</Word>
+      <Word>TODOUBLE</Word>
+      <Word>TODECIMAL</Word>
+      <Word>TOBOOLEAN</Word>
+      <Word>TODATE</Word>
+      <Word>TODATETIME</Word>
+      <Word>TOGUID</Word>
+      <Word>HEX</Word>
+      <Word>UNHEX</Word>
+      <Word>BASE64</Word>
+      <Word>UNBASE64</Word>
+      <Word>TYPEOF</Word>
+    </Keywords>
+    
+    <!-- Functions - Generator -->
+    <Keywords color="Function">
+      <Word>NEWGUID</Word>
+      <Word>NEWUUID</Word>
+      <Word>INCREMENT</Word>
+      <Word>LASTINCREMENT</Word>
+    </Keywords>
+    
+    <!-- Functions - Window -->
+    <Keywords color="Function">
+      <Word>ROW_NUMBER</Word>
+      <Word>RANK</Word>
+      <Word>DENSE_RANK</Word>
+      <Word>NTILE</Word>
+      <Word>LAG</Word>
+      <Word>LEAD</Word>
+      <Word>FIRST_VALUE</Word>
+      <Word>LAST_VALUE</Word>
+      <Word>NTH_VALUE</Word>
+      <Word>PERCENT_RANK</Word>
+      <Word>CUME_DIST</Word>
+    </Keywords>
+    
+    <!-- Functions - JSON -->
+    <Keywords color="Function">
+      <Word>JSON_VALUE</Word>
+      <Word>JSON_QUERY</Word>
+      <Word>JSON_EXTRACT</Word>
+      <Word>JSON_SET</Word>
+      <Word>JSON_INSERT</Word>
+      <Word>JSON_REPLACE</Word>
+      <Word>JSON_REMOVE</Word>
+      <Word>JSON_TYPE</Word>
+      <Word>JSON_VALID</Word>
+      <Word>JSON_ARRAY</Word>
+      <Word>JSON_OBJECT</Word>
+    </Keywords>
+    
+    <!-- Functions - System -->
+    <Keywords color="Function">
+      <Word>LAST_INSERT_ROWID</Word>
+      <Word>DATABASE</Word>
+      <Word>VERSION</Word>
+      <Word>CHANGES</Word>
+      <Word>ROWID</Word>
+    </Keywords>
+    
+    <!-- Collation -->
+    <Keywords color="Keyword">
+      <Word>UNICODE</Word>
+      <Word>UNICODE_CI</Word>
+      <Word>NOCASE</Word>
+    </Keywords>
+    
+  </RuleSet>
+</SyntaxDefinition>

@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    
+    <Version>1.0.0</Version>
+    <Description>High-performance embedded key-value database engine for .NET. Features B+Tree and LSM-Tree storage engines, MVCC transactions, AES-256-GCM encryption, and full ACID compliance.</Description>
+    <PackageTags>OutWit;database;embedded;key-value;btree;lsm-tree;mvcc;transactions;encryption;acid;storage</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
+  </ItemGroup>
+
+</Project>

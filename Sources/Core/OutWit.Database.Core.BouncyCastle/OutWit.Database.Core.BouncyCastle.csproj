@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    
+    <Version>1.0.0</Version>
+    <Description>ChaCha20-Poly1305 encryption provider for WitDatabase using BouncyCastle. Ideal for Blazor WebAssembly where hardware AES acceleration is unavailable.</Description>
+    <PackageTags>OutWit;database;encryption;chacha20;poly1305;bouncycastle;blazor;wasm;security</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OutWit.Database.Core\OutWit.Database.Core.csproj" />
+  </ItemGroup>
+
+</Project>

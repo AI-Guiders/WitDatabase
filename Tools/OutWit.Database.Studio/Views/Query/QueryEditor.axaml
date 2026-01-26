@@ -1,0 +1,327 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:models="using:OutWit.Database.Studio.Models"
+             xmlns:c="using:OutWit.Database.Studio.Controls"
+             xmlns:ui="using:OutWit.Database.Studio.Ui.Icons"
+             xmlns:viewModels="clr-namespace:OutWit.Database.Studio.ViewModels"
+             xmlns:tabs="clr-namespace:OutWit.Database.Studio.ViewModels.Tabs"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="OutWit.Database.Studio.Views.Query.QueryEditor"
+             x:DataType="tabs:QueryTabViewModel"
+             x:Name="Root">
+
+    <Grid RowDefinitions="Auto,*,Auto,*,Auto">
+        
+        <!-- Query Toolbar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+
+                <Button Command="{Binding ExecuteQueryCommand}"
+                        IsEnabled="{Binding CanExecuteQuery}"
+                        ToolTip.Tip="Execute Query (F5)"
+                        Width="100"
+                        Classes="accent">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Execute" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Command="{Binding ExecuteSelectionCommand}"
+                        IsEnabled="{Binding CanExecuteQuery}"
+                        ToolTip.Tip="Execute Selection (Ctrl+Enter)"
+                        Width="130">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{x:Static ui:StudioIcons.QUERY_EXECUTE}" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Execute Selection" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Width="1" Height="24"/>
+
+                <Button Command="{Binding StopQueryCommand}"
+                        IsEnabled="{Binding IsExecuting}"
+                        ToolTip.Tip="Stop Query"
+                        Width="70">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{x:Static ui:StudioIcons.QUERY_STOP}" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Stop" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Width="1" Height="24"/>
+
+                <Button Command="{Binding ClearResultsCommand}"
+                        ToolTip.Tip="Clear Results"
+                        Width="80">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{x:Static ui:StudioIcons.QUERY_CLEAR}" 
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Clear" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+            </StackPanel>
+        </Border>
+        
+        <!-- SQL Editor -->
+        <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundAltHighBrush}" Padding="8">
+            <c:SqlEditor SqlText="{Binding SqlText, Mode=TwoWay}"
+                         SelectedText="{Binding SelectedText, Mode=OneWayToSource}"/>
+        </Border>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Row="2"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+
+        <!-- Results Area -->
+        <TabControl Grid.Row="3"
+                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            
+            <!-- Results Tab -->
+            <TabItem Header="Results">
+                <Grid RowDefinitions="*,Auto">
+                    <!-- Custom Data Grid for Results -->
+                    <c:ResultDataGrid Grid.Row="0"
+                                      ResultView="{Binding CurrentView}"
+                                      ColumnSettings="{Binding ResultColumnSettings}"
+                                      SelectedRows="{Binding SelectedRows, Mode=OneWayToSource}"
+                                      BorderThickness="0"
+                                      Background="Transparent"
+                                      IsVisible="{Binding HasResults}">
+                        
+                        <!-- Context Menu -->
+                        <c:ResultDataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Copy"
+                                          Command="{Binding CopyRowsCommand}"
+                                          InputGesture="Ctrl+C">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copy with Headers"
+                                          Command="{Binding CopyRowsAsCsvCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copy as INSERT"
+                                          Command="{Binding CopyRowsAsInsertCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Copy All Rows"
+                                          Command="{Binding CopyAllRowsCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copy All as INSERT"
+                                          Command="{Binding CopyAllRowsAsInsertCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Export Results..."
+                                          Command="{Binding ExportResultsCommand}">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="{x:Static ui:StudioIcons.EXPORT}" Width="14" Height="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </c:ResultDataGrid.ContextMenu>
+                        
+                        <!-- Keyboard shortcuts -->
+                        <c:ResultDataGrid.KeyBindings>
+                            <KeyBinding Gesture="Ctrl+C" Command="{Binding CopyRowsCommand}"/>
+                        </c:ResultDataGrid.KeyBindings>
+                        
+                    </c:ResultDataGrid>
+
+                    <!-- Results info bar -->
+                    <Border Grid.Row="1"
+                            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                            Padding="8"
+                            IsVisible="{Binding HasResults}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Row count info -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                                <TextBlock VerticalAlignment="Center">
+                                    <Run Text="Total:"/>
+                                    <Run Text="{Binding TotalRowCount}" FontWeight="SemiBold"/>
+                                    <Run Text="rows"/>
+                                </TextBlock>
+                                
+                                <!-- Copy buttons -->
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Button Command="{Binding CopyRowsCommand}"
+                                            IsEnabled="{Binding CanCopyRows}"
+                                            Width="28" Height="28"
+                                            Padding="0"
+                                            ToolTip.Tip="Copy selected rows (Ctrl+C)">
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY}"
+                                                  Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Command="{Binding CopyRowsAsInsertCommand}"
+                                            IsEnabled="{Binding CanCopyRows}"
+                                            Width="28" Height="28"
+                                            Padding="0"
+                                            ToolTip.Tip="Copy as INSERT statements">
+                                        <PathIcon Data="{x:Static ui:StudioIcons.COPY_AS_INSERT}"
+                                                  Width="14" Height="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- No Results Message -->
+                    <StackPanel Grid.Row="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8"
+                                IsVisible="{Binding !HasResults}">
+                        <PathIcon Data="{x:Static ui:StudioIcons.DB_TABLE}"
+                                  Width="48"
+                                  Height="48"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+                        <TextBlock Text="No results to display"
+                                   FontSize="16"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <TextBlock Text="Execute a query to see results here"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Messages Tab -->
+            <TabItem Header="Messages">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16" Spacing="8">
+                        
+                        <!-- Success Message -->
+                        <Border Background="#D4EDDA"
+                                BorderBrush="#C3E6CB"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                IsVisible="{Binding IsSuccess}">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                                              Width="16" Height="16"
+                                              Foreground="#155724"/>
+                                    <TextBlock Text="Query executed successfully"
+                                               FontWeight="SemiBold"
+                                               Foreground="#155724"/>
+                                </StackPanel>
+                                <TextBlock Foreground="#155724">
+                                    <Run Text="Rows affected:"/>
+                                    <Run Text="{Binding RowsAffected}" FontWeight="Bold"/>
+                                </TextBlock>
+                                <TextBlock Foreground="#155724">
+                                    <Run Text="Execution time:"/>
+                                    <Run Text="{Binding ExecutionTimeMs, StringFormat='{}{0:F2} ms'}" FontWeight="Bold"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Error Message -->
+                        <Border Background="#F8D7DA"
+                                BorderBrush="#F5C6CB"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                                              Width="16" Height="16"
+                                              Foreground="#721C24"/>
+                                    <TextBlock Text="Query execution failed"
+                                               FontWeight="SemiBold"
+                                               Foreground="#721C24"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           TextWrapping="Wrap"
+                                           Foreground="#721C24"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- No Messages -->
+                        <TextBlock Text="No messages"
+                                   FontStyle="Italic"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                   IsVisible="{Binding !HasMessages}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+        
+        <!-- Query Status Bar (like SSMS) -->
+        <Panel Grid.Row="4"
+               IsVisible="{Binding HasExecutionResult}">
+            
+            <!-- Success Status -->
+            <Border Background="#D4EDDA" 
+                    CornerRadius="2" 
+                    Padding="8,4"
+                    IsVisible="{Binding IsSuccess}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                                  Width="14" Height="14"
+                                  Foreground="#155724"/>
+                        <TextBlock Text="Query executed successfully"
+                                   Foreground="#155724"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <TextBlock Foreground="#155724" VerticalAlignment="Center">
+                        <Run Text="{Binding RowsAffected}"/>
+                        <Run Text="rows affected"/>
+                    </TextBlock>
+                    
+                    <TextBlock Foreground="#155724" VerticalAlignment="Center">
+                        <Run Text="{Binding ExecutionTimeMs, StringFormat='{}{0:F2}'}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+            
+            <!-- Error Status -->
+            <Border Background="#F8D7DA" 
+                    CornerRadius="2" 
+                    Padding="8,4"
+                    IsVisible="{Binding !IsSuccess}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{x:Static ui:StudioIcons.COMMON_WARNING}"
+                              Width="14" Height="14"
+                              Foreground="#721C24"/>
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="#721C24"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="800"/>
+                </StackPanel>
+            </Border>
+        </Panel>
+    </Grid>
+
+</UserControl>

@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	<AntlrScriptPath>$(MSBuildProjectDirectory)\MakeInternal.ps1</AntlrScriptPath>
+    
+    <Version>1.0.0</Version>
+    <Description>SQL parser for WitDatabase. ANTLR4-based parser for WitSQL dialect with full SQL-92 compatibility and .NET type extensions.</Description>
+    <PackageTags>OutWit;database;sql;parser;antlr;witsql;query;syntax</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
+    <PackageReference Include="Antlr4BuildTasks" Version="12.11.0" />
+    <PackageReference Include="OutWit.Common" Version="1.3.2" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<Antlr4 Include="Grammars\**\*.g4">
+			<Language>CSharp</Language>
+			<Package>OutWit.Database.Parser.Generated</Package>
+		</Antlr4>
+	</ItemGroup>
+
+	<Target Name="MakeAntlrGeneratedCodeInternal" AfterTargets="Antlr4Compile">
+		<PropertyGroup>
+			<PowerShellCmd Condition=" '$(OS)' != 'Windows_NT' ">pwsh</PowerShellCmd>
+			<PowerShellCmd Condition=" '$(OS)' == 'Windows_NT' ">powershell</PowerShellCmd>
+
+			<AntlrGenDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath.TrimEnd('\'))</AntlrGenDir>
+		</PropertyGroup>
+
+		<Message Text="[ANTLR Internalizer] Target Dir: $(AntlrGenDir)" Importance="high" />
+
+		<Exec Command="$(PowerShellCmd) -NoProfile -ExecutionPolicy Bypass -File &quot;$(AntlrScriptPath)&quot; &quot;$(AntlrGenDir)&quot;" />
+	</Target>
+
+</Project>

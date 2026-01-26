@@ -1,0 +1,59 @@
+<Solution>
+  <Folder Name="/@Directory/">
+    <File Path="Sources/Directory.Build.props" />
+    <File Path="Sources/Directory.Build.targets" />
+  </Folder>
+  <Folder Name="/@Docs/">
+    <File Path="CODE_STYLE_GUIDE.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Docs/BENCHMARKS_AND_SAMPLES_PLAN.md" />
+    <File Path="Docs/COMPLETION_PLAN.md" />
+    <File Path="Docs/PROJECT_STATUS.md" />
+    <File Path="Docs/AUDIT-WitDatabase-Core.md" />
+    <File Path="Docs/WITDATABASE_STUDIO_PLAN.md" />
+    <File Path="Docs/WitSQL.md" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Sources/" />
+  <Folder Name="/Sources/Core/">
+    <Project Path="Sources/Core/OutWit.Database.Core/OutWit.Database.Core.csproj" Id="91042611-a01d-4293-9594-25ee9d3a0a67" />
+    <Project Path="Sources/Core/OutWit.Database.Core.Tests/OutWit.Database.Core.Tests.csproj" Id="91a232f7-c5e4-4083-8127-20070e0d8b03" />
+    <Project Path="Sources/Core/OutWit.Database.Core.BouncyCastle/OutWit.Database.Core.BouncyCastle.csproj" Id="e244e45c-4d29-4c06-9bbb-68f33d803880" />
+    <Project Path="Sources/Core/OutWit.Database.Core.IndexedDb/OutWit.Database.Core.IndexedDb.csproj" Id="0B08187A-589F-4B18-9840-F4F3940F9DA8" />
+    <Project Path="Sources/Core/OutWit.Database.Core.IndexedDb.Tests/OutWit.Database.Core.IndexedDb.Tests.csproj" Id="6CB5FC26-DE05-488F-90AC-A6B7AA4955BC" />
+  </Folder>
+  <Folder Name="/Sources/Engine/">
+    <Project Path="Sources/Engine/OutWit.Database.Parser/OutWit.Database.Parser.csproj" Id="5d480879-e75e-4d6a-bd07-09be725177a5" />
+    <Project Path="Sources/Engine/OutWit.Database.Parser.Tests/OutWit.Database.Parser.Tests.csproj" Id="198cc914-dec7-4660-b8f2-e8069cd68a17" />
+    <Project Path="Sources/Engine/OutWit.Database/OutWit.Database.csproj" Id="e9257641-e6c2-4a4b-b263-1b72246a5a72" />
+    <Project Path="Sources/Engine/OutWit.Database.Tests/OutWit.Database.Tests.csproj" Id="300c3af8-a89b-4507-b444-167d9b0d947c" />
+  </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="Samples/OutWit.Database.Samples.BlazorWasm/OutWit.Database.Samples.BlazorWasm.csproj" />
+    <Project Path="Samples/OutWit.Database.Samples.ConsoleApp/OutWit.Database.Samples.ConsoleApp.csproj" />
+    <Project Path="Samples/OutWit.Database.Samples.IdentityServer/OutWit.Database.Samples.IdentityServer.csproj" />
+    <Project Path="Samples/OutWit.Database.Samples.WebApi/OutWit.Database.Samples.WebApi.csproj" />
+    <Project Path="Samples/OutWit.Database.Samples.WebApiEF/OutWit.Database.Samples.WebApiEF.csproj" />
+  </Folder>
+  <Folder Name="/@GitHub/">
+    <File Path=".github/workflows/ci.yml" />
+    <File Path=".github/workflows/pack.yml" />
+    <File Path=".github/workflows/publish.yml" />
+    <File Path=".github/workflows/release.yml" />
+    <File Path=".github/workflows/test-one.yml" />
+  </Folder>
+  <Folder Name="/Benchmarks/">
+    <Project Path="Benchmarks/OutWit.Database.AdoNet.Benchmarks/OutWit.Database.AdoNet.Benchmarks.csproj" />
+    <Project Path="Benchmarks/OutWit.Database.Benchmarks/OutWit.Database.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/Sources/Providers/">
+    <Project Path="Sources/Providers/OutWit.Database.AdoNet.Tests/OutWit.Database.AdoNet.Tests.csproj" Id="e513267f-5a9e-4d22-a243-33140b649bf9" />
+    <Project Path="Sources/Providers/OutWit.Database.AdoNet/OutWit.Database.AdoNet.csproj" Id="f2f4a444-28b5-412a-a7c3-a3fcef303cf3" />
+    <Project Path="Sources/Providers/OutWit.Database.EntityFramework.Tests/OutWit.Database.EntityFramework.Tests.csproj" Id="09badd84-f5a3-4310-b672-3c8a8c1a04d3" />
+    <Project Path="Sources/Providers/OutWit.Database.EntityFramework/OutWit.Database.EntityFramework.csproj" Id="a9ae5e40-63e3-4f7a-9b64-03ad4397ab00" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="Tools/OutWit.Database.Studio.Tests/OutWit.Database.Studio.Tests.csproj" />
+    <Project Path="Tools/OutWit.Database.Studio/OutWit.Database.Studio.csproj" />
+  </Folder>
+</Solution>
