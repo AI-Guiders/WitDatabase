@@ -73,11 +73,25 @@ public sealed partial class QueryPlanner
         {
             case IndexAccessType.Seek:
                 // Equality lookup
-                var seekValue = evaluator.Evaluate(strategy.SeekValue!, dummyRow);
-                return m_context.Database.CreateIndexSeek(
-                    tableName, 
-                    strategy.IndexName, 
-                    [seekValue]);
+                if (strategy.SeekValues is { Count: > 0 })
+                {
+                    // Composite index: pass all column values for correct key construction
+                    var seekValues = strategy.SeekValues
+                        .Select(v => evaluator.Evaluate(v, dummyRow))
+                        .ToArray();
+                    return m_context.Database.CreateIndexSeek(
+                        tableName,
+                        strategy.IndexName,
+                        seekValues);
+                }
+                else
+                {
+                    var seekValue = evaluator.Evaluate(strategy.SeekValue!, dummyRow);
+                    return m_context.Database.CreateIndexSeek(
+                        tableName,
+                        strategy.IndexName,
+                        [seekValue]);
+                }
 
             case IndexAccessType.RangeScan:
                 // Range scan - explicitly handle nullable WitSqlValue

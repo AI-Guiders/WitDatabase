@@ -29,9 +29,15 @@ public sealed class IndexStrategy
     public IndexAccessType AccessType { get; set; }
 
     /// <summary>
-    /// For seeks, the value to seek.
+    /// For seeks, the value to seek (single-column index).
     /// </summary>
     public WitSqlExpression? SeekValue { get; set; }
+
+    /// <summary>
+    /// For composite index seeks, the values to seek (one per index column, in column order).
+    /// When set, takes precedence over <see cref="SeekValue"/>.
+    /// </summary>
+    public List<WitSqlExpression>? SeekValues { get; set; }
 
     /// <summary>
     /// For range scans, the start of the range.

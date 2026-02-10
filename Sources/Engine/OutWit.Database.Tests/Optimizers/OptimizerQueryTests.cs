@@ -362,6 +362,152 @@ public sealed class OptimizerQueryTests
 
     #endregion
 
+    #region Index Selection - Composite Index Tests
+
+    [Test]
+    public void FindBestIndexWithCompositeIndexPartialMatchReturnsNullTest()
+    {
+        // Arrange - equality on first column only of composite index (Group, Key)
+        var whereClause = CreateEqualityExpression("Group", "GroupA");
+        var indexes = new List<DefinitionIndex>
+        {
+            CreateIndex("idx_group_key", "Settings", ["Group", "Key"], isUnique: true)
+        };
+
+        // Act
+        var strategy = m_optimizer.FindBestIndex("Settings", whereClause, indexes, 1000);
+
+        // Assert - should NOT use composite index for partial key match
+        Assert.That(strategy, Is.Null,
+            "Partial composite key match should return null (table scan fallback)");
+    }
+
+    [Test]
+    public void FindBestIndexWithCompositeIndexFullMatchReturnsSeekTest()
+    {
+        // Arrange - equality on BOTH columns of composite index (Group, Key)
+        var whereClause = new WitSqlExpressionBinary
+        {
+            Left = CreateEqualityExpression("Group", "GroupA"),
+            Operator = BinaryOperatorType.And,
+            Right = CreateEqualityExpression("Key", "Key1")
+        };
+        var indexes = new List<DefinitionIndex>
+        {
+            CreateIndex("idx_group_key", "Settings", ["Group", "Key"], isUnique: true)
+        };
+
+        // Act
+        var strategy = m_optimizer.FindBestIndex("Settings", whereClause, indexes, 1000);
+
+        // Assert - should use Seek with all column values
+        Assert.That(strategy, Is.Not.Null);
+        Assert.That(strategy!.AccessType, Is.EqualTo(IndexAccessType.Seek));
+        Assert.That(strategy.SeekValues, Is.Not.Null);
+        Assert.That(strategy.SeekValues!.Count, Is.EqualTo(2),
+            "SeekValues should contain one value per composite index column");
+        Assert.That(strategy.EstimatedRowsReturned, Is.EqualTo(1),
+            "Unique composite index full match should estimate 1 row");
+    }
+
+    [Test]
+    public void FindBestIndexWithCompositeIndexNonUniqueFullMatchReturnsSeekTest()
+    {
+        // Arrange - full match on non-unique composite index
+        var whereClause = new WitSqlExpressionBinary
+        {
+            Left = CreateEqualityExpression("Group", "GroupA"),
+            Operator = BinaryOperatorType.And,
+            Right = CreateEqualityExpression("Key", "Key1")
+        };
+        var indexes = new List<DefinitionIndex>
+        {
+            CreateIndex("idx_group_key", "Settings", ["Group", "Key"], isUnique: false)
+        };
+
+        // Act
+        var strategy = m_optimizer.FindBestIndex("Settings", whereClause, indexes, 1000);
+
+        // Assert
+        Assert.That(strategy, Is.Not.Null);
+        Assert.That(strategy!.AccessType, Is.EqualTo(IndexAccessType.Seek));
+        Assert.That(strategy.SeekValues, Is.Not.Null);
+        Assert.That(strategy.SeekValues!.Count, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void FindBestIndexWithCompositeIndexRangeOnFirstColumnReturnsRangeScanTest()
+    {
+        // Arrange - range on first column of composite index
+        var whereClause = CreateComparisonExpression("Group", BinaryOperatorType.GreaterThan, "A");
+        var indexes = new List<DefinitionIndex>
+        {
+            CreateIndex("idx_group_key", "Settings", ["Group", "Key"])
+        };
+
+        // Act
+        var strategy = m_optimizer.FindBestIndex("Settings", whereClause, indexes, 1000);
+
+        // Assert - range scan is allowed on first column (WHERE filter handles precision)
+        Assert.That(strategy, Is.Not.Null);
+        Assert.That(strategy!.AccessType, Is.EqualTo(IndexAccessType.RangeScan));
+    }
+
+    [Test]
+    public void FindBestIndexWithThreeColumnCompositePartialMatchReturnsNullTest()
+    {
+        // Arrange - 3-column composite, equality on first 2 only
+        var whereClause = new WitSqlExpressionBinary
+        {
+            Left = CreateEqualityExpression("A", "val1"),
+            Operator = BinaryOperatorType.And,
+            Right = CreateEqualityExpression("B", "val2")
+        };
+        var indexes = new List<DefinitionIndex>
+        {
+            CreateIndex("idx_abc", "T", ["A", "B", "C"], isUnique: true)
+        };
+
+        // Act
+        var strategy = m_optimizer.FindBestIndex("T", whereClause, indexes, 1000);
+
+        // Assert - partial: only 2 of 3 columns matched
+        Assert.That(strategy, Is.Null);
+    }
+
+    [Test]
+    public void FindBestIndexWithThreeColumnCompositeFullMatchReturnsSeekTest()
+    {
+        // Arrange - 3-column composite, equality on all 3
+        var inner = new WitSqlExpressionBinary
+        {
+            Left = CreateEqualityExpression("A", "val1"),
+            Operator = BinaryOperatorType.And,
+            Right = CreateEqualityExpression("B", "val2")
+        };
+        var whereClause = new WitSqlExpressionBinary
+        {
+            Left = inner,
+            Operator = BinaryOperatorType.And,
+            Right = CreateEqualityExpression("C", "val3")
+        };
+        var indexes = new List<DefinitionIndex>
+        {
+            CreateIndex("idx_abc", "T", ["A", "B", "C"], isUnique: true)
+        };
+
+        // Act
+        var strategy = m_optimizer.FindBestIndex("T", whereClause, indexes, 1000);
+
+        // Assert
+        Assert.That(strategy, Is.Not.Null);
+        Assert.That(strategy!.AccessType, Is.EqualTo(IndexAccessType.Seek));
+        Assert.That(strategy.SeekValues, Is.Not.Null);
+        Assert.That(strategy.SeekValues!.Count, Is.EqualTo(3));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static WitSqlExpression CreateEqualityExpression(string columnName, object value)

@@ -134,13 +134,44 @@ public sealed class OptimizerQuery
             MatchedPredicate = matchingPredicate
         };
 
+        // For composite indexes, check how many leading columns are covered by equality predicates.
+        // Index seek requires ALL columns to be matched for correct results.
+        bool isComposite = index.Columns.Count > 1;
+        bool isPartialCompositeMatch = false;
+        if (isComposite)
+        {
+            int matchedColumns = CountMatchedLeadingColumns(index, predicates);
+            if (matchedColumns < index.Columns.Count)
+            {
+                isPartialCompositeMatch = true;
+            }
+        }
+
         // Determine access type based on predicate operator
         switch (matchingPredicate.Operator)
         {
             case BinaryOperatorType.Equal:
+                if (isPartialCompositeMatch)
+                {
+                    // Partial composite key match: cannot use Seek (exact key lookup)
+                    // because the stored key includes all index columns.
+                    // Skip this index and let the table scan + filter handle it.
+                    return null;
+                }
+
                 strategy.AccessType = IndexAccessType.Seek;
-                strategy.SeekValue = matchingPredicate.CompareValue;
-                
+
+                if (isComposite)
+                {
+                    // Full composite match: collect equality values for all columns.
+                    // The seek key must include all columns for correct lookup.
+                    strategy.SeekValues = CollectCompositeSeekValues(index, predicates);
+                }
+                else
+                {
+                    strategy.SeekValue = matchingPredicate.CompareValue;
+                }
+
                 // For unique index, at most 1 row
                 if (index.IsUnique)
                 {
@@ -262,6 +293,79 @@ public sealed class OptimizerQuery
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Counts how many leading columns of a composite index have equality predicates.
+    /// For a correct index seek, all columns must be covered.
+    /// </summary>
+    private int CountMatchedLeadingColumns(DefinitionIndex index, IReadOnlyList<PredicateInfo> predicates)
+    {
+        int matched = 0;
+        for (int i = 0; i < index.Columns.Count; i++)
+        {
+            var columnName = index.Columns[i];
+            var expressionText = index.GetColumnExpression(i);
+            bool found = false;
+
+            foreach (var pred in predicates)
+            {
+                if (pred.Operator != BinaryOperatorType.Equal)
+                    continue;
+
+                if (pred.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    break;
+                }
+
+                if (expressionText != null && pred.ExpressionText != null &&
+                    pred.ExpressionText.Equals(expressionText, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+                break;
+
+            matched++;
+        }
+
+        return matched;
+    }
+
+    /// <summary>
+    /// Collects equality predicate values for all columns of a composite index, in column order.
+    /// Called only when <see cref="CountMatchedLeadingColumns"/> confirmed all columns are covered.
+    /// </summary>
+    private static List<WitSqlExpression> CollectCompositeSeekValues(
+        DefinitionIndex index, IReadOnlyList<PredicateInfo> predicates)
+    {
+        var values = new List<WitSqlExpression>(index.Columns.Count);
+
+        for (int i = 0; i < index.Columns.Count; i++)
+        {
+            var columnName = index.Columns[i];
+            var expressionText = index.GetColumnExpression(i);
+
+            foreach (var pred in predicates)
+            {
+                if (pred.Operator != BinaryOperatorType.Equal)
+                    continue;
+
+                if (pred.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase) ||
+                    (expressionText != null && pred.ExpressionText != null &&
+                     pred.ExpressionText.Equals(expressionText, StringComparison.OrdinalIgnoreCase)))
+                {
+                    values.Add(pred.CompareValue);
+                    break;
+                }
+            }
+        }
+
+        return values;
     }
 
     /// <summary>

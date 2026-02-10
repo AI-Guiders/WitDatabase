@@ -253,6 +253,67 @@ public class WitMigrationsModelDifferTests
         return new DifferTestContext(optionsBuilder.Options);
     }
 
+    private static DifferTestContextWithIndex CreateFileContextWithIndex(string path)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<DifferTestContextWithIndex>();
+        optionsBuilder.UseWitDb($"Data Source={path}");
+        return new DifferTestContextWithIndex(optionsBuilder.Options);
+    }
+
+    #endregion
+
+    #region EnsureCreated with Index Tests
+
+    [Test]
+    public void EnsureCreatedCreatesIndexesTest()
+    {
+        using var context = CreateFileContextWithIndex(m_testDbPath);
+
+        context.Database.EnsureCreated();
+
+        // Insert data that exercises the index
+        context.Orders.Add(new DifferOrder { CustomerName = "Alice", Product = "Widget", Quantity = 3 });
+        context.Orders.Add(new DifferOrder { CustomerName = "Bob", Product = "Gadget", Quantity = 1 });
+        var saved = context.SaveChanges();
+
+        Assert.That(saved, Is.EqualTo(2));
+
+        // Query using the indexed column
+        var aliceOrders = context.Orders.Where(o => o.CustomerName == "Alice").ToList();
+        Assert.That(aliceOrders, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void EnsureCreatedCreatesCompositeIndexTest()
+    {
+        using var context = CreateFileContextWithIndex(m_testDbPath);
+
+        context.Database.EnsureCreated();
+
+        // Insert data and query by both indexed columns
+        context.Orders.Add(new DifferOrder { CustomerName = "Alice", Product = "Widget", Quantity = 2 });
+        context.Orders.Add(new DifferOrder { CustomerName = "Alice", Product = "Gadget", Quantity = 5 });
+        context.SaveChanges();
+
+        var result = context.Orders
+            .Where(o => o.CustomerName == "Alice" && o.Product == "Widget")
+            .ToList();
+
+        Assert.That(result, Has.Count.EqualTo(1));
+        Assert.That(result[0].Quantity, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void GenerateCreateScriptContainsIndexTest()
+    {
+        using var context = CreateFileContextWithIndex(m_testDbPath);
+
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.That(script, Does.Contain("CREATE INDEX"),
+            "Script should contain CREATE INDEX for the configured index");
+    }
+
     #endregion
 
     #region Test Models
@@ -268,6 +329,14 @@ public class WitMigrationsModelDifferTests
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+
+    public class DifferOrder
+    {
+        public int Id { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public string Product { get; set; } = string.Empty;
+        public int Quantity { get; set; }
     }
 
     public class DifferTestContext : DbContext
@@ -295,6 +364,33 @@ public class WitMigrationsModelDifferTests
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            });
+        }
+    }
+
+    /// <summary>
+    /// Context with indexes configured to test EnsureCreated generates CREATE INDEX.
+    /// </summary>
+    public class DifferTestContextWithIndex : DbContext
+    {
+        public DifferTestContextWithIndex(DbContextOptions<DifferTestContextWithIndex> options)
+            : base(options)
+        {
+        }
+
+        public DbSet<DifferOrder> Orders => Set<DifferOrder>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<DifferOrder>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CustomerName).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Product).IsRequired().HasMaxLength(200);
+                entity.HasIndex(e => e.CustomerName).HasDatabaseName("IX_Orders_CustomerName");
+                entity.HasIndex(e => new { e.CustomerName, e.Product }).HasDatabaseName("IX_Orders_Customer_Product");
             });
         }
     }
