@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OutWit.Database.Core\OutWit.Database.Core.csproj" />
     <ProjectReference Include="..\OutWit.Database.Core.BouncyCastle\OutWit.Database.Core.BouncyCastle.csproj" />
+    <ProjectReference Include="..\..\Engine\OutWit.Database\OutWit.Database.csproj" />
   </ItemGroup>
 
   <ItemGroup>

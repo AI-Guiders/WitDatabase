@@ -13,4 +13,5 @@ internal enum WitDbStatusCode : uint
     TxnActive = 8,
     StoreError = 9,
     InvalidHandle = 10,
+    SqlError = 11,
 }

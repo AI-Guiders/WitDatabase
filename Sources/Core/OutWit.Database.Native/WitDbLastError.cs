@@ -7,35 +7,46 @@ internal static class WitDbLastError
 {
     private const int MaxBytes = 4096;
 
-    [ThreadStatic]
-    private static string? t_message;
+    private static readonly Lock s_gate = new();
+    private static string? s_message;
+    private static byte[]? s_buffer;
+    private static GCHandle s_pin;
 
-    [ThreadStatic]
-    private static byte[]? t_buffer;
+    public static void Set(string? message)
+    {
+        lock (s_gate)
+        {
+            s_message = message;
+        }
+    }
 
-    [ThreadStatic]
-    private static GCHandle t_pin;
-
-    public static void Set(string? message) => t_message = message;
-
-    public static string? GetMessage() => t_message;
+    public static string? GetMessage()
+    {
+        lock (s_gate)
+        {
+            return s_message;
+        }
+    }
 
     public static IntPtr GetUtf8Pointer()
     {
-        var msg = t_message ?? string.Empty;
-        t_buffer ??= new byte[MaxBytes];
-        if (!t_pin.IsAllocated)
+        lock (s_gate)
         {
-            t_pin = GCHandle.Alloc(t_buffer, GCHandleType.Pinned);
-        }
+            var msg = s_message ?? string.Empty;
+            s_buffer ??= new byte[MaxBytes];
+            if (!s_pin.IsAllocated)
+            {
+                s_pin = GCHandle.Alloc(s_buffer, GCHandleType.Pinned);
+            }
 
-        var len = Encoding.UTF8.GetBytes(msg, 0, msg.Length, t_buffer, 0);
-        if (len >= MaxBytes)
-        {
-            len = MaxBytes - 1;
-        }
+            var len = Encoding.UTF8.GetBytes(msg, 0, msg.Length, s_buffer, 0);
+            if (len >= MaxBytes)
+            {
+                len = MaxBytes - 1;
+            }
 
-        t_buffer[len] = 0;
-        return t_pin.AddrOfPinnedObject();
+            s_buffer[len] = 0;
+            return s_pin.AddrOfPinnedObject();
+        }
     }
 }

@@ -207,4 +207,102 @@ public static class WitDbExports
             NativeMemory.Free(ptr);
         }
     }
+
+    [UnmanagedCallersOnly(EntryPoint = "witdb_sql_exec", CallConvs = [typeof(CallConvCdecl)])]
+    public static unsafe uint SqlExec(
+        UIntPtr db,
+        IntPtr sql,
+        IntPtr paramsJson,
+        long* outLastRowid,
+        int* outRowsAffected)
+    {
+        if (sql == IntPtr.Zero || outLastRowid == null || outRowsAffected == null)
+        {
+            return (uint)WitDbInterop.Fail(WitDbStatusCode.InvalidArgument, "invalid sql_exec arguments");
+        }
+
+        try
+        {
+            return (uint)WitDbClrThread.Run(() =>
+            {
+                WitDbNativeBootstrap.EnsureInitialized();
+                return WitDbExportsCore.SqlExec(
+                    db,
+                    (byte*)sql,
+                    paramsJson == IntPtr.Zero ? null : (byte*)paramsJson,
+                    outLastRowid,
+                    outRowsAffected);
+            });
+        }
+        catch (Exception ex)
+        {
+            return (uint)WitDbInterop.MapException(ex);
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "witdb_sql_query", CallConvs = [typeof(CallConvCdecl)])]
+    public static unsafe uint SqlQuery(
+        UIntPtr db,
+        IntPtr sql,
+        IntPtr paramsJson,
+        byte** outResultJson,
+        uint* outResultLen)
+    {
+        if (sql == IntPtr.Zero || outResultJson == null || outResultLen == null)
+        {
+            return (uint)WitDbInterop.Fail(WitDbStatusCode.InvalidArgument, "invalid sql_query arguments");
+        }
+
+        try
+        {
+            return (uint)WitDbClrThread.Run(() =>
+            {
+                WitDbNativeBootstrap.EnsureInitialized();
+                return WitDbExportsCore.SqlQuery(
+                    db,
+                    (byte*)sql,
+                    paramsJson == IntPtr.Zero ? null : (byte*)paramsJson,
+                    outResultJson,
+                    outResultLen);
+            });
+        }
+        catch (Exception ex)
+        {
+            return (uint)WitDbInterop.MapException(ex);
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "witdb_sql_commit", CallConvs = [typeof(CallConvCdecl)])]
+    public static uint SqlCommit(UIntPtr db)
+    {
+        try
+        {
+            return (uint)WitDbClrThread.Run(() =>
+            {
+                WitDbNativeBootstrap.EnsureInitialized();
+                return WitDbSqlInterop.SqlCommit(db);
+            });
+        }
+        catch (Exception ex)
+        {
+            return (uint)WitDbInterop.MapException(ex);
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "witdb_sql_rollback", CallConvs = [typeof(CallConvCdecl)])]
+    public static uint SqlRollback(UIntPtr db)
+    {
+        try
+        {
+            return (uint)WitDbClrThread.Run(() =>
+            {
+                WitDbNativeBootstrap.EnsureInitialized();
+                return WitDbSqlInterop.SqlRollback(db);
+            });
+        }
+        catch (Exception ex)
+        {
+            return (uint)WitDbInterop.MapException(ex);
+        }
+    }
 }

@@ -22,7 +22,8 @@ typedef enum WitDbStatus {
     WITDB_TXN_NOT_SUPPORTED = 7,
     WITDB_TXN_ACTIVE = 8,
     WITDB_STORE_ERROR = 9,
-    WITDB_INVALID_HANDLE = 10
+    WITDB_INVALID_HANDLE = 10,
+    WITDB_SQL_ERROR = 11
 } WitDbStatus;
 
 #if defined(__cplusplus)
@@ -85,6 +86,23 @@ WitDbStatus WITDB_API witdb_txn_delete(
     uint8_t* out_deleted);
 
 void WITDB_API witdb_buffer_free(uint8_t* ptr);
+
+WitDbStatus WITDB_API witdb_sql_exec(
+    uintptr_t db,
+    const char* sql,
+    const char* params_json,
+    int64_t* out_last_rowid,
+    int32_t* out_rows_affected);
+
+WitDbStatus WITDB_API witdb_sql_query(
+    uintptr_t db,
+    const char* sql,
+    const char* params_json,
+    char** out_result_json,
+    uint32_t* out_result_len);
+
+WitDbStatus WITDB_API witdb_sql_commit(uintptr_t db);
+WitDbStatus WITDB_API witdb_sql_rollback(uintptr_t db);
 
 #if defined(__cplusplus)
 }

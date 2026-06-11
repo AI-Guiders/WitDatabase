@@ -1,5 +1,6 @@
 using OutWit.Database.Core.Builder;
 using OutWit.Database.Core.Interfaces;
+using OutWit.Database.Engine;
 
 namespace OutWit.Database.Native;
 
@@ -7,10 +8,12 @@ internal sealed class DbEntry : IDisposable
 {
     public required WitDatabase Database { get; init; }
     public ITransaction? ActiveTransaction { get; set; }
+    public WitSqlEngine? SqlEngine { get; set; }
 
     public void Dispose()
     {
         ActiveTransaction?.Dispose();
+        SqlEngine?.Dispose();
         Database.Dispose();
     }
 }
