@@ -238,6 +238,13 @@ internal sealed partial class WitSqlVisitor
                 ParameterType = ParameterType.Colon,
                 Name = colon.GetText()[1..] // Remove : prefix
             },
+            WitSqlParser.DollarNamedParameterContext dollarNamed => new WitSqlExpressionParameter
+            {
+                Line = line,
+                Column = col,
+                ParameterType = ParameterType.DollarNamed,
+                Name = dollarNamed.GetText()[1..] // Remove $ prefix
+            },
             WitSqlParser.PositionalParameterContext => new WitSqlExpressionParameter
             {
                 Line = line,

@@ -509,6 +509,7 @@ collationName
 parameter
     : PARAM_NAMED                                   # namedParameter
     | PARAM_COLON                                   # colonParameter
+    | PARAM_DOLLAR_NAMED                            # dollarNamedParameter
     | PARAM_POSITIONAL                              # positionalParameter
     | PARAM_NUMBERED                                # numberedParameter
     ;
