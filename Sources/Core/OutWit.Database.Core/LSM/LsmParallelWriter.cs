@@ -322,6 +322,20 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
         {
             // Channel closed during shutdown
         }
+        finally
+        {
+            DrainPendingBuffers(reader);
+        }
+    }
+
+    private void DrainPendingBuffers(ChannelReader<(LsmWriteBuffer Buffer, TaskCompletionSource<bool>? Completion)> reader)
+    {
+        var buffersToMerge = new List<(LsmWriteBuffer Buffer, TaskCompletionSource<bool>? Completion)>();
+        while (reader.TryRead(out var item))
+            buffersToMerge.Add(item);
+
+        if (buffersToMerge.Count > 0)
+            MergeBuffersBatch(buffersToMerge);
     }
 
     /// <summary>
@@ -482,7 +496,6 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
         m_bufferChannel.Writer.Complete();
         m_cts.Cancel();
 
-        // Wait for merge task
         m_mergeTask.Wait(TimeSpan.FromSeconds(5));
 
         // Dispose thread-local buffers
@@ -508,7 +521,6 @@ public sealed class LsmParallelWriter : IDisposable, IAsyncDisposable
         m_bufferChannel.Writer.Complete();
         await m_cts.CancelAsync();
 
-        // Wait for merge task
         await m_mergeTask.WaitAsync(TimeSpan.FromSeconds(5));
 
         // Dispose thread-local buffers
