@@ -80,3 +80,5 @@ Migrations/
 
 # BenchmarkDotNet artifacts
 BenchmarkDotNet.Artifacts/
+
+Sources/Core/OutWit.Database.Native.Smoke/witdb.dll
