@@ -117,6 +117,7 @@ public sealed partial class ExpressionEvaluator
         {
             ParameterType.Named => $"@{param.Name}",
             ParameterType.Colon => $":{param.Name}",
+            ParameterType.DollarNamed => $"${param.Name}",
             ParameterType.Positional => "?",
             ParameterType.Numbered => $"${param.Position}",
             _ => throw new NotSupportedException($"Parameter type not supported: {param.ParameterType}")
