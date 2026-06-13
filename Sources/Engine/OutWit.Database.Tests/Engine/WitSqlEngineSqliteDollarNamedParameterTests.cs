@@ -36,4 +36,76 @@ public sealed class WitSqlEngineSqliteDollarNamedParameterTests : WitSqlEngineTe
 
         Assert.That(label, Is.EqualTo("first"));
     }
+
+    [Test]
+    public void DollarNamedResolvesBareCallerKeyTest()
+    {
+        m_engine.Execute("CREATE TABLE t (id INTEGER PRIMARY KEY, label TEXT)");
+        m_engine.Execute("INSERT INTO t (id, label) VALUES (1, 'one')");
+
+        // SQL uses $id, caller registers the value under the bare name "id".
+        var label = m_engine.ExecuteScalar(
+            "SELECT label FROM t WHERE id = $id",
+            new Dictionary<string, object?> { ["id"] = 1L }).AsString();
+
+        Assert.That(label, Is.EqualTo("one"));
+    }
+
+    [Test]
+    public void DollarNamedResolvesAtPrefixedCallerKeyTest()
+    {
+        m_engine.Execute("CREATE TABLE t (id INTEGER PRIMARY KEY, label TEXT)");
+        m_engine.Execute("INSERT INTO t (id, label) VALUES (1, 'one')");
+
+        // SQL uses $id, caller registers the value under "@id".
+        var label = m_engine.ExecuteScalar(
+            "SELECT label FROM t WHERE id = $id",
+            new Dictionary<string, object?> { ["@id"] = 1L }).AsString();
+
+        Assert.That(label, Is.EqualTo("one"));
+    }
+
+    [Test]
+    public void ColonNamedResolvesBareCallerKeyTest()
+    {
+        m_engine.Execute("CREATE TABLE t (id INTEGER PRIMARY KEY, label TEXT)");
+        m_engine.Execute("INSERT INTO t (id, label) VALUES (1, 'one')");
+
+        // SQL uses :id, caller registers the value under the bare name "id".
+        var label = m_engine.ExecuteScalar(
+            "SELECT label FROM t WHERE id = :id",
+            new Dictionary<string, object?> { ["id"] = 1L }).AsString();
+
+        Assert.That(label, Is.EqualTo("one"));
+    }
+
+    [Test]
+    public void ExactDollarKeyWinsOverNormalizedFallbackTest()
+    {
+        m_engine.Execute("CREATE TABLE t (id INTEGER PRIMARY KEY, label TEXT)");
+        m_engine.Execute("INSERT INTO t (id, label) VALUES (1, 'one')");
+        m_engine.Execute("INSERT INTO t (id, label) VALUES (2, 'two')");
+
+        // Both an exact "$id" and a bare "id" (normalized to "@id") are supplied.
+        // The exact placeholder key must win - the fallback must never override it.
+        var label = m_engine.ExecuteScalar(
+            "SELECT label FROM t WHERE id = $id",
+            new Dictionary<string, object?> { ["$id"] = 1L, ["id"] = 2L }).AsString();
+
+        Assert.That(label, Is.EqualTo("one"));
+    }
+
+    [Test]
+    public void MixedPrefixPlaceholdersResolveBareCallerKeysTest()
+    {
+        m_engine.Execute("CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER, label TEXT)");
+        m_engine.Execute("INSERT INTO t (a, b, c, label) VALUES (1, 2, 3, 'row')");
+
+        // One statement mixing @-, $- and :-prefixed placeholders, all supplied as bare names.
+        var label = m_engine.ExecuteScalar(
+            "SELECT label FROM t WHERE a = @x AND b = $y AND c = :z",
+            new Dictionary<string, object?> { ["x"] = 1L, ["y"] = 2L, ["z"] = 3L }).AsString();
+
+        Assert.That(label, Is.EqualTo("row"));
+    }
 }
