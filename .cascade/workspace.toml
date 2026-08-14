@@ -1,0 +1,9 @@
+[workspace.adr]
+auto_include = "linked"
+max_related = 8
+root_dir = "Docs"
+id_regex = '(?:^|/)Docs/(?<id>[A-Za-z0-9][^/]*?)(?:\.md)?'
+
+[workspace.adr.map]
+"*" = ["README.md", "Docs/WitSQL.md"]
+
